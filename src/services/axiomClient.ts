@@ -37,7 +37,16 @@ function getSigningSecret(): string {
   return '';
 }
 
-function mintAxiomToken(): string {
+/**
+ * Mint the internal orchestrator token OpenHub uses to call Axiom.
+ *
+ * OpenHub is a trusted internal caller (it holds the same signing secret), so it
+ * carries the owner roles Axiom's RBAC write-gates require. Without them every
+ * consequential Axiom call — mission approve/reject, project run/stop, pipeline
+ * loop start — is refused with `403 {"error":"forbidden"}` the moment RBAC is on
+ * (which it is by default). Exported for the regression test.
+ */
+export function mintAxiomToken(): string {
   const secret = getSigningSecret();
   if (!secret) return '';
 
@@ -50,6 +59,8 @@ function mintAxiomToken(): string {
       aud: 'axiom-api',
       iat: nowS,
       exp: nowS + 12 * 3600,
+      roles: ['owner', 'admin'],
+      permissions: ['read', 'write'],
     })
   ).toString('base64url');
 

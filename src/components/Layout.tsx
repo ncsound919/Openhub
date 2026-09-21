@@ -9,6 +9,8 @@ import { NAV_GROUPS, BREADCRUMBS } from '../lib/nav';
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { TerminalPanel } from './TerminalPanel';
 import { CommandPalette } from './CommandPalette';
+import { GlobalRunIndicator } from './GlobalRunIndicator';
+import { PipelineProvider } from '../ide/PipelineProvider';
 import { cn } from '../lib/utils';
 
 export function Layout() {
@@ -79,6 +81,7 @@ export function Layout() {
     : null;
 
   return (
+    <PipelineProvider>
     <div className="min-h-screen flex font-sans relative bg-[var(--color-bg-base)]">
       {/* Sidebar — desktop */}
       <aside className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-base)]/80 backdrop-blur sticky top-0 h-screen z-40">
@@ -204,6 +207,7 @@ export function Layout() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <GlobalRunIndicator />
             {activeProject && (
               <Link
                 to="/workspace"
@@ -271,5 +275,6 @@ export function Layout() {
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
+    </PipelineProvider>
   );
 }

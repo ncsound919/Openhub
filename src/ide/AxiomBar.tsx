@@ -38,7 +38,7 @@ export function AxiomBar({
 }) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const { job, starting, running } = pipeline;
+  const { job, starting, running, error } = pipeline;
 
   const ask = useCallback(
     (prompt: string) => {
@@ -218,6 +218,8 @@ export function AxiomBar({
               </Link>
             )}
           </>
+        ) : error ? (
+          <StatusLight state="error" label={error} className="max-w-[44rem]" title={error} />
         ) : (
           hasProject && (
             <div className="flex flex-wrap items-center gap-1.5">

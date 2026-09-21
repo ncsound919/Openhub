@@ -5,6 +5,7 @@ import { triggerRepairTriage } from './repairClient.js';
 import { runTypecheck, type TypecheckResult } from './typecheck.js';
 import { startAxiomProjectLoop, getAxiomProjectStatus, stopAxiomProjectLoop } from './axiomClient.js';
 import { buildRepairBrief, renderRepairBrief } from './repairBrief.js';
+import { reportIncident } from './incidentBus.js';
 
 /**
  * Project pipeline: one background job that chains the steps a person otherwise
@@ -162,16 +163,21 @@ function persist(job: PipelineJob): void {
 }
 
 /** Mark jobs left 'running' by a restart as failed, so the UI never shows a
- *  phantom in-flight run. Live runners are left alone. */
+ *  phantom in-flight run. Only jobs whose row has gone stale are reaped: a job
+ *  actively running in another process (or another test worker) keeps its
+ *  updated_at fresh and is left alone. */
+const STALE_MS = 120_000;
 function reapStale(): void {
   ensureTable();
-  const rows = getDb().prepare("SELECT id FROM pipeline_jobs WHERE status = 'running'").all() as Array<{ id: string }>;
-  for (const { id } of rows) {
+  const rows = getDb().prepare("SELECT id, updated_at FROM pipeline_jobs WHERE status = 'running'").all() as Array<{ id: string; updated_at: string }>;
+  for (const { id, updated_at } of rows) {
     if (activeRunners.has(id)) continue;
+    const age = Date.now() - Date.parse(updated_at);
+    if (!Number.isFinite(age) || age < STALE_MS) continue;
     const job = readJob(id);
     if (!job) continue;
     job.status = 'failed';
-    job.error = 'interrupted by server restart';
+    job.error = 'interrupted (no progress for 2m)';
     for (const s of job.stages) {
       if (s.status === 'running') { s.status = 'failed'; s.ok = false; s.detail = 'interrupted'; }
     }
@@ -329,6 +335,29 @@ async function runPipeline(id: string, d: PipelineDeps): Promise<void> {
   if (failed && !job.error) job.error = `${failed.label}: ${failed.detail}`;
   job.updatedAt = d.now();
   persist(job);
+  // Autonomy: a failed stage does not wait for a human. Log it as an incident
+  // and hand it to the repair team immediately.
+  if (failed) await escalateFailure(job, failed, d);
+}
+
+/**
+ * Anything that errors gets the repair team, and is logged as an incident.
+ * Best-effort dispatch (Draymond may be down) — the incident row is the durable
+ * record either way, and the repair stage already ran its own dispatch.
+ */
+async function escalateFailure(job: PipelineJob, stage: PipelineStage, d: PipelineDeps): Promise<void> {
+  const detail = `Pipeline "${job.mode}" stage ${stage.label} failed for ${job.projectName} (${job.projectPath}): ${stage.detail || 'no detail'}`;
+  void reportIncident({
+    source: 'pipeline',
+    kind: `stage-${stage.id}-failed`,
+    severity: 'high',
+    detail,
+    dedupKey: `pipeline:${job.id}:${stage.id}`,
+  }).catch(() => {});
+  if (stage.id === 'repair') return;
+  try {
+    await d.repair({ signal: `openhub:pipeline-${stage.id}-failed`, detail, kind: 'job' });
+  } catch { /* dispatch is best-effort; the incident is the durable record */ }
 }
 
 async function runTypecheckStage(job: PipelineJob, stage: PipelineStage, d: PipelineDeps): Promise<void> {

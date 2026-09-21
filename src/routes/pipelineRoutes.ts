@@ -6,6 +6,7 @@ import {
   listPipelines,
   cancelPipeline,
   overallProgress,
+  type PipelineDeps,
   type PipelineMode,
   type PipelineStageId,
 } from '../services/pipeline.js';
@@ -20,7 +21,7 @@ import {
  *   GET  /api/pipeline/:id          one job (with overall progress)
  *   POST /api/pipeline/:id/cancel
  */
-export function createPipelineRouter(deps: { authMiddleware: RequestHandler }): Router {
+export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pipelineDeps?: Partial<PipelineDeps> }): Router {
   const router = Router();
   router.use(deps.authMiddleware);
 
@@ -49,7 +50,7 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler }): 
       goal,
       mode,
       stages,
-    });
+    }, deps.pipelineDeps);
     res.json({ ok: true, job: withProgress(job) });
   });
 
