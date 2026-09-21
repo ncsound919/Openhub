@@ -5,10 +5,10 @@ export default defineConfig({
   testMatch: 'e2e/**/*.spec.ts',
   timeout: 30000,
   retries: 1,
-  workers: process.env.CI ? 1 : 2,
+  workers: 1,
   globalSetup: './tests/e2e/global-setup.ts',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3011',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
@@ -30,8 +30,8 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev:test',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    url: 'http://localhost:3011',
+    reuseExistingServer: false,
     timeout: 120000,
     cwd: '.',
   },

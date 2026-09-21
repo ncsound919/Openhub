@@ -12,3 +12,4 @@ playwright/.auth/
 repos/
 __pycache__/
 *.pyc
+.e2e/

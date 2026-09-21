@@ -1,233 +1,345 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  Book, Code, Star, GitBranch, Terminal, Cpu, Clock, Bot, 
-  ChevronRight, Activity, DollarSign, Users, Briefcase, 
-  BarChart3, TrendingUp, Zap, AlertTriangle, Github 
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  Activity, ArrowRight, ArrowUpRight, FolderGit2, Github, ShieldCheck,
+  Sparkles, Terminal as TerminalIcon, Wrench, Zap, Radar, LayoutDashboard, ShieldAlert,
 } from 'lucide-react';
 import { useStore } from '../store';
-import { formatDistanceToNow } from 'date-fns';
+import { LocalFolderLoader } from '../components/LocalFolderLoader';
+import { AutonomyBar } from '../components/AutonomyBar';
+import { GitHubIntegrationPage } from './GitHubIntegrationPage';
+import { AssuranceView } from './AssuranceView';
+import { getAuthHeaders } from '../auth/AuthProvider';
+import { cn } from '../lib/utils';
 
+/** Command Center: repo status first, then assurance + repositories, one surface. */
 export function Dashboard() {
-  const { repositories, currentUser, registryItems } = useStore();
+  const [searchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab') ?? 'status';
+  const tab = ['status', 'assurance', 'repositories'].includes(rawTab) ? rawTab : 'status';
+  const { repositories, registryItems, activeProject, activeProjectLoading, activeProjectError, fetchRepositories, fetchActiveProject, fetchRegistryItems, drift, driftState } = useStore();
+  const [projectStatus, setProjectStatus] = useState<any>(null);
+  const [auditTools, setAuditTools] = useState<any[]>([]);
+  const [dream, setDream] = useState<{ entries: any[]; summary: any } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('openhub.onboarding.done'));
+  // Auxiliary status sources degrade independently; name them instead of
+  // swallowing the failure so "no data" is distinguishable from "unavailable".
+  const [degraded, setDegraded] = useState<string[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const markDegraded = (label: string) =>
+    setDegraded((prev) => (prev.includes(label) ? prev : [...prev, label]));
+
+  const dismissOnboarding = () => {
+    localStorage.setItem('openhub.onboarding.done', '1');
+    setShowOnboarding(false);
+  };
+
+  useEffect(() => {
+    void fetchRepositories();
+    void fetchActiveProject();
+    void fetchRegistryItems();
+  }, [fetchActiveProject, fetchRepositories, fetchRegistryItems]);
+
+  useEffect(() => {
+    if (!activeProject) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/project/active/status', { credentials: 'include', headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.ok) setProjectStatus(data);
+      } catch { markDegraded('project status'); }
+    })();
+  }, [activeProject, reloadKey]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/audit/tools', { credentials: 'include', headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.tools)) setAuditTools(data.tools);
+      } catch { markDegraded('audit tools'); }
+    })();
+    (async () => {
+      try {
+        const res = await fetch('/api/dream', { credentials: 'include', headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.ok) setDream({ entries: data.entries ?? [], summary: data.summary ?? {} });
+      } catch { markDegraded('dream state'); }
+    })();
+  }, [activeProject, reloadKey]);
+
+  const repoCount = repositories.length;
+  const toolCount = registryItems.length;
+  const activeTools = registryItems.filter((t) => t.status === 'active').length;
+  const toolHealth = toolCount ? Math.round((activeTools / toolCount) * 100) : 0;
+  const driftSummary = !activeProject
+    ? 'waiting on project'
+    : driftState === 'ok' && drift
+      ? !drift.hasUpstream
+        ? 'no upstream branch yet'
+        : drift.ahead + drift.behind + drift.uncommitted === 0
+          ? 'in sync with last push'
+          : `${drift.ahead}↑ ${drift.behind}↓ · ${drift.uncommitted} uncommitted`
+      : driftState === 'scanning'
+        ? 'scanning vs last push…'
+        : `branch ${activeProject.defaultBranch ?? 'n/a'}`;
+
+  const stats = [
+    { label: 'Repositories', value: String(repoCount), sub: repoCount ? 'tracked in account' : 'none yet — import one', accent: 'var(--color-info)', accent2: 'var(--color-accent)', pct: Math.min(100, repoCount * 12) },
+    { label: 'Project context', value: activeProject ? 'Active' : 'Empty', sub: activeProject?.repositoryName ?? 'load one to unlock loops', accent: 'var(--color-success)', accent2: 'var(--color-success)', pct: activeProject ? 100 : 6 },
+    { label: 'Tool health', value: toolCount ? `${toolHealth}%` : '—', sub: toolCount ? `${activeTools}/${toolCount} tools active` : 'no tools discovered', accent: 'var(--color-warning)', accent2: 'var(--color-warning)', pct: toolHealth },
+    { label: 'Delivery', value: activeProject ? 'Ready' : 'Idle', sub: driftSummary, accent: 'var(--color-accent)', accent2: 'var(--color-accent)', pct: activeProject ? 82 : 8 },
+  ];
+
+  const actions = [
+    { to: '/workspace', icon: TerminalIcon, title: 'Open workspace', desc: 'Code, loops, drift & skills in one', hover: 'var(--color-info)' },
+    { to: '/axiom', icon: Zap, title: 'Loop console', desc: 'Full detail on running loops', hover: 'var(--color-success)' },
+    { to: '/?tab=assurance', icon: ShieldCheck, title: 'Assurance', desc: 'Pipelines, audit, repair, readiness', hover: 'var(--color-info)' },
+    { to: '/?tab=repositories', icon: Github, title: 'Load a project', desc: 'Import from GitHub or a local folder', hover: 'var(--color-warning)' },
+    { to: '/fleet', icon: Radar, title: 'Fleet hub', desc: 'Agents, services, ecosystem, tools', hover: 'var(--color-accent-hover)' },
+    { to: '/settings?tab=integrations', icon: Wrench, title: 'Configure', desc: 'Integrations, business & keys', hover: 'var(--color-warning)' },
+  ];
+
+  const lastAudit = projectStatus?.current?.lastAudit ?? projectStatus?.persisted?.lastAudit ?? null;
+  const lastRun = projectStatus?.current?.lastRun ?? projectStatus?.persisted?.lastRun ?? null;
+  const auditVerdict = lastAudit?.overallStatus ?? null;
 
   return (
-    <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col gap-8 px-4 py-8 relative z-10">
-      
-      {/* Heavy Industrial Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
-         <div>
-            <h1 className="text-white font-industrial text-4xl">OpenHub Command Console</h1>
-            <p className="text-gray-500 font-mono text-[10px] uppercase tracking-widest mt-2 flex items-center">
-               <span className="w-2 h-2 bg-orange-500 mr-2 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.8)]"></span> Site Status: Operational // Registry: OPENHUB-CORE-01
+    <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6">
+      {/* Status / Assurance / Repositories tabs */}
+      <nav className="flex gap-0.5 overflow-x-auto border-b border-surface-overlay -mb-2" aria-label="Command center">
+        {[
+          { id: 'status', label: 'Status', icon: LayoutDashboard, to: '/' },
+          { id: 'assurance', label: 'Assurance', icon: ShieldCheck, to: '/?tab=assurance' },
+          { id: 'repositories', label: `Repositories · ${repoCount}`, icon: Github, to: '/?tab=repositories' },
+        ].map((t) => (
+          <Link key={t.id} to={t.to} className={cn('repo-tab', tab === t.id && 'active')}>
+            <t.icon className="w-3.5 h-3.5" />
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {degraded.length > 0 && (
+        <div role="alert" className="flex items-center justify-between gap-3 border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 rounded-md px-3 py-2">
+          <span className="text-sm text-[var(--color-text-secondary)]">
+            Some status sources are unavailable: {degraded.join(', ')}.
+          </span>
+          <button
+            onClick={() => { setDegraded([]); setReloadKey((k) => k + 1); }}
+            className="shrink-0 text-sm font-medium text-[var(--color-warning)] hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {tab === 'repositories' ? (
+        <GitHubIntegrationPage />
+      ) : tab === 'assurance' ? (
+        <AssuranceView />
+      ) : (
+        <>
+          {/* Hero */}
+          <section className="gradient-hero rounded-2xl p-6 md:p-7 relative overflow-hidden">
+            <div className="absolute -right-10 -top-14 opacity-[0.12] pointer-events-none">
+              <Activity className="w-64 h-64 text-blue-300" strokeWidth={1} />
+            </div>
+            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {activeProject ? `Context: ${activeProject.repositoryName}` : 'No project loaded'}
+            </div>
+            <h1 className="mt-2 max-w-2xl">
+              Command console <span className="text-info">for shipping.</span>
+            </h1>
+            <p className="mt-2 max-w-xl text-sm text-gray-400">
+              One project context drives code, Axiom loops, assurance, and GitHub delivery. Pick an action — everything else follows the active project.
             </p>
-         </div>
-         <div className="flex bg-[#161b22] border border-[#30363d] p-1 rounded-sm divide-x divide-[#30363d]">
-            <div className="px-4 py-2 text-center">
-               <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Active Contracts</div>
-               <div className="text-xl font-display text-white">12</div>
-            </div>
-            <div className="px-4 py-2 text-center gauge-glow-orange border-b-2 border-orange-500">
-               <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Utilization</div>
-               <div className="text-xl font-display text-orange-500">94%</div>
-            </div>
-            <div className="px-4 py-2 text-center gauge-glow-green border-b-2 border-green-500">
-               <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Cycle Time</div>
-               <div className="text-xl font-display text-green-500">4.2d</div>
-            </div>
-         </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-        
-        {/* Left Column: Business Performance */}
-        <div className="xl:col-span-1 space-y-6">
-           <div className="industrial-card p-6 bg-blue-500/5 animate-warning-blink border-l-4 border-blue-500">
-              <div className="flex items-center justify-between mb-2">
-                 <div className="text-[10px] font-black text-blue-500 uppercase tracking-widest">AI Agent Active</div>
-                 <Cpu className="w-4 h-4 text-blue-500 animate-pulse" />
-              </div>
-              <p className="text-[9px] text-gray-400 font-bold uppercase">Co-pilot is currently indexing /src for optimization paths...</p>
-           </div>
-           <div className="industrial-card p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2 opacity-5 text-gray-400 pointer-events-none">
-                 <DollarSign className="w-24 h-24" />
-              </div>
-              <h2 className="mb-4 flex items-center text-gray-400 text-sm">
-                 <TrendingUp className="w-4 h-4 mr-2" /> Financial Health
-              </h2>
-              <div className="space-y-4">
-                 <div>
-                    <div className="text-4xl font-display text-white">$142,500</div>
-                    <div className="text-[10px] font-black text-green-500 uppercase flex items-center tracking-widest">
-                       +12.4% vs last month <Zap className="w-2 h-2 ml-1" />
-                    </div>
-                 </div>
-                 <div className="space-y-2 pt-4 border-t border-gray-100/5">
-                    <div className="flex justify-between text-xs">
-                       <span className="text-gray-500">Outstanding Invoices</span>
-                       <span className="text-white font-mono text-[10px]">$12,400</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                       <span className="text-gray-500">Projected Q3 Revenue</span>
-                       <span className="text-white font-mono text-[10px]">$480k</span>
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           <div className="industrial-card p-6">
-              <h2 className="mb-4 flex items-center text-gray-400 text-sm">
-                 <Users className="w-4 h-4 mr-2" /> Talent Grid
-              </h2>
-              <div className="space-y-3">
-                 {[
-                    { name: 'Architecture Team', load: 90, color: 'bg-orange-500' },
-                    { name: 'Core Ops (Backend)', load: 75, color: 'bg-blue-500' },
-                    { name: 'UI/UX Lab', load: 40, color: 'bg-green-500' },
-                    { name: 'Infrastructure', load: 95, color: 'bg-red-500' },
-                 ].map(team => (
-                    <div key={team.name} className="space-y-1">
-                       <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
-                          <span className="text-gray-400">{team.name}</span>
-                          <span className="text-white">{team.load}%</span>
-                       </div>
-                       <div className="w-full bg-gray-800 h-1 rounded-full overflow-hidden">
-                          <div className={`h-full transition-all duration-1000 ${team.color}`} style={{ width: `${team.load}%` }}></div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-
-           <div className="bg-orange-500 p-4 border border-orange-600 shadow-lg shadow-orange-500/10">
-              <div className="flex items-start space-x-3 text-black">
-                 <AlertTriangle className="w-5 h-5 shrink-0" />
-                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-widest">Resource Alert</div>
-                    <p className="text-[10px] font-bold mt-1 leading-tight">Infrastructure pod is at critical capacity. Schedule additional worker nodes or defer non-essential batch jobs.</p>
-                 </div>
-              </div>
-           </div>
-        </div>
-
-        {/* Center: Repository Management (Operational View) */}
-        <div className="xl:col-span-2 space-y-6">
-           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-             <div className="p-1 px-4 bg-[#1b2129] border border-[#30363d] inline-flex items-center space-x-6 text-[10px] font-black uppercase tracking-widest">
-                <button className="py-2 border-b-2 border-orange-500 text-white">Active Projects</button>
-                <button className="py-2 text-gray-500 hover:text-gray-300 transition-colors">Client Repos</button>
-                <button className="py-2 text-gray-500 hover:text-gray-300 transition-colors">Archives</button>
-             </div>
-
-             <Link
-               to="/github"
-               className="inline-flex items-center gap-2 bg-[#161b22] hover:bg-[#21262d] border border-[#30363d] hover:border-blue-500/50 text-white text-xs font-mono px-3 py-1.5 rounded-sm transition-all"
-             >
-               <Github className="w-3.5 h-3.5 text-blue-400" />
-               <span>Import from GitHub</span>
-             </Link>
-           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {repositories.map((repo) => (
-              <Link 
-                key={repo.id}
-                to={`/${repo.owner}/${repo.name}`}
-                className="industrial-card group p-5 hover:bg-[#1c2128] transition-all relative"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                     <div className="p-2 bg-gray-800 border border-gray-700 text-orange-500 rounded-sm">
-                        <Code className="w-5 h-5" />
-                     </div>
-                    <div>
-                      <h3 className="text-xl font-display text-white group-hover:text-orange-500 transition-colors">
-                        {repo.name}
-                      </h3>
-                      <div className="text-[9px] font-mono text-gray-500 uppercase tracking-widest mt-1">ID: {repo.id.slice(0, 8)}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-3.5 h-3.5 text-gray-600 fill-gray-600" />
-                    <span className="text-xs font-mono text-gray-400">{repo.stars}</span>
-                  </div>
-                </div>
-                
-                <p className="text-gray-400 text-xs mt-4 line-clamp-2 leading-relaxed">
-                  {repo.description}
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-2">
-                   <span className="text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 px-2 py-0.5 border border-blue-500/20">Enterprise</span>
-                   <span className="text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-500 px-2 py-0.5 border border-green-500/20">Production</span>
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-gray-100/5 flex items-center justify-between text-[10px] font-mono">
-                  <div className="flex items-center text-gray-500 uppercase">
-                    <Activity className="w-3 h-3 mr-1" /> ACTIVE NOW
-                  </div>
-                  <span className="text-gray-600">
-                    {formatDistanceToNow(new Date(repo.updatedAt))} ago
-                  </span>
-                </div>
+            <div className="mt-4 flex flex-wrap gap-2.5">
+              <Link to="/?tab=repositories" className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-bold shadow-lg shadow-blue-950/50">
+                <Github className="w-4 h-4" /> {activeProject ? 'Switch project' : 'Load a project'}
               </Link>
-            ))}
-          </div>
-        </div>
+              <LocalFolderLoader className="!py-2" />
+              <Link to="/workspace" className="inline-flex items-center gap-2 rounded-lg border border-border-muted bg-surface-base/70 hover:border-blue-500/50 px-4 py-2 text-sm font-bold text-gray-400">
+                Open workspace <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link to="/?tab=assurance" className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 px-4 py-2 text-sm font-bold text-emerald-300">
+                <ShieldCheck className="w-4 h-4" /> Assurance
+              </Link>
+            </div>
+          </section>
 
-        {/* Right Column: Registry & Tooling */}
-        <div className="xl:col-span-1 space-y-6">
-           <div className="industrial-card p-6 border-l-4 border-blue-500">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-gray-400 flex items-center text-sm">
-                   <BarChart3 className="w-4 h-4 mr-2" /> Toolkit Status
-                </h2>
-                <Link to="/registry" className="text-[10px] font-black text-blue-500 hover:underline px-2 tracking-widest">EXPLORE ALL</Link>
+          {/* Live self-awareness — services, Recourse, insights, severity. */}
+          <AutonomyBar />
+
+          {/* First-run onboarding — three steps to a working loop */}
+          {showOnboarding && (
+            <section className="rounded-md border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface-raised))] p-4">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent-text)]">
+                <Sparkles className="w-3.5 h-3.5" /> Your daily workspace in 3 steps
               </div>
-              <div className="space-y-4">
-                {registryItems.slice(0, 4).map((item) => (
-                   <div key={item.id} className="flex items-center justify-between p-3 bg-gray-800/50 border border-gray-700/50 rounded-sm">
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-2 rounded bg-opacity-10 ${
-                        item.type === 'agent' ? 'bg-purple-500 text-purple-500' : 
-                        item.type === 'cli' ? 'bg-blue-500 text-blue-500' : 'bg-orange-500 text-orange-500'
-                      }`}>
-                         {item.type === 'agent' ? <Bot className="w-4 h-4" /> : <Terminal className="w-4 h-4" />}
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <Link to="/projects" className="group rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] p-3 hover:border-[var(--color-accent)]">
+                  <span className="font-mono text-[10px] text-[var(--color-accent-text)]">1</span>
+                  <span className="mt-1 block text-sm font-semibold text-[var(--color-text-primary)]">Load a project</span>
+                  <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">Import from GitHub or a local folder.</span>
+                </Link>
+                <Link to="/workspace" className="group rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] p-3 hover:border-[var(--color-accent)]">
+                  <span className="font-mono text-[10px] text-[var(--color-accent-text)]">2</span>
+                  <span className="mt-1 block text-sm font-semibold text-[var(--color-text-primary)]">Open the workspace</span>
+                  <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">Editor, terminal, git, and services in one surface.</span>
+                </Link>
+                <Link to="/axiom" className="group rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] p-3 hover:border-[var(--color-accent)]">
+                  <span className="font-mono text-[10px] text-[var(--color-accent-text)]">3</span>
+                  <span className="mt-1 block text-sm font-semibold text-[var(--color-text-primary)]">Run a loop</span>
+                  <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">The fleet starts shipping while you watch.</span>
+                </Link>
+              </div>
+              <button
+                onClick={dismissOnboarding}
+                className="mt-2 text-[11px] font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                Got it — hide this
+              </button>
+            </section>
+          )}
+
+          {/* Active project strip */}
+          <section className="glass rounded-xl px-4 py-3 flex items-center gap-3" aria-label="Active project">
+            <span className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <FolderGit2 className="w-4 h-4 text-blue-300" />
+            </span>
+            {activeProject ? (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-[var(--color-text-primary)]">{activeProject.repositoryName}</div>
+                <div className="truncate font-mono text-[11px] text-gray-400">{activeProject.path}{activeProject.githubFullName ? ` · ${activeProject.githubFullName}` : ''}</div>
+              </div>
+            ) : (
+              <div className="flex-1 text-sm text-gray-400">
+                {activeProjectLoading ? 'Reading the active project context…' : activeProjectError || 'No project is loaded. Import one from GitHub to begin.'}
+              </div>
+            )}
+            <Link to={activeProject ? '/workspace' : '/?tab=repositories'} className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200">
+              {activeProject ? 'Workspace' : 'Repositories'} <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </section>
+
+          {/* Repo status & weaknesses — know before working */}
+          <section aria-labelledby="repo-status" className="space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-blue-300" />
+              <h2 id="repo-status" className="!text-base">Repo status &amp; weaknesses</h2>
+            </div>
+            {!activeProject ? (
+              <div className="industrial-card p-5 text-sm text-gray-400">
+                {activeProjectLoading ? 'Reading the active project…' : 'Load a project to see its status, weaknesses, and last work point.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-accent)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Last audit</div>
+                  <div className={`mt-1 text-2xl font-extrabold tracking-tight ${auditVerdict === 'pass' ? 'text-emerald-400' : auditVerdict === 'warn' ? 'text-amber-400' : auditVerdict === 'fail' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {auditVerdict ?? '—'}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-gray-400">{lastAudit ? `${lastAudit.scores?.length ?? 0} scorers · ${new Date(lastAudit.timestamp).toLocaleDateString()}` : 'no audit recorded'}</div>
+                </div>
+                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-info)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Delivery state</div>
+                  <div className="mt-1 text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)]">{driftSummary}</div>
+                  <div className="mt-0.5 truncate text-[11px] text-gray-400">drift vs last push</div>
+                </div>
+                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-warning)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Last run</div>
+                  <div className="mt-1 truncate text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)]">{lastRun?.status ?? '—'}</div>
+                  <div className="mt-0.5 truncate text-[11px] text-gray-400">{lastRun ? lastRun.goal.slice(0, 48) : 'no supervised run yet'}</div>
+                </div>
+              </div>
+            )}
+            {auditTools.length > 0 && (
+              <div className="industrial-card p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="!text-base">Audit tools</h2>
+                  <span className="count-pill">{auditTools.length}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {auditTools.map((t) => (
+                    <div key={t.name} className="rounded-lg border border-surface-overlay bg-surface-base/60 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-1.5 w-1.5 rounded-full ${t.configured ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                        <span className="truncate text-xs font-bold text-[var(--color-text-primary)]">{t.label ?? t.name}</span>
                       </div>
-                      <div>
-                        <div className="text-[11px] font-bold text-gray-200">{item.name}</div>
-                        <div className="text-[9px] text-gray-500 uppercase tracking-tighter">v{item.version}</div>
+                      <div className="mt-1 flex items-center gap-3 font-mono text-[10px] text-gray-400">
+                        <span>{t.kind}</span>
+                        <span>{t.stats?.runs ?? 0} runs</span>
+                        {typeof t.stats?.avgScore === 'number' && <span>avg {t.stats.avgScore}</span>}
                       </div>
                     </div>
-                    <div className="flex h-2 w-2 relative">
-                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                       <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Dream state — continuous monitoring + grading of every repo */}
+          {dream && dream.entries.length > 0 && (
+            <section className="industrial-card overflow-hidden" aria-label="Dream state">
+              <div className="flex items-center justify-between gap-2 border-b border-surface-overlay bg-surface-raised/60 px-4 py-3">
+                <h2 className="!text-base flex items-center gap-2"><Radar className="w-4 h-4 text-purple-300" /> Dream state</h2>
+                <span className="count-pill">{dream.summary?.graded ?? 0}/{dream.summary?.total ?? 0} graded</span>
+              </div>
+              <div className="divide-y divide-surface-overlay max-h-72 overflow-y-auto">
+                {dream.entries.map((e: any) => (
+                  <div key={e.repoId} className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${e.status === 'healthy' ? 'bg-emerald-400' : e.status === 'attention' ? 'bg-amber-400' : e.status === 'critical' ? 'bg-red-400' : 'bg-gray-400'}`} />
+                      <span className="truncate text-xs font-bold text-[var(--color-text-primary)]">{e.name}</span>
+                      <span className="ml-auto shrink-0 font-mono text-sm font-extrabold text-gray-200">{e.grade ?? '—'}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-3 font-mono text-[10px] text-gray-400">
+                      <span className="truncate">{e.purpose.slice(0, 40)}</span>
+                      <span className="shrink-0">{e.development}</span>
+                      {typeof e.score === 'number' && <span className="shrink-0">score {e.score}</span>}
+                      {e.findings > 0 && <span className="shrink-0 text-orange-300">{e.findings} findings</span>}
                     </div>
                   </div>
                 ))}
               </div>
-           </div>
+            </section>
+          )}
 
-           <div className="industrial-card p-6 bg-gradient-to-br from-[#161b22] to-[#010409]">
-              <div className="flex items-center justify-between mb-6">
-                 <h2 className="text-gray-400 text-sm flex items-center mb-0">
-                    <Zap className="w-4 h-4 mr-2 text-orange-500" /> Productivity Matrix
-                 </h2>
-                 <Link to="/autonomous" className="text-[10px] font-black text-orange-500 hover:underline tracking-widest">ORCHESTRATE</Link>
+          {/* Stats */}
+          <section className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="Status">
+            {stats.map((s) => (
+              <div key={s.label} className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: s.accent, ['--accent2' as string]: s.accent2 }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">{s.label}</div>
+                <div className="mt-1 text-2xl font-extrabold text-[var(--color-text-primary)] tracking-tight">{s.value}</div>
+                <div className="mt-0.5 truncate text-[11px] text-gray-400">{s.sub}</div>
+                <div className="meter mt-2.5"><span style={{ width: `${s.pct}%` }} /></div>
               </div>
-              <div className="font-mono text-[10px] space-y-2 overflow-hidden h-40 opacity-60">
-                 <div className="text-green-500 animate-pulse">[{new Date().toLocaleTimeString()}] git-server: pushed 4 objects to web:main</div>
-                 <div className="text-blue-500">[16:03:52] ci-runner: build success for commit #fa231</div>
-                 <div className="text-orange-500">[16:02:44] security-bot: scanned 12 files, 0 leaks</div>
-                 <div className="text-gray-500">[16:01:21] openhub-daemon: heartbeat verified</div>
-                 <div className="text-gray-500">[16:00:55] audit-log: user admin authenticated</div>
-                 <div className="text-gray-500">[15:58:32] auth-service: certificate renewed</div>
-                 <div className="text-gray-500">[15:55:12] log-aggregator: buffer flushed</div>
-              </div>
-           </div>
-        </div>
-      </div>
+            ))}
+          </section>
+
+          {/* Quick actions */}
+          <section aria-label="Quick actions">
+            <div className="flex items-center gap-2 mb-2.5">
+              <Sparkles className="w-4 h-4 text-yellow-300" />
+              <h2 className="!text-base">Do next</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {actions.map((a) => (
+                <Link key={a.to + a.title} to={a.to} className="quick-action" style={{ ['--hover' as string]: a.hover }}>
+                  <span className="quick-icon"><a.icon className="w-[18px] h-[18px]" style={{ color: a.hover }} /></span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-[var(--color-text-primary)]">{a.title}</span>
+                    <span className="block text-xs text-gray-400 mt-0.5">{a.desc}</span>
+                  </span>
+                  <ArrowUpRight className="w-4 h-4 ml-auto shrink-0 text-gray-400" />
+                </Link>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

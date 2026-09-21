@@ -26,10 +26,12 @@ import {
   Lock,
   Globe,
   Check,
+  ShieldCheck,
   Zap,
 } from 'lucide-react';
-import { getAuthHeaders } from '../auth/AuthProvider';
+import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { useStore } from '../store';
+import { LocalFolderLoader } from '../components/LocalFolderLoader';
 
 interface GitHubProfile {
   id: number;
@@ -84,6 +86,14 @@ interface WorkflowRunItem {
   };
 }
 
+interface ActiveGitState {
+  branch: string | null;
+  head: string | null;
+  subject: string | null;
+  changed: string[];
+  remote: string | null;
+}
+
 interface WebhookEventItem {
   id: string;
   event_type: string;
@@ -97,7 +107,7 @@ interface WebhookEventItem {
 
 export function GitHubIntegrationPage() {
   const navigate = useNavigate();
-  const { fetchRepositories } = useStore();
+  const { fetchRepositories, activeProject, activeProjectLoading, activeProjectError, fetchActiveProject, selectActiveProject, unloadActiveProject } = useStore();
 
   // Status & Auth state
   const [loading, setLoading] = useState(true);
@@ -117,6 +127,7 @@ export function GitHubIntegrationPage() {
   const [repoSearch, setRepoSearch] = useState('');
   const [repoFilter, setRepoFilter] = useState<'all' | 'public' | 'private' | 'imported'>('all');
   const [importingRepoId, setImportingRepoId] = useState<number | null>(null);
+  const [repoScores, setRepoScores] = useState<Record<string, { grade: string | null; score: number | null; status: string }>>({});
 
   // Actions & Runs state
   const [selectedRepoForActions, setSelectedRepoForActions] = useState<string>('');
@@ -137,7 +148,12 @@ export function GitHubIntegrationPage() {
   const [webhookEvents, setWebhookEvents] = useState<WebhookEventItem[]>([]);
   const [webhooksLoading, setWebhooksLoading] = useState(false);
   const [selectedPayload, setSelectedPayload] = useState<string | null>(null);
-  const [simulatingWebhook, setSimulatingWebhook] = useState(false);
+
+  // Active project Git state — live local worktree data, never inferred.
+  const [activeGit, setActiveGit] = useState<ActiveGitState | null>(null);
+  const [gitMessage, setGitMessage] = useState('');
+  const [gitBusy, setGitBusy] = useState<'commit' | 'push' | null>(null);
+  const [gitError, setGitError] = useState<string | null>(null);
 
   // 1. Check connection status
   const checkStatus = async () => {
@@ -165,7 +181,8 @@ export function GitHubIntegrationPage() {
   };
 
   useEffect(() => {
-    checkStatus();
+    void checkStatus();
+    void fetchActiveProject();
 
     // Listen for OAuth popup completion
     const handleMessage = (e: MessageEvent) => {
@@ -176,7 +193,43 @@ export function GitHubIntegrationPage() {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [fetchActiveProject]);
+
+  const loadActiveGit = async () => {
+    if (!activeProject) { setActiveGit(null); return; }
+    try {
+      const res = await fetch('/api/project/active/git', { credentials: 'include', headers: getAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { setActiveGit(null); setGitError(data.error || `Git status failed (${res.status})`); return; }
+      setActiveGit(data.git as ActiveGitState);
+      setGitError(null);
+    } catch (err) {
+      setActiveGit(null);
+      setGitError(err instanceof Error ? err.message : 'Git status request failed');
+    }
+  };
+
+  const runGitAction = async (action: 'commit' | 'push') => {
+    if (!activeProject || (action === 'commit' && !gitMessage.trim())) return;
+    setGitBusy(action);
+    setGitError(null);
+    try {
+      const res = await fetch(`/api/project/active/git/${action}`, {
+        method: 'POST', credentials: 'include',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+        ...(action === 'commit' ? { body: JSON.stringify({ message: gitMessage.trim() }) } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { setGitError(data.error || `Git ${action} failed (${res.status})`); return; }
+      setActiveGit(data.git as ActiveGitState);
+      if (action === 'commit') setGitMessage('');
+      setSuccessMessage(action === 'commit' ? 'Commit created in the active project.' : 'Active project pushed to origin.');
+    } catch (err) {
+      setGitError(err instanceof Error ? err.message : `Git ${action} failed`);
+    } finally {
+      setGitBusy(null);
+    }
+  };
 
   // 2. Fetch Repositories when connected
   const loadRepos = async () => {
@@ -199,13 +252,25 @@ export function GitHubIntegrationPage() {
     } finally {
       setReposLoading(false);
     }
+    // Per-repo audit scores for the cards.
+    try {
+      const res = await fetch('/api/repos/scores', { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.scores)) {
+        const map: Record<string, { grade: string | null; score: number | null; status: string }> = {};
+        for (const s of data.scores) map[s.repoId] = { grade: s.grade, score: s.score, status: s.status };
+        setRepoScores(map);
+      }
+    } catch { /* scores offline */ }
   };
 
   useEffect(() => {
-    if (connected) {
-      loadRepos();
-    }
+    if (connected) void loadRepos();
   }, [connected]);
+
+  useEffect(() => {
+    void loadActiveGit();
+  }, [activeProject]);
 
   // 3. Connect via Personal Access Token (PAT)
   const handlePatConnect = async (e: React.FormEvent) => {
@@ -280,6 +345,17 @@ export function GitHubIntegrationPage() {
     }
   };
 
+  const handleLoadImportedRepo = async (repo: GitHubRepoItem) => {
+    if (!repo.local_repo_id) return;
+    const result = await selectActiveProject(repo.local_repo_id);
+    if (result.ok) {
+      setSuccessMessage(`${repo.full_name} is now the active project across OpenHub.`);
+      navigate('/workspace');
+    } else {
+      setAuthError(result.error || 'Unable to load the selected repository.');
+    }
+  };
+
   // 6. Import a GitHub Repository into OpenHub
   const handleImportRepo = async (repo: GitHubRepoItem) => {
     setImportingRepoId(repo.id);
@@ -297,8 +373,7 @@ export function GitHubIntegrationPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMessage(`Repository "${repo.name}" successfully imported into OpenHub!`);
-        // Refresh local store and repo list
+        // Refresh local store and repo list before setting the shared project context.
         await fetchRepositories();
         setRepos((prev) =>
           prev.map((r) =>
@@ -307,6 +382,13 @@ export function GitHubIntegrationPage() {
               : r
           )
         );
+        const selection = await selectActiveProject(data.repo.id);
+        if (selection.ok) {
+          setSuccessMessage(`Imported and loaded ${repo.full_name} as the active project.`);
+          navigate('/workspace');
+        } else {
+          setSuccessMessage(`Imported ${repo.full_name}. ${selection.error || 'Unload the active project before loading it.'}`);
+        }
       } else {
         setAuthError(data.error || 'Failed to import repository.');
       }
@@ -442,33 +524,7 @@ export function GitHubIntegrationPage() {
     }
   }, [activeTab]);
 
-  // 11. Trigger Simulated Webhook Ping
-  const handleSimulateWebhook = async (eventType: string = 'push') => {
-    setSimulatingWebhook(true);
-    try {
-      const targetRepo = repos[0]?.full_name || 'openhub/autonomous-engine';
-      const res = await fetch('/api/github/webhook/test-ping', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          event: eventType,
-          repoFullName: targetRepo,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMessage(`Simulated GitHub "${eventType}" event received and processed!`);
-        loadWebhookEvents();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSimulatingWebhook(false);
-    }
-  };
+  // 11. Webhook ingestion is real (signature-verified via /api/github/webhook). No simulator.
 
   // Filtered repositories
   const filteredRepos = repos.filter((r) => {
@@ -485,28 +541,26 @@ export function GitHubIntegrationPage() {
   });
 
   return (
-    <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col gap-6 px-4 py-8 relative z-10 font-sans">
-      {/* Industrial Breadcrumb & Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-[#30363d]">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-blue-400 mb-1">
-            <Github className="w-4 h-4" /> Ecosystem // GitHub Deep Integration
-          </div>
-          <h1 className="text-3xl font-industrial text-white tracking-wide">GitHub Autonomous Bridge</h1>
-          <p className="text-gray-400 text-xs mt-1">
-            Bi-directional sync, 1-click repository imports, real-time GitHub Actions CI/CD telemetry, and webhook orchestration.
-          </p>
+    <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6 relative z-10">
+      {/* Hero header */}
+      <section className="gradient-hero rounded-2xl p-6 relative overflow-hidden">
+        <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-orange-300">
+          <Github className="w-4 h-4" /> Ecosystem // GitHub Deep Integration
         </div>
+        <h1 className="mt-2">GitHub Autonomous <span className="text-info">Bridge.</span></h1>
+        <p className="mt-2 max-w-xl text-sm text-gray-400">
+          Bi-directional sync, 1-click repository imports, real-time GitHub Actions CI/CD telemetry, and webhook orchestration.
+        </p>
 
         {connected && profile && (
-          <div className="flex items-center gap-3 bg-[#161b22] border border-[#30363d] px-4 py-2 rounded-sm">
+          <div className="mt-4 flex items-center gap-3 bg-surface-base/70 border border-border-muted px-4 py-2 rounded-xl w-fit">
             <img
               src={profile.avatar_url}
               alt={profile.login}
               className="w-8 h-8 rounded-full border border-blue-500/40"
             />
             <div className="text-left">
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
+              <div className="text-xs font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
                 <span>@{profile.login}</span>
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               </div>
@@ -522,7 +576,12 @@ export function GitHubIntegrationPage() {
             </button>
           </div>
         )}
-      </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <LocalFolderLoader />
+          <span className="text-[11px] text-gray-400">…or pick a GitHub repo below to import and load.</span>
+        </div>
+      </section>
 
       {/* Notifications */}
       {successMessage && (
@@ -533,7 +592,7 @@ export function GitHubIntegrationPage() {
           </div>
           <button
             onClick={() => setSuccessMessage(null)}
-            className="text-gray-500 hover:text-white text-xs font-bold px-2"
+            className="text-gray-400 hover:text-[var(--color-text-primary)] text-xs font-bold px-2"
           >
             ✕
           </button>
@@ -548,7 +607,7 @@ export function GitHubIntegrationPage() {
           </div>
           <button
             onClick={() => setAuthError(null)}
-            className="text-gray-500 hover:text-white text-xs font-bold px-2"
+            className="text-gray-400 hover:text-[var(--color-text-primary)] text-xs font-bold px-2"
           >
             ✕
           </button>
@@ -557,13 +616,13 @@ export function GitHubIntegrationPage() {
 
       {/* Connection Section if NOT connected */}
       {!connected && !loading && (
-        <div className="industrial-card p-6 bg-gradient-to-br from-[#161b22] to-[#0d1117] border border-[#30363d] rounded-sm">
+        <div className="industrial-card p-6 bg-gradient-to-br from-surface-raised to-surface-base border border-border-muted rounded-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono text-[10px] uppercase tracking-wider mb-4">
                 <Shield className="w-3.5 h-3.5" /> Instant & Secure Sync
               </div>
-              <h2 className="text-2xl font-industrial text-white mb-2">Connect Your GitHub Account</h2>
+              <h2 className="text-2xl font-industrial text-[var(--color-text-primary)] mb-2">Connect Your GitHub Account</h2>
               <p className="text-gray-400 text-xs leading-relaxed mb-6">
                 Link GitHub to enable 1-click cloning into your OpenHub Workspace, push commits directly from the web IDE, monitor GitHub Actions workflows, and triage issues.
               </p>
@@ -577,7 +636,7 @@ export function GitHubIntegrationPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('guide')}
-                  className="flex items-center justify-center gap-1.5 border border-[#30363d] text-gray-300 hover:text-white hover:bg-white/5 px-4 py-2.5 rounded-sm font-mono text-xs uppercase tracking-wider transition-all"
+                  className="flex items-center justify-center gap-1.5 border border-border-muted text-gray-400 hover:text-[var(--color-text-primary)] hover:bg-white/5 px-4 py-2.5 rounded-sm font-mono text-xs uppercase tracking-wider transition-all"
                 >
                   Setup Guide & Keys
                 </button>
@@ -585,8 +644,8 @@ export function GitHubIntegrationPage() {
             </div>
 
             {/* Direct PAT connection */}
-            <div className="bg-[#0A0C10] border border-[#30363d] p-5 rounded-sm">
-              <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+            <div className="bg-bg-base border border-border-muted p-5 rounded-sm">
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-orange-400" /> Direct Token Connect (PAT)
               </h3>
               <p className="text-[11px] text-gray-400 mb-4">
@@ -599,9 +658,9 @@ export function GitHubIntegrationPage() {
                     value={patInput}
                     onChange={(e) => setPatInput(e.target.value)}
                     placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full bg-[#161b22] border border-[#30363d] px-3 py-2 text-xs font-mono text-white placeholder-gray-600 rounded-sm focus:outline-none focus:border-blue-500"
+                    className="w-full bg-surface-raised border border-border-muted px-3 py-2 text-xs font-mono text-[var(--color-text-primary)] placeholder-gray-500 rounded-sm focus:outline-none focus:border-blue-500"
                   />
-                  <div className="flex justify-between items-center text-[10px] text-gray-500 mt-1 font-mono">
+                  <div className="flex justify-between items-center text-[10px] text-gray-400 mt-1 font-mono">
                     <span>Required scopes: repo, read:user, workflow</span>
                     <a
                       href="https://github.com/settings/tokens/new?scopes=repo,read:user,workflow,admin:repo_hook"
@@ -631,55 +690,53 @@ export function GitHubIntegrationPage() {
         </div>
       )}
 
+      <div className="bg-surface-raised border border-border-muted rounded-sm px-4 py-3 flex flex-wrap items-center gap-3 text-xs">
+        <span className="font-mono text-gray-400 uppercase tracking-wider">Active project</span>
+        {activeProject ? <><span className="font-bold text-gray-400">{activeProject.repositoryName}</span><span className="font-mono text-gray-400 truncate max-w-md">{activeProject.path}</span><button onClick={() => void unloadActiveProject()} className="ml-auto text-red-400 hover:text-red-300 font-mono uppercase text-[10px]">Unload project</button></> : <span className="text-amber-400">{activeProjectLoading ? 'Checking…' : activeProjectError || 'None loaded. Import or select one below.'}</span>}
+      </div>
+
+      <div className="industrial-card border border-border-muted rounded-sm p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-sm font-bold text-gray-400">Live version control</div>
+          {activeProject && <span className="text-xs font-mono text-gray-400">{activeProject.repositoryName}</span>}
+          <button onClick={() => void loadActiveGit()} disabled={!activeProject || gitBusy !== null} className="ml-auto text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40"><RefreshCw className="w-3.5 h-3.5 inline mr-1" /> Refresh</button>
+        </div>
+        {!activeProject ? <div className="text-xs text-amber-400">Load a project to inspect, commit, and push its actual Git worktree.</div> : gitError ? <div className="text-xs font-mono text-red-400 whitespace-pre-wrap">{gitError}</div> : activeGit ? <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono"><div><span className="text-gray-400">Branch </span><span className="text-gray-400">{activeGit.branch || 'detached'}</span></div><div><span className="text-gray-400">HEAD </span><span className="text-gray-400">{activeGit.head?.slice(0, 12) || 'none'}</span></div><div className="truncate"><span className="text-gray-400">Origin </span><span className="text-gray-400">{activeGit.remote || 'not configured'}</span></div></div>
+          <div className="text-xs text-gray-400">{activeGit.changed.length ? `${activeGit.changed.length} uncommitted change${activeGit.changed.length === 1 ? '' : 's'}` : 'Working tree clean'}{activeGit.subject ? ` · ${activeGit.subject}` : ''}</div>
+          <div className="flex flex-col md:flex-row gap-2"><input value={gitMessage} onChange={(event) => setGitMessage(event.target.value)} placeholder="Commit message" className="flex-1 bg-bg-base border border-border-muted rounded px-3 py-2 text-xs text-gray-400" /><button onClick={() => void runGitAction('commit')} disabled={gitBusy !== null || !gitMessage.trim()} className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white px-4 py-2 rounded text-xs font-bold">{gitBusy === 'commit' ? 'Committing…' : 'Commit all changes'}</button><button onClick={() => void runGitAction('push')} disabled={gitBusy !== null} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-4 py-2 rounded text-xs font-bold">{gitBusy === 'push' ? 'Pushing…' : 'Push to origin'}</button></div>
+        </> : <div className="text-xs text-gray-400">Reading active project Git state…</div>}
+      </div>
+
       {/* Navigation Tabs */}
-      <div className="flex border-b border-[#30363d] gap-2 overflow-x-auto">
+      <div className="flex border-b border-border-muted gap-1 overflow-x-auto">
         <button
           onClick={() => setActiveTab('repos')}
-          className={`pb-3 px-4 text-xs font-mono uppercase tracking-wider transition-colors flex items-center gap-2 border-b-2 ${
-            activeTab === 'repos'
-              ? 'border-orange-500 text-orange-400 font-bold'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+          className={`repo-tab ${activeTab === 'repos' ? 'active' : ''}`}
         >
-          <GitBranch className="w-3.5 h-3.5" /> Repositories ({repos.length})
+          <GitBranch className="w-3.5 h-3.5" /> Repositories <span className="count-pill">{repos.length}</span>
         </button>
         <button
           onClick={() => setActiveTab('actions')}
-          className={`pb-3 px-4 text-xs font-mono uppercase tracking-wider transition-colors flex items-center gap-2 border-b-2 ${
-            activeTab === 'actions'
-              ? 'border-orange-500 text-orange-400 font-bold'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+          className={`repo-tab ${activeTab === 'actions' ? 'active' : ''}`}
         >
           <Play className="w-3.5 h-3.5" /> GitHub Actions & CI/CD
         </button>
         <button
           onClick={() => setActiveTab('issues')}
-          className={`pb-3 px-4 text-xs font-mono uppercase tracking-wider transition-colors flex items-center gap-2 border-b-2 ${
-            activeTab === 'issues'
-              ? 'border-orange-500 text-orange-400 font-bold'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+          className={`repo-tab ${activeTab === 'issues' ? 'active' : ''}`}
         >
           <AlertCircle className="w-3.5 h-3.5" /> Issues & Pulls
         </button>
         <button
           onClick={() => setActiveTab('webhooks')}
-          className={`pb-3 px-4 text-xs font-mono uppercase tracking-wider transition-colors flex items-center gap-2 border-b-2 ${
-            activeTab === 'webhooks'
-              ? 'border-orange-500 text-orange-400 font-bold'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+          className={`repo-tab ${activeTab === 'webhooks' ? 'active' : ''}`}
         >
           <Radio className="w-3.5 h-3.5" /> Webhooks Stream
         </button>
         <button
           onClick={() => setActiveTab('guide')}
-          className={`pb-3 px-4 text-xs font-mono uppercase tracking-wider transition-colors flex items-center gap-2 border-b-2 ${
-            activeTab === 'guide'
-              ? 'border-orange-500 text-orange-400 font-bold'
-              : 'border-transparent text-gray-400 hover:text-white'
-          }`}
+          className={`repo-tab ${activeTab === 'guide' ? 'active' : ''}`}
         >
           <Shield className="w-3.5 h-3.5" /> Configuration Guide
         </button>
@@ -689,7 +746,7 @@ export function GitHubIntegrationPage() {
       {activeTab === 'repos' && (
         <div className="space-y-4">
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161b22] border border-[#30363d] p-3 rounded-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-surface-raised border border-border-muted p-3 rounded-sm">
             <div className="flex items-center gap-2 flex-1">
               <Search className="w-4 h-4 text-gray-400 ml-1" />
               <input
@@ -697,12 +754,12 @@ export function GitHubIntegrationPage() {
                 placeholder="Filter repositories by name, language, or topic..."
                 value={repoSearch}
                 onChange={(e) => setRepoSearch(e.target.value)}
-                className="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none w-full font-mono"
+                className="bg-transparent text-xs text-[var(--color-text-primary)] placeholder-gray-500 focus:outline-none w-full font-mono"
               />
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex bg-[#0A0C10] border border-[#30363d] p-0.5 rounded-sm text-[10px] font-mono">
+              <div className="flex bg-bg-base border border-border-muted p-0.5 rounded-sm text-[10px] font-mono">
                 {(['all', 'public', 'private', 'imported'] as const).map((filter) => (
                   <button
                     key={filter}
@@ -710,7 +767,7 @@ export function GitHubIntegrationPage() {
                     className={`px-2.5 py-1 uppercase rounded-sm ${
                       repoFilter === filter
                         ? 'bg-orange-500 text-black font-bold'
-                        : 'text-gray-400 hover:text-white'
+                        : 'text-gray-400 hover:text-[var(--color-text-primary)]'
                     }`}
                   >
                     {filter}
@@ -721,7 +778,7 @@ export function GitHubIntegrationPage() {
               <button
                 onClick={loadRepos}
                 disabled={reposLoading || !connected}
-                className="p-1.5 border border-[#30363d] hover:bg-white/5 rounded-sm text-gray-400 hover:text-white transition-colors"
+                className="p-1.5 border border-border-muted hover:bg-white/5 rounded-sm text-gray-400 hover:text-[var(--color-text-primary)] transition-colors"
                 title="Refresh Repositories"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${reposLoading ? 'animate-spin text-orange-400' : ''}`} />
@@ -737,11 +794,11 @@ export function GitHubIntegrationPage() {
             </div>
           ) : filteredRepos.length === 0 ? (
             <div className="industrial-card p-12 text-center text-gray-400 rounded-sm">
-              <Github className="w-10 h-10 mx-auto text-gray-600 mb-3" />
-              <h3 className="text-white font-industrial text-lg mb-1">
+              <Github className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+              <h3 className="text-[var(--color-text-primary)] font-industrial text-lg mb-1">
                 {!connected ? 'Connect GitHub to Browse Repositories' : 'No Repositories Found'}
               </h3>
-              <p className="text-xs text-gray-500 max-w-md mx-auto">
+              <p className="text-xs text-gray-400 max-w-md mx-auto">
                 {!connected
                   ? 'Connect using OAuth or a Personal Access Token above to import and synchronize your repositories.'
                   : 'No repositories match your current filter or search criteria.'}
@@ -752,7 +809,7 @@ export function GitHubIntegrationPage() {
               {filteredRepos.map((repo) => (
                 <div
                   key={repo.id}
-                  className="industrial-card p-5 bg-[#161b22] border border-[#30363d] hover:border-gray-600 transition-all rounded-sm flex flex-col justify-between"
+                  className="industrial-card p-5 bg-surface-raised border border-border-muted hover:border-border-strong transition-all rounded-sm flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
@@ -766,26 +823,26 @@ export function GitHubIntegrationPage() {
                           href={repo.html_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-sm font-bold text-white hover:text-blue-400 flex items-center gap-1 transition-colors"
+                          className="text-sm font-bold text-[var(--color-text-primary)] hover:text-blue-400 flex items-center gap-1 transition-colors"
                         >
                           {repo.full_name}
-                          <ExternalLink className="w-3 h-3 text-gray-500" />
+                          <ExternalLink className="w-3 h-3 text-gray-400" />
                         </a>
                       </div>
 
                       <div className="flex items-center gap-1.5">
                         {repo.private ? (
-                          <span className="flex items-center gap-1 text-[9px] font-mono uppercase bg-red-500/10 border border-red-500/20 text-red-400 px-1.5 py-0.5 rounded-sm">
+                          <span className="flex items-center gap-1 text-[11px] font-mono uppercase bg-red-500/10 border border-red-500/20 text-red-400 px-1.5 py-0.5 rounded-sm">
                             <Lock className="w-2.5 h-2.5" /> Private
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-[9px] font-mono uppercase bg-green-500/10 border border-green-500/20 text-green-400 px-1.5 py-0.5 rounded-sm">
+                          <span className="flex items-center gap-1 text-[11px] font-mono uppercase bg-green-500/10 border border-green-500/20 text-green-400 px-1.5 py-0.5 rounded-sm">
                             <Globe className="w-2.5 h-2.5" /> Public
                           </span>
                         )}
 
                         {repo.is_imported && (
-                          <span className="text-[9px] font-mono uppercase bg-blue-500/15 border border-blue-500/30 text-blue-400 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
+                          <span className="text-[11px] font-mono uppercase bg-blue-500/15 border border-blue-500/30 text-blue-400 px-1.5 py-0.5 rounded-sm flex items-center gap-1">
                             <Check className="w-2.5 h-2.5" /> Synced
                           </span>
                         )}
@@ -798,7 +855,7 @@ export function GitHubIntegrationPage() {
 
                     <div className="flex flex-wrap items-center gap-3 mt-4 text-[11px] font-mono text-gray-400">
                       {repo.language && (
-                        <span className="flex items-center gap-1 text-gray-300">
+                        <span className="flex items-center gap-1 text-gray-400">
                           <span className="w-2 h-2 rounded-full bg-orange-400" />
                           {repo.language}
                         </span>
@@ -808,28 +865,38 @@ export function GitHubIntegrationPage() {
                         {repo.stargazers_count}
                       </span>
                       <span className="flex items-center gap-1">
-                        <GitFork className="w-3 h-3 text-gray-500" />
+                        <GitFork className="w-3 h-3 text-gray-400" />
                         {repo.forks_count}
                       </span>
-                      <span className="text-gray-500 text-[10px]">
-                        branch: <span className="text-gray-300">{repo.default_branch}</span>
+                      <span className="text-gray-400 text-[10px]">
+                        branch: <span className="text-gray-400">{repo.default_branch}</span>
                       </span>
+                      {repo.local_repo_id && repoScores[repo.local_repo_id]?.grade && (
+                        <span className={`flex items-center gap-1 font-mono text-[10px] font-bold uppercase ${
+                          repoScores[repo.local_repo_id].status === 'healthy' ? 'text-emerald-400'
+                          : repoScores[repo.local_repo_id].status === 'attention' ? 'text-amber-400'
+                          : 'text-red-400'
+                        }`}>
+                          <ShieldCheck className="w-3 h-3" />
+                          {repoScores[repo.local_repo_id].grade} · {repoScores[repo.local_repo_id].score}
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Actions footer */}
-                  <div className="mt-5 pt-3 border-t border-[#30363d] flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-mono text-gray-500">
+                  <div className="mt-5 pt-3 border-t border-border-muted flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono text-gray-400">
                       Updated {new Date(repo.updated_at).toLocaleDateString()}
                     </span>
 
                     {repo.is_imported ? (
-                      <Link
-                        to={`/workspace/${repo.owner.login}/${repo.name}`}
+                      <button
+                        onClick={() => void handleLoadImportedRepo(repo)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-sm flex items-center gap-1.5 transition-colors"
                       >
-                        <Terminal className="w-3 h-3" /> Open in Workspace
-                      </Link>
+                        <Terminal className="w-3 h-3" /> {activeProject?.repoId === repo.local_repo_id ? 'Open Workspace' : 'Load Project'}
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleImportRepo(repo)}
@@ -855,13 +922,13 @@ export function GitHubIntegrationPage() {
       {/* ===================== TAB 2: GITHUB ACTIONS CI/CD ===================== */}
       {activeTab === 'actions' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161b22] border border-[#30363d] p-3 rounded-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-surface-raised border border-border-muted p-3 rounded-sm">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono text-gray-400">Target Repository:</span>
               <select
                 value={selectedRepoForActions}
                 onChange={(e) => setSelectedRepoForActions(e.target.value)}
-                className="bg-[#0A0C10] border border-[#30363d] text-white text-xs px-2.5 py-1.5 rounded-sm font-mono focus:outline-none focus:border-blue-500"
+                className="bg-bg-base border border-border-muted text-[var(--color-text-primary)] text-xs px-2.5 py-1.5 rounded-sm font-mono focus:outline-none focus:border-blue-500"
               >
                 {repos.map((r) => (
                   <option key={r.id} value={r.full_name}>
@@ -874,7 +941,7 @@ export function GitHubIntegrationPage() {
             <button
               onClick={() => loadWorkflowRuns(selectedRepoForActions)}
               disabled={actionsLoading}
-              className="flex items-center gap-1.5 text-xs font-mono text-gray-300 hover:text-white border border-[#30363d] px-3 py-1.5 rounded-sm hover:bg-white/5 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-mono text-gray-400 hover:text-[var(--color-text-primary)] border border-border-muted px-3 py-1.5 rounded-sm hover:bg-white/5 transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${actionsLoading ? 'animate-spin text-orange-400' : ''}`} />
               Refresh Runs
@@ -888,9 +955,9 @@ export function GitHubIntegrationPage() {
             </div>
           ) : workflowRuns.length === 0 ? (
             <div className="industrial-card p-8 text-center text-gray-400 rounded-sm">
-              <Play className="w-8 h-8 mx-auto text-gray-600 mb-2" />
-              <h3 className="text-white text-sm font-bold mb-1">No Workflow Runs Detected</h3>
-              <p className="text-xs text-gray-500">
+              <Play className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+              <h3 className="text-[var(--color-text-primary)] text-sm font-bold mb-1">No Workflow Runs Detected</h3>
+              <p className="text-xs text-gray-400">
                 {selectedRepoForActions
                   ? `No recent workflow executions found for ${selectedRepoForActions}.`
                   : 'Select a repository to inspect GitHub Actions CI runs.'}
@@ -901,7 +968,7 @@ export function GitHubIntegrationPage() {
               {workflowRuns.map((run) => (
                 <div
                   key={run.id}
-                  className="industrial-card p-4 bg-[#161b22] border border-[#30363d] rounded-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="industrial-card p-4 bg-surface-raised border border-border-muted rounded-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5">
@@ -916,15 +983,15 @@ export function GitHubIntegrationPage() {
 
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">{run.name}</span>
-                        <span className="text-[10px] font-mono text-gray-400 bg-[#0A0C10] px-1.5 py-0.5 rounded border border-[#30363d]">
+                        <span className="text-xs font-bold text-[var(--color-text-primary)]">{run.name}</span>
+                        <span className="text-[10px] font-mono text-gray-400 bg-bg-base px-1.5 py-0.5 rounded border border-border-muted">
                           branch: {run.head_branch}
                         </span>
-                        <span className="text-[10px] font-mono text-gray-500">
+                        <span className="text-[10px] font-mono text-gray-400">
                           #{run.id}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-300 mt-1 font-mono">
+                      <p className="text-xs text-gray-400 mt-1 font-mono">
                         {run.head_commit?.message || 'Workflow run'}
                       </p>
                     </div>
@@ -942,7 +1009,7 @@ export function GitHubIntegrationPage() {
                       <span>@{run.actor?.login}</span>
                     </div>
 
-                    <span className="text-gray-500">
+                    <span className="text-gray-400">
                       {new Date(run.created_at).toLocaleTimeString()}
                     </span>
 
@@ -965,13 +1032,13 @@ export function GitHubIntegrationPage() {
       {/* ===================== TAB 3: ISSUES & PULL REQUESTS ===================== */}
       {activeTab === 'issues' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161b22] border border-[#30363d] p-3 rounded-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-surface-raised border border-border-muted p-3 rounded-sm">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono text-gray-400">Repository:</span>
               <select
                 value={selectedRepoForIssues}
                 onChange={(e) => setSelectedRepoForIssues(e.target.value)}
-                className="bg-[#0A0C10] border border-[#30363d] text-white text-xs px-2.5 py-1.5 rounded-sm font-mono focus:outline-none focus:border-blue-500"
+                className="bg-bg-base border border-border-muted text-[var(--color-text-primary)] text-xs px-2.5 py-1.5 rounded-sm font-mono focus:outline-none focus:border-blue-500"
               >
                 {repos.map((r) => (
                   <option key={r.id} value={r.full_name}>
@@ -991,7 +1058,7 @@ export function GitHubIntegrationPage() {
               <button
                 onClick={() => loadIssuesAndPulls(selectedRepoForIssues)}
                 disabled={issuesLoading}
-                className="p-1.5 border border-[#30363d] hover:bg-white/5 rounded-sm text-gray-400 hover:text-white transition-colors"
+                className="p-1.5 border border-border-muted hover:bg-white/5 rounded-sm text-gray-400 hover:text-[var(--color-text-primary)] transition-colors"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${issuesLoading ? 'animate-spin text-orange-400' : ''}`} />
               </button>
@@ -1005,16 +1072,16 @@ export function GitHubIntegrationPage() {
                 <span>Active Issues ({issues.length})</span>
               </h3>
               {issuesLoading ? (
-                <div className="p-8 text-center text-gray-500 font-mono text-xs">Loading issues...</div>
+                <div className="p-8 text-center text-gray-400 font-mono text-xs">Loading issues...</div>
               ) : issues.length === 0 ? (
-                <div className="industrial-card p-6 text-center text-gray-500 text-xs rounded-sm">
+                <div className="industrial-card p-6 text-center text-gray-400 text-xs rounded-sm">
                   No issues found for this repository.
                 </div>
               ) : (
                 issues.map((issue) => (
                   <div
                     key={issue.id}
-                    className="p-3 bg-[#161b22] border border-[#30363d] rounded-sm flex items-start justify-between gap-3"
+                    className="p-3 bg-surface-raised border border-border-muted rounded-sm flex items-start justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -1023,16 +1090,16 @@ export function GitHubIntegrationPage() {
                           href={issue.html_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs font-bold text-white hover:text-blue-400 transition-colors"
+                          className="text-xs font-bold text-[var(--color-text-primary)] hover:text-blue-400 transition-colors"
                         >
                           {issue.title}
                         </a>
                       </div>
-                      <div className="text-[10px] font-mono text-gray-500 mt-1">
+                      <div className="text-[10px] font-mono text-gray-400 mt-1">
                         opened by @{issue.user?.login} • {new Date(issue.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-400">
+                    <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-400">
                       {issue.state}
                     </span>
                   </div>
@@ -1046,16 +1113,16 @@ export function GitHubIntegrationPage() {
                 <span>Pull Requests ({pulls.length})</span>
               </h3>
               {issuesLoading ? (
-                <div className="p-8 text-center text-gray-500 font-mono text-xs">Loading pull requests...</div>
+                <div className="p-8 text-center text-gray-400 font-mono text-xs">Loading pull requests...</div>
               ) : pulls.length === 0 ? (
-                <div className="industrial-card p-6 text-center text-gray-500 text-xs rounded-sm">
+                <div className="industrial-card p-6 text-center text-gray-400 text-xs rounded-sm">
                   No pull requests found for this repository.
                 </div>
               ) : (
                 pulls.map((pr) => (
                   <div
                     key={pr.id}
-                    className="p-3 bg-[#161b22] border border-[#30363d] rounded-sm flex items-start justify-between gap-3"
+                    className="p-3 bg-surface-raised border border-border-muted rounded-sm flex items-start justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -1064,16 +1131,16 @@ export function GitHubIntegrationPage() {
                           href={pr.html_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs font-bold text-white hover:text-purple-400 transition-colors"
+                          className="text-xs font-bold text-[var(--color-text-primary)] hover:text-purple-400 transition-colors"
                         >
                           {pr.title}
                         </a>
                       </div>
-                      <div className="text-[10px] font-mono text-gray-500 mt-1">
+                      <div className="text-[10px] font-mono text-gray-400 mt-1">
                         {pr.head.ref} → {pr.base.ref} by @{pr.user?.login}
                       </div>
                     </div>
-                    <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                    <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400">
                       {pr.state}
                     </span>
                   </div>
@@ -1085,14 +1152,14 @@ export function GitHubIntegrationPage() {
           {/* New Issue Modal */}
           {showNewIssueModal && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="industrial-card bg-[#161b22] border border-[#30363d] max-w-lg w-full p-6 rounded-sm">
-                <div className="flex items-center justify-between pb-3 border-b border-[#30363d] mb-4">
-                  <h3 className="text-white font-industrial text-lg flex items-center gap-2">
+              <div className="industrial-card bg-surface-raised border border-border-muted max-w-lg w-full p-6 rounded-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-border-muted mb-4">
+                  <h3 className="text-[var(--color-text-primary)] font-industrial text-lg flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-orange-400" /> Create Issue on GitHub
                   </h3>
                   <button
                     onClick={() => setShowNewIssueModal(false)}
-                    className="text-gray-400 hover:text-white text-sm"
+                    className="text-gray-400 hover:text-[var(--color-text-primary)] text-sm"
                   >
                     ✕
                   </button>
@@ -1107,7 +1174,7 @@ export function GitHubIntegrationPage() {
                       type="text"
                       disabled
                       value={selectedRepoForIssues}
-                      className="w-full bg-[#0A0C10] border border-[#30363d] text-gray-400 px-3 py-2 text-xs font-mono rounded-sm"
+                      className="w-full bg-bg-base border border-border-muted text-gray-400 px-3 py-2 text-xs font-mono rounded-sm"
                     />
                   </div>
 
@@ -1121,7 +1188,7 @@ export function GitHubIntegrationPage() {
                       placeholder="e.g. Bug: Auth session expires unexpectedly"
                       value={newIssueTitle}
                       onChange={(e) => setNewIssueTitle(e.target.value)}
-                      className="w-full bg-[#0A0C10] border border-[#30363d] text-white px-3 py-2 text-xs font-mono rounded-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-bg-base border border-border-muted text-[var(--color-text-primary)] px-3 py-2 text-xs font-mono rounded-sm focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -1134,7 +1201,7 @@ export function GitHubIntegrationPage() {
                       placeholder="Describe the issue or feature request in detail..."
                       value={newIssueBody}
                       onChange={(e) => setNewIssueBody(e.target.value)}
-                      className="w-full bg-[#0A0C10] border border-[#30363d] text-white px-3 py-2 text-xs font-mono rounded-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-bg-base border border-border-muted text-[var(--color-text-primary)] px-3 py-2 text-xs font-mono rounded-sm focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -1142,7 +1209,7 @@ export function GitHubIntegrationPage() {
                     <button
                       type="button"
                       onClick={() => setShowNewIssueModal(false)}
-                      className="px-4 py-2 border border-[#30363d] text-gray-400 hover:text-white text-xs font-mono rounded-sm"
+                      className="px-4 py-2 border border-border-muted text-gray-400 hover:text-[var(--color-text-primary)] text-xs font-mono rounded-sm"
                     >
                       Cancel
                     </button>
@@ -1166,34 +1233,29 @@ export function GitHubIntegrationPage() {
       {activeTab === 'webhooks' && (
         <div className="space-y-6">
           {/* Setup card */}
-          <div className="industrial-card p-5 bg-[#161b22] border border-[#30363d] rounded-sm">
+          <div className="industrial-card p-5 bg-surface-raised border border-border-muted rounded-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                   <Radio className="w-4 h-4 text-green-400 animate-pulse" /> Live Webhook Receiver Endpoint
                 </h3>
                 <p className="text-xs text-gray-400 mt-1">
                   Add this webhook URL to your GitHub repository settings to receive real-time push events, CI triggers, and issue alerts.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
-                  <code className="bg-[#0A0C10] border border-[#30363d] px-3 py-1.5 text-xs font-mono text-green-400 rounded-sm select-all">
+                  <code className="bg-bg-base border border-border-muted px-3 py-1.5 text-xs font-mono text-green-400 rounded-sm select-all">
                     {window.location.origin}/api/github/webhook
                   </code>
-                  <span className="text-[10px] font-mono text-gray-500">Content type: application/json</span>
+                  <span className="text-[10px] font-mono text-gray-400">Content type: application/json</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleSimulateWebhook('push')}
-                  disabled={simulatingWebhook}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs px-3 py-2 rounded-sm font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5" /> Simulate Push Webhook
-                </button>
-                <button
                   onClick={loadWebhookEvents}
-                  className="p-2 border border-[#30363d] hover:bg-white/5 rounded-sm text-gray-400 hover:text-white"
+                  aria-label="Refresh webhook events"
+                  title="Refresh webhook events"
+                  className="p-2 border border-border-muted hover:bg-white/5 rounded-sm text-gray-400 hover:text-[var(--color-text-primary)]"
                 >
                   <RefreshCw className={`w-4 h-4 ${webhooksLoading ? 'animate-spin text-orange-400' : ''}`} />
                 </button>
@@ -1207,30 +1269,30 @@ export function GitHubIntegrationPage() {
               Webhook Event Ingestion Log ({webhookEvents.length})
             </h3>
             {webhookEvents.length === 0 ? (
-              <div className="industrial-card p-8 text-center text-gray-500 text-xs rounded-sm">
-                No webhook events received yet. Click "Simulate Push Webhook" to test the pipeline!
+              <div className="industrial-card p-8 text-center text-gray-400 text-xs rounded-sm">
+                No webhook events received yet. Point a GitHub webhook at the URL above to start ingesting real events.
               </div>
             ) : (
               <div className="space-y-2">
                 {webhookEvents.map((evt) => (
                   <div
                     key={evt.id}
-                    className="p-3 bg-[#161b22] border border-[#30363d] rounded-sm flex items-center justify-between text-xs font-mono"
+                    className="p-3 bg-surface-raised border border-border-muted rounded-sm flex items-center justify-between text-xs font-mono"
                   >
                     <div className="flex items-center gap-3">
                       <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold uppercase">
                         {evt.event_type}
                       </span>
-                      <span className="text-white font-bold">{evt.summary}</span>
+                      <span className="text-[var(--color-text-primary)] font-bold">{evt.summary}</span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="text-gray-500 text-[10px]">
+                      <span className="text-gray-400 text-[10px]">
                         {new Date(evt.created_at).toLocaleTimeString()}
                       </span>
                       <button
                         onClick={() => setSelectedPayload(evt.payload)}
-                        className="text-gray-400 hover:text-white text-[11px] underline"
+                        className="text-gray-400 hover:text-[var(--color-text-primary)] text-[11px] underline"
                       >
                         Inspect Payload
                       </button>
@@ -1244,17 +1306,17 @@ export function GitHubIntegrationPage() {
           {/* Payload Inspector Modal */}
           {selectedPayload && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="industrial-card bg-[#161b22] border border-[#30363d] max-w-2xl w-full p-5 rounded-sm">
-                <div className="flex items-center justify-between pb-3 border-b border-[#30363d] mb-3">
-                  <h3 className="text-white text-sm font-bold font-mono">Webhook JSON Payload</h3>
+              <div className="industrial-card bg-surface-raised border border-border-muted max-w-2xl w-full p-5 rounded-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-border-muted mb-3">
+                  <h3 className="text-[var(--color-text-primary)] text-sm font-bold font-mono">Webhook JSON Payload</h3>
                   <button
                     onClick={() => setSelectedPayload(null)}
-                    className="text-gray-400 hover:text-white"
+                    className="text-gray-400 hover:text-[var(--color-text-primary)]"
                   >
                     ✕
                   </button>
                 </div>
-                <pre className="bg-[#0A0C10] p-4 text-xs font-mono text-gray-300 overflow-auto max-h-96 rounded-sm border border-[#30363d]">
+                <pre className="bg-bg-base p-4 text-xs font-mono text-gray-400 overflow-auto max-h-96 rounded-sm border border-border-muted">
                   {JSON.stringify(JSON.parse(selectedPayload), null, 2)}
                 </pre>
               </div>
@@ -1266,8 +1328,8 @@ export function GitHubIntegrationPage() {
       {/* ===================== TAB 5: CONFIGURATION GUIDE ===================== */}
       {activeTab === 'guide' && (
         <div className="space-y-6">
-          <div className="industrial-card p-6 bg-[#161b22] border border-[#30363d] rounded-sm">
-            <h2 className="text-lg font-industrial text-white mb-4 flex items-center gap-2">
+          <div className="industrial-card p-6 bg-surface-raised border border-border-muted rounded-sm">
+            <h2 className="text-lg font-industrial text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5 text-orange-400" /> GitHub OAuth Application Setup
             </h2>
             <p className="text-xs text-gray-400 leading-relaxed mb-4">
@@ -1275,8 +1337,8 @@ export function GitHubIntegrationPage() {
             </p>
 
             <div className="space-y-4">
-              <div className="bg-[#0A0C10] p-4 border border-[#30363d] rounded-sm">
-                <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+              <div className="bg-bg-base p-4 border border-border-muted rounded-sm">
+                <div className="text-[10px] font-mono uppercase text-gray-400 mb-1">
                   1. Authorization Callback URL
                 </div>
                 <div className="flex items-center gap-2">
@@ -1286,23 +1348,23 @@ export function GitHubIntegrationPage() {
                 </div>
               </div>
 
-              <div className="bg-[#0A0C10] p-4 border border-[#30363d] rounded-sm">
-                <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+              <div className="bg-bg-base p-4 border border-border-muted rounded-sm">
+                <div className="text-[10px] font-mono uppercase text-gray-400 mb-1">
                   2. Environment Variables (.env)
                 </div>
-                <pre className="text-xs font-mono text-gray-300">
+                <pre className="text-xs font-mono text-gray-400">
 {`GITHUB_CLIENT_ID=your_client_id_here
 GITHUB_CLIENT_SECRET=your_client_secret_here
 GITHUB_WEBHOOK_SECRET=your_optional_webhook_secret`}
                 </pre>
               </div>
 
-              <div className="bg-[#0A0C10] p-4 border border-[#30363d] rounded-sm">
-                <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+              <div className="bg-bg-base p-4 border border-border-muted rounded-sm">
+                <div className="text-[10px] font-mono uppercase text-gray-400 mb-1">
                   3. Fine-Grained or Classic Personal Access Token
                 </div>
                 <p className="text-xs text-gray-400">
-                  Prefer not to configure an OAuth App? You can simply create a Personal Access Token with <span className="text-white font-mono">repo</span>, <span className="text-white font-mono">read:user</span>, and <span className="text-white font-mono">workflow</span> permissions and paste it directly into OpenHub!
+                  Prefer not to configure an OAuth App? You can simply create a Personal Access Token with <span className="text-[var(--color-text-primary)] font-mono">repo</span>, <span className="text-[var(--color-text-primary)] font-mono">read:user</span>, and <span className="text-[var(--color-text-primary)] font-mono">workflow</span> permissions and paste it directly into OpenHub!
                 </p>
               </div>
             </div>

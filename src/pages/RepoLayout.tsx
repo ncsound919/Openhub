@@ -1,28 +1,37 @@
 import React from 'react';
-import { NavLink, Outlet, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useParams } from 'react-router-dom';
 import { Code, CircleDot, GitPullRequest, PlayCircle, KanbanSquare, BookOpen, Settings, Book, Star, GitFork, Eye, Puzzle } from 'lucide-react';
 import { useStore } from '../store';
 import { cn } from '../lib/utils';
 
 export function RepoLayout() {
   const { owner, repo: repoName } = useParams();
-  const repo = useStore((state) => 
+  const repo = useStore((state) =>
     state.repositories.find(r => r.owner === owner && r.name === repoName)
   );
   const fetchRepositories = useStore(s => s.fetchRepositories);
+  const openIssues = useStore(s => s.issues.filter(i => i.repoId === repo?.id && i.state === 'open').length);
+  const openPulls = useStore(s => s.pullRequests.filter(i => i.repoId === repo?.id && i.state === 'open').length);
 
   React.useEffect(() => {
-    if (!repo) fetchRepositories();
-  }, [owner, repoName]);
+    if (!repo) void fetchRepositories();
+  }, [owner, repoName, repo, fetchRepositories]);
 
   if (!repo) {
-    return <div className="p-8 text-center text-gray-500">Repository not found</div>;
+    return (
+      <div className="p-10 text-center">
+        <Book className="w-8 h-8 mx-auto text-gray-400" />
+        <p className="mt-3 text-sm font-bold text-[var(--color-text-primary)]">Repository not found</p>
+        <p className="mt-1 text-xs text-gray-400">{owner}/{repoName} isn’t in this account.</p>
+        <Link to="/projects" className="mt-4 inline-block text-xs font-bold text-blue-300 hover:text-blue-200">Back to projects →</Link>
+      </div>
+    );
   }
 
   const navItems = [
     { to: `/${owner}/${repoName}`, icon: Code, label: 'Code', end: true },
-    { to: `/${owner}/${repoName}/issues`, icon: CircleDot, label: 'Issues', count: useStore(s => s.issues.filter(i => i.repoId === repo.id && i.state === 'open').length) },
-    { to: `/${owner}/${repoName}/pulls`, icon: GitPullRequest, label: 'Pull requests', count: useStore(s => s.pullRequests.filter(i => i.repoId === repo.id && i.state === 'open').length) },
+    { to: `/${owner}/${repoName}/issues`, icon: CircleDot, label: 'Issues', count: openIssues },
+    { to: `/${owner}/${repoName}/pulls`, icon: GitPullRequest, label: 'Pulls', count: openPulls },
     { to: `/${owner}/${repoName}/actions`, icon: PlayCircle, label: 'Actions' },
     { to: `/${owner}/${repoName}/projects`, icon: KanbanSquare, label: 'Projects' },
     { to: `/${owner}/${repoName}/wiki`, icon: BookOpen, label: 'Wiki' },
@@ -31,74 +40,60 @@ export function RepoLayout() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
-      {/* Repo Header */}
-      <div className="bg-gray-50 border-b border-gray-200 pt-5 pb-0 px-4 md:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-            <div className="flex items-center text-xl font-medium text-gray-700">
-              <Book className="w-5 h-5 text-gray-500 mr-2" />
-              <a href="#" className="text-blue-600 hover:underline">{owner}</a>
-              <span className="mx-1">/</span>
-              <a href="#" className="text-blue-600 hover:underline font-semibold">{repoName}</a>
+    <div className="flex-1 flex flex-col min-w-0">
+      {/* Condensed dark header */}
+      <div className="border-b border-surface-overlay bg-surface-base/80 backdrop-blur px-4 md:px-6 pt-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 min-w-0 text-lg">
+              <span className="w-8 h-8 rounded-lg bg-surface-overlay border border-border-muted flex items-center justify-center shrink-0">
+                <Book className="w-4 h-4 text-gray-400" />
+              </span>
+              <span className="truncate font-bold text-[var(--color-text-primary)]">
+                <span className="text-gray-400 font-semibold">{owner}</span>
+                <span className="text-gray-400 mx-1">/</span>
+                {repoName}
+              </span>
               {repo.isPrivate && (
-                <span className="ml-3 border border-gray-300 text-gray-500 text-xs px-2 py-0.5 rounded-full font-medium">Private</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest border border-border-muted text-gray-400 px-2 py-0.5 rounded-full">Private</span>
+              )}
+              {repo.language && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />{repo.language}
+                </span>
               )}
             </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="flex rounded-md shadow-sm relative z-0">
-                <button className="relative inline-flex items-center px-3 py-1 rounded-l-md border border-gray-300 bg-gray-50text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none">
-                  <Eye className="w-3.5 h-3.5 mr-1" />
-                  Unwatch
-                  <span className="ml-1.5 bg-gray-200 text-gray-800 text-[10px] px-1.5 py-0.5 rounded-full">1</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              {[
+                { icon: Eye, label: 'Watch', value: '1' },
+                { icon: GitFork, label: 'Fork', value: String(repo.forks) },
+                { icon: Star, label: 'Star', value: String(repo.stars) },
+              ].map((b) => (
+                <button
+                  key={b.label}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border-muted bg-surface-raised hover:border-border-strong px-2.5 py-1.5 text-xs font-bold text-gray-400"
+                >
+                  <b.icon className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="hidden sm:inline">{b.label}</span>
+                  <span className="count-pill">{b.value}</span>
                 </button>
-                <div className="relative inline-flex items-center px-3 py-1 border-t border-b border-r border-gray-300 bg-gray-50 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none cursor-pointer">
-                  â¼
-                </div>
-              </div>
-              <div className="flex rounded-md shadow-sm relative z-0">
-                <button className="relative inline-flex items-center px-3 py-1 rounded-l-md border border-gray-300 bg-gray-50 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none">
-                  <GitFork className="w-3.5 h-3.5 mr-1" />
-                  Fork
-                  <span className="ml-1.5 bg-gray-200 text-gray-800 text-[10px] px-1.5 py-0.5 rounded-full">{repo.forks}</span>
-                </button>
-                <div className="relative inline-flex items-center px-3 py-1 border-t border-b border-r border-gray-300 bg-gray-50 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none cursor-pointer">
-                  â¼
-                </div>
-              </div>
-              <div className="flex rounded-md shadow-sm relative z-0">
-                <button className="relative inline-flex items-center px-3 py-1 rounded-l-md border border-gray-300 bg-gray-50 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none">
-                  <Star className="w-3.5 h-3.5 mr-1" />
-                  Star
-                  <span className="ml-1.5 bg-gray-200 text-gray-800 text-[10px] px-1.5 py-0.5 rounded-full">{repo.stars}</span>
-                </button>
-                <div className="relative inline-flex items-center px-3 py-1 border-t border-b border-r border-gray-300 bg-gray-50 text-xs font-medium text-gray-700 hover:bg-gray-100 focus:z-10 focus:outline-none cursor-pointer">
-                  â¼
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          <nav className="flex overflow-x-auto">
+          <nav className="mt-3 flex gap-0.5 overflow-x-auto" aria-label="Repository">
             {navItems.map((item) => (
               <NavLink
                 key={item.label}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) => cn(
-                  "flex items-center px-4 py-2 border-b-2 text-sm font-medium whitespace-nowrap outline-none",
-                  isActive 
-                    ? "border-blue-500 text-white font-semibold" 
-                    : "border-transparent text-gray-400 hover:text-white hover:border-gray-500"
-                )}
+                className={({ isActive }) => cn('repo-tab', isActive && 'active')}
               >
-                <item.icon className="w-4 h-4 mr-2 text-gray-400" />
+                <item.icon className="w-3.5 h-3.5" />
                 {item.label}
                 {item.count !== undefined && item.count > 0 && (
-                  <span className="ml-2 bg-gray-100 text-gray-600 text-[11px] px-1.5 py-0.5 rounded-full font-semibold">
-                    {item.count}
-                  </span>
+                  <span className="count-pill">{item.count}</span>
                 )}
               </NavLink>
             ))}
@@ -106,7 +101,7 @@ export function RepoLayout() {
         </div>
       </div>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 py-6">
+      <div className="flex-1 max-w-6xl mx-auto w-full px-4 md:px-6 py-5">
         <Outlet />
       </div>
     </div>

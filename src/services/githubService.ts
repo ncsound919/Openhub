@@ -1,10 +1,14 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../auth/db.js';
 
 const GITHUB_API_BASE = 'https://api.github.com';
+const execFileAsync = promisify(execFile);
 
 function getHeaders(token: string): Record<string, string> {
   return {
@@ -173,6 +177,72 @@ export async function fetchUserRepos(token: string, userId: string): Promise<Git
   }));
 }
 
+function createGitAskPassHelper(): { directory: string; helperPath: string } {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'openhub-git-askpass-'));
+  fs.chmodSync(directory, 0o700);
+
+  if (process.platform === 'win32') {
+    const scriptPath = path.join(directory, 'askpass.cjs');
+    const helperPath = path.join(directory, 'askpass.cmd');
+    fs.writeFileSync(
+      scriptPath,
+      "const prompt = process.argv.slice(2).join(' ').toLowerCase();\n" +
+        "process.stdout.write(prompt.includes('username') ? 'x-access-token\\n' : (process.env.GIT_ASKPASS_TOKEN || '') + '\\n');\n",
+      { encoding: 'utf8', mode: 0o700 }
+    );
+    fs.writeFileSync(
+      helperPath,
+      `@echo off\r\n"${process.execPath.replace(/"/g, '""')}" "${scriptPath.replace(/"/g, '""')}" %*\r\n`,
+      { encoding: 'utf8', mode: 0o700 }
+    );
+    return { directory, helperPath };
+  }
+
+  const helperPath = path.join(directory, 'askpass.sh');
+  fs.writeFileSync(
+    helperPath,
+    '#!/bin/sh\ncase "$1" in\n  *[Uu]sername*) printf "%s\\n" "x-access-token" ;;\n  *) printf "%s\\n" "$GIT_ASKPASS_TOKEN" ;;\nesac\n',
+    { encoding: 'utf8', mode: 0o700 }
+  );
+  fs.chmodSync(helperPath, 0o700);
+  return { directory, helperPath };
+}
+
+async function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('git', args, {
+      cwd,
+      env: env ? { ...process.env, ...env } : process.env,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return stdout;
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      throw new Error('Git is not installed or is not available on the server PATH.');
+    }
+    throw new Error(`Git ${args.includes('clone') ? 'clone' : 'operation'} failed.`);
+  }
+}
+
+async function isGitWorktreeRoot(repoDir: string): Promise<boolean> {
+  try {
+    const topLevel = (await runGit(['-C', repoDir, 'rev-parse', '--show-toplevel'], repoDir)).trim();
+    return fs.realpathSync(topLevel) === fs.realpathSync(repoDir);
+  } catch {
+    return false;
+  }
+}
+
+function isExpectedGitHubRemote(remoteUrl: string, owner: string, repo: string): boolean {
+  const expectedPath = `${owner}/${repo}`.toLowerCase();
+  const normalized = remoteUrl.trim().replace(/\/$/, '').replace(/\.git$/, '');
+  const httpsMatch = normalized.match(/^https?:\/\/[^@/]+@github\.com\/(.+)$/i)
+    || normalized.match(/^https?:\/\/github\.com\/(.+)$/i);
+  const sshMatch = normalized.match(/^(?:git@github\.com:|ssh:\/\/git@github\.com\/)(.+)$/i);
+  const remotePath = (httpsMatch?.[1] || sshMatch?.[1])?.replace(/\.git$/, '').toLowerCase();
+  return remotePath === expectedPath;
+}
+
 export async function importGitHubRepo(
   userId: string,
   openhubUsername: string,
@@ -182,88 +252,74 @@ export async function importGitHubRepo(
   reposRoot: string
 ) {
   const db = getDb();
-
-  // 1. Fetch repo details from GitHub
   const repoRes = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}`, {
     headers: getHeaders(token),
   });
   if (!repoRes.ok) {
     throw new Error(`Failed to load GitHub repository ${owner}/${repo}: ${repoRes.statusText}`);
   }
+
   const ghRepo = await repoRes.json();
   const defaultBranch = ghRepo.default_branch || 'main';
-
-  // 2. Prepare local directory
+  const cloneUrl = `https://github.com/${owner}/${repo}.git`;
   const ownerDir = path.join(reposRoot, openhubUsername);
   const repoDir = path.join(ownerDir, repo);
+  const repoExists = fs.existsSync(repoDir);
 
-  if (!fs.existsSync(ownerDir)) {
-    fs.mkdirSync(ownerDir, { recursive: true });
+  fs.mkdirSync(ownerDir, { recursive: true });
+
+  if (repoExists && (!fs.statSync(repoDir).isDirectory() || !(await isGitWorktreeRoot(repoDir)))) {
+    throw new Error(`Cannot import ${owner}/${repo}: ${repoDir} exists but is not a Git worktree root.`);
   }
 
-  // If local directory doesn't exist, create it
-  if (!fs.existsSync(repoDir)) {
-    fs.mkdirSync(repoDir, { recursive: true });
-  }
+  const askPass = createGitAskPassHelper();
+  const gitEnv: NodeJS.ProcessEnv = {
+    GIT_ASKPASS: askPass.helperPath,
+    GIT_ASKPASS_TOKEN: token,
+    GIT_TERMINAL_PROMPT: '0',
+  };
 
-  // 3. Fetch file tree from GitHub
   try {
-    const treeRes = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
-      headers: getHeaders(token),
-    });
+    if (repoExists) {
+      const status = await runGit(['-C', repoDir, 'status', '--porcelain=v1', '--untracked-files=all'], repoDir);
+      if (status.trim()) {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing worktree has local changes. Commit, stash, or remove them before importing.`);
+      }
 
-    if (treeRes.ok) {
-      const treeData = await treeRes.json();
-      const treeEntries: any[] = treeData.tree || [];
+      let originUrl: string;
+      try {
+        originUrl = (await runGit(['-C', repoDir, 'remote', 'get-url', 'origin'], repoDir)).trim();
+      } catch {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing Git worktree has no origin remote.`);
+      }
+      if (!isExpectedGitHubRemote(originUrl, owner, repo)) {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing origin remote does not match this repository.`);
+      }
 
-      // Download up to 50 key files initially for fast responsiveness
-      const fileEntries = treeEntries.filter((e) => e.type === 'blob' && !e.path.startsWith('.git/'));
-      const sampleFiles = fileEntries.slice(0, 40);
-
-      for (const entry of sampleFiles) {
-        const filePath = path.join(repoDir, entry.path);
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-        // If file is small, fetch content
-        if (entry.size && entry.size < 500000) {
-          try {
-            const rawContentRes = await fetch(
-              `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${entry.path}`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'User-Agent': 'OpenHub-Platform',
-                },
-              }
-            );
-            if (rawContentRes.ok) {
-              const fileContent = await rawContentRes.text();
-              fs.writeFileSync(filePath, fileContent, 'utf-8');
-            }
-          } catch {
-            // fallback create placeholder
-            if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf-8');
-          }
-        } else {
-          if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, '', 'utf-8');
-        }
+      // Keep the persistent remote credential-free; the token exists only in this child process environment.
+      await runGit(['-C', repoDir, 'remote', 'set-url', 'origin', cloneUrl], repoDir);
+      await runGit(['-c', 'credential.helper=', '-C', repoDir, 'fetch', '--prune', 'origin'], repoDir, gitEnv);
+      await runGit(['-C', repoDir, 'checkout', '-B', defaultBranch, '--track', `origin/${defaultBranch}`], repoDir);
+      await runGit(['-C', repoDir, 'reset', '--hard', `origin/${defaultBranch}`], repoDir);
+    } else {
+      let cloneAttempted = false;
+      try {
+        cloneAttempted = true;
+        await runGit(
+          ['-c', 'credential.helper=', 'clone', '--origin', 'origin', '--branch', defaultBranch, cloneUrl, repoDir],
+          ownerDir,
+          gitEnv
+        );
+      } catch (error) {
+        if (cloneAttempted) fs.rmSync(repoDir, { recursive: true, force: true });
+        throw error;
       }
     }
-  } catch (err: any) {
-    console.warn(`[GitHub Import] Warning while pulling file tree: ${err.message}`);
+  } finally {
+    delete gitEnv.GIT_ASKPASS_TOKEN;
+    fs.rmSync(askPass.directory, { recursive: true, force: true });
   }
 
-  // Ensure at least a README.md exists if tree fetch was restricted
-  const readmePath = path.join(repoDir, 'README.md');
-  if (!fs.existsSync(readmePath)) {
-    fs.writeFileSync(
-      readmePath,
-      `# ${ghRepo.name}\n\n${ghRepo.description || 'Imported from GitHub into OpenHub.'}\n\n- Source: [${ghRepo.html_url}](${ghRepo.html_url})\n- Default Branch: \`${defaultBranch}\`\n`,
-      'utf-8'
-    );
-  }
-
-  // 4. Register in OpenHub repositories table
   let existingRepo: any = db.prepare(`
     SELECT id FROM repositories WHERE owner_id = ? AND name = ?
   `).get(userId, repo);
@@ -287,7 +343,6 @@ export async function importGitHubRepo(
     );
   }
 
-  // 5. Register in github_synced_repos
   const syncId = uuidv4();
   db.prepare(`
     INSERT INTO github_synced_repos (

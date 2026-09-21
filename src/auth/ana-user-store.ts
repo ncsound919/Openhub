@@ -1,6 +1,7 @@
 import {
   IUserStore,
   BaseUser,
+  AuthError,
 } from 'awesome-node-auth';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from './db.js';
@@ -35,11 +36,12 @@ interface UserRow {
   updated_at: string;
 }
 
-function rowToBaseUser(row: UserRow): BaseUser {
+function rowToBaseUser(row: UserRow): BaseUser & { username?: string } {
   return {
     id: row.id,
     email: row.email,
     password: row.password_hash || undefined,
+    username: row.username,
     firstName: row.first_name,
     lastName: row.last_name,
     role: row.role || undefined,
@@ -82,41 +84,69 @@ export class SQLiteUserStore implements IUserStore {
   }
 
   async create(data: Partial<BaseUser> & { username?: string }): Promise<BaseUser> {
+    if (!data.email) {
+      throw new AuthError('Email is required to create a user', 'EMAIL_REQUIRED', 400);
+    }
     const db = getDb();
-    const id = uuidv4();
-    const now = new Date().toISOString();
     const username = (data as any).username || data.email.split('@')[0];
 
-    db.prepare(`
-      INSERT INTO users (
-        id, username, email, password_hash,
-        first_name, last_name, role, login_provider,
-        email_verified, is_totp_enabled, is_email_verified,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'local', 1, 0, 1, ?, ?)
-    `).run(
-      id,
-      username,
-      data.email,
-      data.password || null,
-      data.firstName || null,
-      data.lastName || null,
-      data.role || null,
-      now,
-      now
-    );
+    // Duplicate accounts must surface as a clean 409 the client can show —
+    // NOT as a raw UNIQUE constraint that the auth router turns into a 500.
+    const emailTaken = db.prepare('SELECT id FROM users WHERE email = ?').get(data.email);
+    if (emailTaken) {
+      throw new AuthError('An account with this email already exists. Sign in instead.', 'EMAIL_EXISTS', 409);
+    }
+    const usernameTaken = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (usernameTaken) {
+      throw new AuthError('That username is already taken.', 'USERNAME_TAKEN', 409);
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    try {
+      db.prepare(`
+        INSERT INTO users (
+          id, username, email, password_hash,
+          first_name, last_name, role, login_provider, provider_account_id,
+          email_verified, is_totp_enabled, is_email_verified,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1, ?, ?)
+      `).run(
+        id,
+        username,
+        data.email,
+        data.password || null,
+        data.firstName || null,
+        data.lastName || null,
+        data.role || null,
+        data.loginProvider || 'local',
+        data.providerAccountId || null,
+        now,
+        now
+      );
+    } catch (err: any) {
+      // Race safety: the pre-checks above are not atomic; a concurrent
+      // insert can still trip the UNIQUE constraint.
+      if (err?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw new AuthError('An account with this email or username already exists.', 'ACCOUNT_EXISTS', 409);
+      }
+      throw err;
+    }
 
     return {
       id,
       email: data.email,
       password: data.password,
+      username,
       firstName: data.firstName,
       lastName: data.lastName,
       role: data.role,
       loginProvider: data.loginProvider || 'local',
+      providerAccountId: data.providerAccountId,
       isEmailVerified: true,
       lastLogin: new Date(now),
-    };
+    } as BaseUser & { username: string };
   }
 
   async updateRefreshToken(userId: string, token: string | null, expiry: Date | null): Promise<void> {
@@ -211,5 +241,63 @@ export class SQLiteUserStore implements IUserStore {
     const db = getDb();
     const row = db.prepare('SELECT * FROM users WHERE phone_number = ?').get(phoneNumber) as UserRow | undefined;
     return row ? rowToBaseUser(row) : null;
+  }
+
+  // --- Directory / provisioning (SCIM) --------------------------------------
+  // These are the operations an IdP's SCIM client drives: list, set role, and
+  // deprovision. They read/write only the columns that already model identity;
+  // `active` was added by the additive migration in db.ts.
+
+  async listUsers(limit = 100, offset = 0): Promise<Array<BaseUser & { active?: boolean; updatedBy?: string | null }>> {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM users ORDER BY created_at ASC LIMIT ? OFFSET ?').all(limit, offset) as UserRow[];
+    return rows.map((r) => ({ ...rowToBaseUser(r), active: (r as unknown as { active?: number }).active !== 0, updatedBy: (r as unknown as { updated_by?: string }).updated_by ?? null }));
+  }
+
+  async countUsers(): Promise<number> {
+    const db = getDb();
+    const row = db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number };
+    return row.n;
+  }
+
+  async countActiveUsers(): Promise<number> {
+    const db = getDb();
+    const row = db.prepare('SELECT COUNT(*) AS n FROM users WHERE active IS NULL OR active = 1').get() as { n: number };
+    return row.n;
+  }
+
+  async updateRole(userId: string, role: string | null, by?: string): Promise<boolean> {
+    const db = getDb();
+    const r = db.prepare('UPDATE users SET role = ?, updated_by = ?, updated_at = ? WHERE id = ?')
+      .run(role, by ?? null, new Date().toISOString(), userId);
+    return r.changes > 0;
+  }
+
+  /** Link a federated identity to an existing local account (email match on
+   *  first SSO login), recording the provider subject for future lookups. */
+  async linkProvider(userId: string, provider: string, accountId: string, role?: string | null): Promise<boolean> {
+    const db = getDb();
+    const r = db.prepare('UPDATE users SET login_provider = ?, provider_account_id = ?, role = COALESCE(?, role), updated_at = ? WHERE id = ?')
+      .run(provider, accountId, role ?? null, new Date().toISOString(), userId);
+    return r.changes > 0;
+  }
+
+  /** Deprovision / reactivate. Deactivation also clears the refresh token and
+   *  drops sessions so an offboarded user cannot refresh back in. */
+  async setActive(userId: string, active: boolean, by?: string): Promise<boolean> {
+    const db = getDb();
+    const r = db.prepare('UPDATE users SET active = ?, updated_by = ?, updated_at = ? WHERE id = ?')
+      .run(active ? 1 : 0, by ?? null, new Date().toISOString(), userId);
+    if (!active) {
+      db.prepare('UPDATE users SET refresh_token = NULL, refresh_expires = NULL WHERE id = ?').run(userId);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    }
+    return r.changes > 0;
+  }
+
+  async isActive(userId: string): Promise<boolean | null> {
+    const db = getDb();
+    const row = db.prepare('SELECT active FROM users WHERE id = ?').get(userId) as { active: number | null } | undefined;
+    return row ? row.active !== 0 : null;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "OpenHub",
-  "description": "An autonomous developer orchestration OS designed for enterprise-scale engineering, AI-driven refactoring, and cloud integration.",
+  "description": "Operator console and control plane for the Axiom coding harness: repos, Axiom loops, audit/assurance, fleet, CRM, SEO, and Recourse.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

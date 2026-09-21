@@ -1,27 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
 const REPOS_ROOT = path.join(process.env.USERPROFILE || 'C:/Users/User', 'Documents', 'openhub', 'repos');
 
 export default async function globalSetup(): Promise<void> {
-  // Clean SQLite database files if possible (may be locked if server is already running)
-  for (const file of ['openhub.db', 'openhub.db-shm', 'openhub.db-wal']) {
-    const p = path.join(DATA_DIR, file);
-    if (fs.existsSync(p)) {
-      try {
-        fs.unlinkSync(p);
-      } catch (err: any) {
-        if (err.code === 'EBUSY') {
-          console.warn(`[globalSetup] Could not delete ${file} (resource busy). Proceeding with existing database.`);
-        } else {
-          throw err;
-        }
-      }
-    }
-  }
-
-  // Clean shared user repo directory if it exists from a previous run
+  // The test database is reset by dev:test before the isolated server starts.
+  // Clean the shared repository worktree left by a preceding E2E run.
   const sharedRepoDir = path.join(REPOS_ROOT, 'e2eshared');
   if (fs.existsSync(sharedRepoDir)) {
     try {

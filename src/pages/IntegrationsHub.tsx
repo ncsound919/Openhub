@@ -1,188 +1,184 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Database, Cloud, Globe, Shield, Zap, 
-  ExternalLink, Plus, RefreshCw, Server, 
-  Layers, Lock, Activity, Link as LinkIcon
+import { useEffect, useState } from 'react';
+import {
+  Database, Cloud, Github, Shield, Zap, Cpu, Loader2, RefreshCw,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useStore } from '../store';
+import { getAuthHeaders } from '../auth/AuthProvider';
+import { cn } from '../lib/utils';
 
+type IntegrationStatus = {
+  id: string;
+  name: string;
+  icon: typeof Github;
+  up: boolean;
+  detail: string;
+};
+
+type ProviderHealth = {
+  id: string;
+  name: string;
+  category: string;
+  configured: boolean;
+  up: boolean | null;
+  detail: string;
+  requires?: string;
+};
+
+/** Real integration status — no simulated providers or latency jitter. */
 export function IntegrationsHub() {
-  const [integrations, setIntegrations] = useState([
-    { 
-      id: 'supabase', 
-      name: 'Supabase DB', 
-      type: 'database', 
-      status: 'connected', 
-      latency: 24, 
-      region: 'us-east-1',
-      lastSync: '3m ago'
-    },
-    { 
-      id: 'vercel', 
-      name: 'Vercel Edge', 
-      type: 'deployment', 
-      status: 'syncing', 
-      latency: 45, 
-      region: 'global',
-      lastSync: 'now'
-    },
-    { 
-      id: 'redis', 
-      name: 'Upstash Redis', 
-      type: 'cache', 
-      status: 'connected', 
-      latency: 12, 
-      region: 'us-west-2',
-      lastSync: '15m ago'
-    },
-    { 
-      id: 'aws', 
-      name: 'AWS S3 Assets', 
-      type: 'storage', 
-      status: 'idle', 
-      latency: 0, 
-      region: 'eu-central-1',
-      lastSync: '2h ago'
-    }
-  ]);
+  const repositories = useStore((s) => s.repositories);
+  const [statuses, setStatuses] = useState<Record<string, { up: boolean; detail: string }>>({});
+  const [providers, setProviders] = useState<ProviderHealth[]>([]);
+  const [vault, setVault] = useState<{ reachable: boolean; secretCount: number | null; project: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Simulate jitter
+  const load = async () => {
+    setLoading(true);
+    const get = async (url: string) => {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
+        return await res.json();
+      } catch {
+        return null;
+      }
+    };
+
+    const [recourse, llm, axiom, business] = await Promise.all([
+      get('/api/recourse/status'),
+      get('/api/intelligence/llm'),
+      get('/api/axiom/status'),
+      get('/api/business/integrations'),
+    ]);
+
+    setStatuses({
+      recourse: {
+        up: !!recourse?.available,
+        detail: recourse?.available ? `generation ${recourse?.data?.status?.generation ?? '?'}` : (recourse?.error ?? 'offline'),
+      },
+      llm: {
+        up: !!llm?.ok,
+        detail: llm?.ok ? `${llm.models?.length ?? 0} models · ${llm.configuredModel ?? ''}` : (llm?.error ?? 'gateway offline'),
+      },
+      axiom: {
+        up: !!(axiom?.ok && axiom?.data?.status === 'ok'),
+        detail: axiom?.data?.status === 'ok' ? 'loop harness online' : 'offline',
+      },
+    });
+
+    setProviders(Array.isArray(business?.integrations) ? (business.integrations as ProviderHealth[]) : []);
+    setVault(business?.vault ? { reachable: !!business.vault.reachable, secretCount: business.vault.secretCount ?? null, project: business.vault.project } : null);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setIntegrations(prev => prev.map(item => {
-        if (item.status === 'idle') return item;
-        const jitter = Math.floor(Math.random() * 5) - 2;
-        return { ...item, latency: Math.max(8, item.latency + jitter) };
-      }));
-    }, 2000);
-    return () => clearInterval(interval);
+    void load();
   }, []);
 
+  const githubConnected = repositories.length > 0;
+
+  const integrations: IntegrationStatus[] = [
+    { id: 'github', name: 'GitHub', icon: Github, up: githubConnected, detail: githubConnected ? `${repositories.length} repositories` : 'not connected' },
+    { id: 'recourse', name: 'Recourse', icon: Cpu, up: statuses.recourse?.up ?? false, detail: statuses.recourse?.detail ?? '…' },
+    { id: 'llm', name: 'LLM Gateway', icon: Database, up: statuses.llm?.up ?? false, detail: statuses.llm?.detail ?? '…' },
+    { id: 'axiom', name: 'Axiom', icon: Zap, up: statuses.axiom?.up ?? false, detail: statuses.axiom?.detail ?? '…' },
+  ];
+
+  const upCount = integrations.filter((i) => i.up).length;
+
   return (
-    <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col gap-8 px-4 py-8 relative z-10">
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
-         <div>
-            <h1 className="text-white font-industrial text-4xl">Cloud Integrations Hub</h1>
-            <p className="text-gray-500 font-mono text-[10px] uppercase tracking-widest mt-2 flex items-center">
-               <Shield className="w-3 h-3 mr-2 text-blue-500" /> Secure Tunnel Active // Tunnel: OH-TUNNEL-X9
-            </p>
-         </div>
-         <div className="flex space-x-4">
-            <button className="bg-[#161b22] border border-[#30363d] text-white px-4 py-2 font-black text-[10px] uppercase tracking-widest hover:bg-white/5 transition-all flex items-center">
-               <RefreshCw className="w-3.5 h-3.5 mr-2" /> Global Re-Sync
-            </button>
-            <button className="bg-orange-500 text-black px-4 py-2 font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center">
-               <Plus className="w-3.5 h-3.5 mr-2" /> Add Provider
-            </button>
-         </div>
-      </div>
+    <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6">
+      <section className="gradient-hero rounded-2xl p-6 relative overflow-hidden">
+        <div className="absolute -right-8 -top-12 opacity-[0.12] pointer-events-none">
+          <Cloud className="w-56 h-56 text-blue-300" strokeWidth={1} />
+        </div>
+        <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-300">
+          <Shield className="w-3.5 h-3.5" /> Fleet integrations
+        </div>
+        <h2 className="mt-2">Integrations <span className="text-info">at a glance.</span></h2>
+        <p className="mt-1.5 max-w-xl text-sm text-gray-400">
+          Live status of the fleet services OpenHub is wired to — read from their real endpoints, never synthesized.
+        </p>
+        <div className="mt-4">
+          <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg border border-border-muted bg-surface-base/70 px-4 py-2 text-sm font-bold text-gray-400 hover:border-blue-500/50">
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} /> Re-check
+          </button>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         
-         {/* Live Connectivity Map Placeholder */}
-         <div className="lg:col-span-2 industrial-card p-1 relative overflow-hidden bg-black/40 min-h-[400px]">
-            <div className="absolute inset-0 opacity-20 pointer-events-none">
-               <div className="grid grid-cols-12 h-full">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                     <div key={i} className="border-r border-white/5 h-full"></div>
-                  ))}
-               </div>
-            </div>
-            <div className="relative p-10 h-full flex flex-col justify-center items-center">
-               <div className="w-64 h-64 border-2 border-dashed border-gray-800 rounded-full flex items-center justify-center animate-spin-slow">
-                  <div className="w-48 h-48 border border-blue-500/20 rounded-full flex items-center justify-center">
-                     <div className="w-32 h-32 bg-orange-500/10 border border-orange-500/30 rounded-full flex items-center justify-center">
-                        <Globe className="w-12 h-12 text-orange-500 animate-pulse" />
-                     </div>
-                  </div>
-               </div>
-               <div className="mt-12 text-center">
-                  <div className="text-xl font-display text-white tracking-widest">Global Edge Network</div>
-                  <div className="text-[10px] font-mono text-gray-500 mt-2 uppercase">Tracing 4 active nodes across 3 continents</div>
-               </div>
-               
-               {/* Floating Data Points */}
-               <motion.div 
-                  animate={{ y: [0, -10, 0] }} 
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="absolute top-1/4 left-1/4 p-3 bg-[#161b22] border border-blue-500/30 font-mono text-[8px] text-blue-500"
-               >
-                  US-EAST-1: OK (24ms)
-               </motion.div>
-               <motion.div 
-                  animate={{ y: [0, 10, 0] }} 
-                  transition={{ duration: 5, repeat: Infinity }}
-                  className="absolute bottom-1/4 right-1/4 p-3 bg-[#161b22] border border-orange-500/30 font-mono text-[8px] text-orange-500"
-               >
-                  EU-CENTRAL-1: IDLE
-               </motion.div>
-            </div>
-         </div>
-
-         {/* Integration List */}
-         <div className="lg:col-span-1 space-y-4">
-            <h2 className="text-gray-400 text-sm mb-4 flex items-center tracking-widest">
-               <LinkIcon className="w-4 h-4 mr-3" /> Active Connectors
-            </h2>
-            {integrations.map((item) => (
-               <div key={item.id} className="industrial-card p-5 group hover:bg-[#1c2128] transition-all">
-                  <div className="flex items-center justify-between">
-                     <div className="flex items-center space-x-4">
-                        <div className={`p-3 rounded-sm ${
-                           item.type === 'database' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
-                           item.type === 'deployment' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
-                           'bg-purple-500/10 text-purple-500 border border-purple-500/20'
-                        }`}>
-                           {item.type === 'database' ? <Database className="w-5 h-5" /> : 
-                            item.type === 'deployment' ? <Server className="w-5 h-5" /> :
-                            <Layers className="w-5 h-5" />}
-                        </div>
-                        <div>
-                           <h4 className="text-white font-industrial text-xl mb-0">{item.name}</h4>
-                           <div className="flex items-center space-x-2 mt-1">
-                              <span className={`text-[8px] font-black uppercase tracking-widest ${
-                                 item.status === 'connected' ? 'text-green-500' : 
-                                 item.status === 'syncing' ? 'text-blue-500' : 'text-gray-500'
-                              }`}>
-                                 {item.status}
-                              </span>
-                              <span className="text-[8px] text-gray-500 font-mono tracking-tighter uppercase">
-                                 LATENCY: {item.latency > 0 ? `${item.latency}ms` : 'N/A'}
-                              </span>
-                           </div>
-                        </div>
-                     </div>
-                     <button className="p-2 border border-white/5 text-gray-600 hover:text-white transition-colors group-hover:border-white/10">
-                        <ExternalLink className="w-4 h-4" />
-                     </button>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
-                     <div>
-                        <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Region</div>
-                        <div className="text-[10px] text-white font-mono uppercase">{item.region}</div>
-                     </div>
-                     <div className="text-right">
-                        <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Last Sync</div>
-                        <div className="text-[10px] text-white font-mono uppercase">{item.lastSync}</div>
-                     </div>
-                  </div>
-               </div>
+      <section className="industrial-card p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="!text-base flex items-center gap-2"><Zap className="w-4 h-4 text-blue-300" /> Business providers</h2>
+          {vault && (
+            <span className="font-mono text-[11px] text-gray-400">
+              Keywire {vault.reachable ? 'reachable' : 'unreachable'} · {vault.secretCount ?? '?'} secrets
+            </span>
+          )}
+        </div>
+        {providers.length > 0 ? (
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {providers.map((p) => (
+              <div key={p.id} className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: p.up === true ? 'var(--color-success)' : p.up === false ? 'var(--color-danger)' : 'var(--color-border-muted)' }}>
+                <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">
+                  <span className="truncate">{p.name}</span>
+                  <span className="ml-auto shrink-0 rounded-full border border-border-muted px-1.5 py-0.5 text-[11px] tracking-wide">{p.category}</span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className={cn('h-2 w-2 rounded-full', p.up === true ? 'bg-[var(--color-success)]' : p.up === false ? 'bg-[var(--color-danger)]' : 'bg-gray-500')} />
+                  <span className="text-sm font-bold text-[var(--color-text-primary)]">
+                    {p.up === true ? 'Connected' : p.up === false ? 'Error' : p.configured ? 'Needs setup' : 'Not configured'}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-gray-400">{p.detail}</div>
+                {p.requires && <div className="mt-1 font-mono text-[10px] text-gray-500">requires: {p.requires}</div>}
+              </div>
             ))}
+          </div>
+        ) : (
+          <div className="mt-3 text-sm text-gray-400">{loading ? 'Probing providers…' : 'No provider status available — the vault was unreachable.'}</div>
+        )}
+      </section>
 
-            <div className="p-6 bg-blue-500/5 border border-blue-500/20 border-l-4 border-blue-500 mt-8">
-               <div className="flex items-center space-x-3 mb-3">
-                  <Lock className="w-4 h-4 text-blue-500" />
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest">Security Protocol</span>
-               </div>
-               <p className="text-[9px] text-gray-500 leading-relaxed font-bold uppercase">
-                  All 3rd party traffic is routed through encrypted gRPC tunnels. Credentials are rotated every 24 hours automatically by OpenHub Vault.
-               </p>
+      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="Integration status">
+        {integrations.map((i) => {
+          const Icon = i.icon;
+          return (
+            <div key={i.id} className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: i.up ? 'var(--color-success)' : 'var(--color-danger)' }}>
+              <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">
+                <Icon className="w-3.5 h-3.5" /> {i.name}
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className={cn('h-2 w-2 rounded-full', i.up ? 'bg-[var(--color-success)]' : 'bg-[var(--color-danger)]')} />
+                <span className="text-sm font-bold text-[var(--color-text-primary)]">{i.up ? 'Connected' : 'Offline'}</span>
+              </div>
+              <div className="mt-0.5 truncate text-[11px] text-gray-400" title={i.detail}>{i.detail}</div>
             </div>
-         </div>
+          );
+        })}
+      </section>
 
-      </div>
+      <section className="industrial-card p-5">
+        <h2 className="!text-base flex items-center gap-2"><Shield className="w-4 h-4 text-emerald-400" /> Status</h2>
+        <div className="mt-3 space-y-2">
+          {integrations.map((i) => (
+            <div key={i.id} className="flex items-center justify-between rounded-md border border-border-muted bg-surface-base px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <i.icon className="w-4 h-4 shrink-0 text-gray-400" />
+                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{i.name}</span>
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate font-mono text-[11px] text-gray-400">{i.detail}</span>
+                <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', i.up ? 'bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-[var(--color-success)]' : 'bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-[var(--color-danger)]')}>
+                  {i.up ? 'up' : 'down'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-400">
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          {upCount}/{integrations.length} integrations reachable. Additional providers are configured via environment, not this screen.
+        </p>
+      </section>
     </div>
   );
 }

@@ -1,142 +1,205 @@
-import React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import {
+  Bot, Cpu, Wrench, BookOpen, Code, Command, Puzzle, Plus, Check, RefreshCw, Search, Loader2,
+} from 'lucide-react';
 import { useStore } from '../store';
-import { Puzzle, ExternalLink, Shield, Zap, Package, Globe } from 'lucide-react';
+import { getAuthHeaders } from '../auth/AuthProvider';
+
+/**
+ * Repository Extensions (E3) — real, not a marketplace mock.
+ *
+ * Two honest halves:
+ *  1. The live ecosystem catalog (`/api/ecosystem/knowledge`) — real files on
+ *     disk (agents/skills/workflows/commands), each labeled with its source path.
+ *  2. "Register to workspace" writes the item into the workspace registry
+ *     (`POST /api/registry`). That is what makes it appear in the workspace's
+ *     suggested skills — a real, reversible registration, NOT a package install.
+ *     No download/execution happens here, so nothing is claimed that isn't true.
+ */
+
+type KnowledgeKind = 'agent' | 'skill' | 'workflow' | 'reference' | 'template' | 'rule' | 'command';
+
+interface KnowledgeEntry {
+  kind: KnowledgeKind;
+  key: string;
+  name: string;
+  description: string;
+  path: string;
+}
+
+interface KnowledgeResponse {
+  ok: boolean;
+  live: boolean;
+  root: string | null;
+  totals: Record<string, number>;
+  entries: KnowledgeEntry[];
+  error?: string;
+}
+
+const KIND_ICON: Record<KnowledgeKind, typeof Bot> = {
+  agent: Bot,
+  skill: Cpu,
+  workflow: Wrench,
+  reference: BookOpen,
+  template: Code,
+  rule: Wrench,
+  command: Command,
+};
+
+/** Map an ecosystem kind onto the workspace registry's item types. */
+function registryType(kind: KnowledgeKind): 'cli' | 'mcp' | 'cron' | 'agent' {
+  if (kind === 'agent') return 'agent';
+  if (kind === 'skill' || kind === 'command') return 'cli';
+  if (kind === 'workflow') return 'cron';
+  return 'agent';
+}
 
 export function ExtensionsView() {
   const { owner, repo: repoName } = useParams();
-  const repo = useStore((state) => state.repositories.find(r => r.owner === owner && r.name === repoName));
+  const repo = useStore((state) => state.repositories.find((r) => r.owner === owner && r.name === repoName));
+  const registryItems = useStore((state) => state.registryItems);
+  const fetchRegistryItems = useStore((state) => state.fetchRegistryItems);
+  const addRegistryItem = useStore((state) => state.addRegistryItem);
 
-  if (!repo) return null;
+  const [data, setData] = useState<KnowledgeResponse | null>(null);
+  const [query, setQuery] = useState('');
+  const [kind, setKind] = useState<'all' | KnowledgeKind>('all');
+  const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/ecosystem/knowledge?limit=300', { credentials: 'include', headers: getAuthHeaders() });
+      setData((await res.json()) as KnowledgeResponse);
+    } catch (err) {
+      setData({ ok: false, live: false, root: null, totals: {}, entries: [], error: err instanceof Error ? err.message : 'Catalog unavailable' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (registryItems.length === 0) void fetchRegistryItems(); }, [registryItems.length, fetchRegistryItems]);
+
+  const registered = useMemo(() => new Set(registryItems.map((i) => i.name.toLowerCase())), [registryItems]);
+
+  const entries = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return (data?.entries ?? []).filter((e) => {
+      if (kind !== 'all' && e.kind !== kind) return false;
+      return !needle || `${e.name} ${e.description} ${e.path}`.toLowerCase().includes(needle);
+    });
+  }, [data, kind, query]);
+
+  const register = async (entry: KnowledgeEntry) => {
+    setBusyKey(entry.key);
+    try {
+      await addRegistryItem({
+        name: entry.name,
+        type: registryType(entry.kind),
+        description: entry.description || `Ecosystem ${entry.kind} (${entry.path})`,
+        author: 'ecosystem',
+        version: '1.0.0',
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const kinds = Object.keys(data?.totals ?? {}) as KnowledgeKind[];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+      <div className="flex items-center justify-between border-b border-[var(--color-border-muted)] pb-4">
         <div>
-           <h2 className="text-2xl font-bold flex items-center text-gray-900">
-             <Puzzle className="w-6 h-6 mr-2 text-purple-600" /> Repository Extensions
-           </h2>
-           <p className="text-gray-500 text-sm mt-1">Enhance your repository with custom UI panels and integrated 3rd party tools.</p>
+          <h2 className="flex items-center text-lg font-bold text-[var(--color-text-primary)]">
+            <Puzzle className="mr-2 h-5 w-5 text-[var(--color-accent-text)]" /> Extensions
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            {repo ? `${repo.owner}/${repo.name} · ` : ''}Live ecosystem catalog. Register an item to make it available in the workspace.
+          </p>
         </div>
-        <button className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-bold shadow-sm hover:bg-purple-700 transition-colors">
-          Browse Marketplace
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Installed Extensions */}
-        <div className="lg:col-span-2 space-y-6">
-           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 font-bold text-sm text-gray-700 flex items-center justify-between">
-                 <span>Active UI Extensions</span>
-                 <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-widest">v2 API</span>
-              </div>
-              <div className="divide-y divide-gray-200">
-                 {/* Extension 1 */}
-                 <div className="p-6">
-                    <div className="flex items-start justify-between">
-                       <div className="flex items-start space-x-4">
-                          <div className="p-2 bg-blue-50 rounded-lg">
-                             <Package className="w-6 h-6 text-blue-600" />
-                          </div>
-                          <div>
-                             <h4 className="font-bold text-gray-900 flex items-center">
-                                Dependency Graph <span className="ml-2 text-[10px] font-bold text-blue-600 border border-blue-200 px-1.5 rounded uppercase">Experimental</span>
-                             </h4>
-                             <p className="text-sm text-gray-500 mt-1">Surfaces a visual map of all internal and external dependencies. Injects into the 'Code' and 'Insights' tabs.</p>
-                             <div className="flex items-center space-x-4 mt-3 text-xs text-gray-400">
-                                <span className="flex items-center"><Shield className="w-3 h-3 mr-1" /> Full read access</span>
-                                <span className="flex items-center"><Globe className="w-3 h-3 mr-1" /> No network access</span>
-                             </div>
-                          </div>
-                       </div>
-                       <div className="flex flex-col items-end">
-                          <div className="text-[10px] text-green-500 font-bold uppercase mb-2">Enabled</div>
-                          <button className="text-xs font-bold text-blue-600 hover:underline">Config</button>
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* Extension 2 */}
-                 <div className="p-6">
-                    <div className="flex items-start justify-between">
-                       <div className="flex items-start space-x-4">
-                          <div className="p-2 bg-orange-50 rounded-lg">
-                             <Zap className="w-6 h-6 text-orange-600" />
-                          </div>
-                          <div>
-                             <h4 className="font-bold text-gray-900">Linear Workspace Sync</h4>
-                             <p className="text-sm text-gray-500 mt-1">Adds a sidebar to Pull Requests showing related Linear issues and their sub-tasks.</p>
-                             <div className="flex items-center space-x-4 mt-3 text-xs text-gray-400">
-                                <span className="flex items-center"><Shield className="w-3 h-3 mr-1" /> Partial read access</span>
-                                <span className="flex items-center"><Globe className="w-3 h-3 mr-1" /> External Domain: linear.app</span>
-                             </div>
-                          </div>
-                       </div>
-                       <div className="flex flex-col items-end">
-                          <div className="text-[10px] text-green-500 font-bold uppercase mb-2">Enabled</div>
-                          <button className="text-xs font-bold text-blue-600 hover:underline">Config</button>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* API Documentation Preview */}
-           <div className="bg-[#161B22] border border-[#30363D] rounded-lg p-6 text-gray-300">
-              <h3 className="font-bold text-white mb-2 flex items-center">
-                 <Zap className="w-4 h-4 mr-2 text-yellow-500" /> Extensions API (SDK)
-              </h3>
-              <p className="text-sm text-gray-400 mb-4">Build your own UI panels using our React-based extension SDK. Register custom routes, sidebar widgets, and tab panels.</p>
-              <div className="bg-black/50 p-4 rounded-md font-mono text-xs text-blue-400">
-                 <pre>{`// Example: Registering a tab extension
-LocalHub.registerExtension({
-  id: 'my-custom-tab',
-  type: 'TAB_PANEL',
-  label: 'Architecture',
-  icon: 'Network',
-  render: () => <ArchitectureMap />
-});`}</pre>
-              </div>
-           </div>
-        </div>
-
-        {/* Right Column: Suggested Extensions */}
-        <div className="space-y-6">
-           <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
-              <h4 className="font-black text-[10px] uppercase tracking-widest text-gray-500 mb-4">Recommended for you</h4>
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between p-2 hover:bg-white rounded transition-colors group cursor-pointer border border-transparent hover:border-gray-200">
-                    <div className="flex items-center">
-                       <div className="w-8 h-8 bg-black text-white rounded flex items-center justify-center font-bold mr-3">T</div>
-                       <div>
-                          <p className="text-xs font-bold text-gray-900">Tailwind Previewer</p>
-                          <p className="text-[10px] text-gray-500">Render components in PRs</p>
-                       </div>
-                    </div>
-                    <button className="text-[10px] font-bold text-blue-600 underline opacity-0 group-hover:opacity-100">Add</button>
-                 </div>
-                 <div className="flex items-center justify-between p-2 hover:bg-white rounded transition-colors group cursor-pointer border border-transparent hover:border-gray-200">
-                    <div className="flex items-center">
-                       <div className="w-8 h-8 bg-blue-600 text-white rounded flex items-center justify-center font-bold mr-3 text-xs">AI</div>
-                       <div>
-                          <p className="text-xs font-bold text-gray-900">Copilot Explain</p>
-                          <p className="text-[10px] text-gray-500">Contextual code explanation</p>
-                       </div>
-                    </div>
-                    <button className="text-[10px] font-bold text-blue-600 underline opacity-0 group-hover:opacity-100">Add</button>
-                 </div>
-              </div>
-              <button className="w-full mt-6 text-xs font-bold text-purple-600 hover:bg-purple-50 py-2 rounded-md transition-colors">View All Marketplace Apps</button>
-           </div>
-
-           <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-xs text-blue-800 leading-relaxed">
-                 <span className="font-bold">OAuth-ready:</span> All extensions are sandboxed and require explicit permission to access repository content via OAuth2 tokens.
-              </p>
-           </div>
+      <div className="rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] p-3 text-xs font-mono">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">Source</span>
+        <div className={data?.live ? 'mt-1 break-all text-[var(--color-success)]' : 'mt-1 text-[var(--color-warning)]'}>
+          {data?.root || data?.error || 'Checking ecosystem configuration…'}
         </div>
       </div>
+
+      <div className="flex flex-col gap-3 md:flex-row">
+        <div className="flex flex-1 items-center rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2">
+          <Search className="mr-2 h-4 w-4 text-[var(--color-text-muted)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search agents, skills, workflows, commands…"
+            aria-label="Search ecosystem catalog"
+            className="w-full bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none"
+          />
+        </div>
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as typeof kind)}
+          aria-label="Filter by kind"
+          className="rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2 text-sm text-[var(--color-text-primary)]"
+        >
+          <option value="all">All kinds</option>
+          {kinds.map((k) => <option key={k} value={k}>{k} ({data?.totals[k] ?? 0})</option>)}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 py-10 font-mono text-sm text-[var(--color-text-muted)]">
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading ecosystem catalog…
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="rounded-md border border-dashed border-[var(--color-border-muted)] p-10 text-center text-sm text-[var(--color-text-muted)]">
+          {data?.live ? 'No ecosystem items match this filter.' : 'No live catalog is available. Configure OPENHUB_ECOSYSTEM_ROOT.'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {entries.map((entry) => {
+            const Icon = KIND_ICON[entry.kind];
+            const isIn = registered.has(entry.name.toLowerCase());
+            return (
+              <div key={`${entry.kind}-${entry.key}`} className="rounded-lg border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)]">
+                    <Icon className="h-[18px] w-[18px] text-[var(--color-accent-text)]" />
+                  </span>
+                  <div className="min-w-0">
+                    <span className="tag">{entry.kind}</span>
+                    <h3 className="mt-1.5 truncate text-sm font-semibold text-[var(--color-text-primary)]" title={entry.name}>{entry.name}</h3>
+                  </div>
+                </div>
+                <p className="mt-3 min-h-10 text-xs text-[var(--color-text-secondary)]">{entry.description || 'No description in the source document.'}</p>
+                <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-border-muted)] pt-3">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--color-text-muted)]" title={entry.path}>{entry.path}</span>
+                  <button
+                    onClick={() => void register(entry)}
+                    disabled={isIn || busyKey === entry.key}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[11px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+                  >
+                    {busyKey === entry.key ? <Loader2 className="h-3 w-3 animate-spin" /> : isIn ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                    {isIn ? 'In workspace' : 'Register'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

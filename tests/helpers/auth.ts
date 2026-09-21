@@ -10,11 +10,28 @@ export async function getCsrfToken(page: Page): Promise<string> {
   return csrf?.value ?? '';
 }
 
-export function mutationHeaders(csrfToken: string): Record<string, string> {
+export function mutationHeaders(csrfToken: string, _accessToken?: string): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'X-CSRF-Token': csrfToken,
   };
+}
+
+/**
+ * Session auth is carried by HttpOnly cookies in the page context (the browser
+ * no longer keeps tokens in JS), and `page.context().request` shares those
+ * cookies automatically. Navigate first so the context is primed before the
+ * first API call, then return no auth headers of our own.
+ */
+export async function authenticatedHeaders(page: Page): Promise<Record<string, string>> {
+  if (page.url() === 'about:blank') await page.goto('/');
+  return {};
+}
+
+/** Build the same mutation credentials used by the browser application. */
+export async function authenticatedMutationHeaders(page: Page): Promise<Record<string, string>> {
+  await page.goto('/');
+  return mutationHeaders(await getCsrfToken(page));
 }
 
 /** Navigate to login and authenticate. Handles already-authenticated state gracefully. */

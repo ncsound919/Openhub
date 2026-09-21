@@ -26,6 +26,48 @@ describe('Auth System', () => {
       expect(user.id).toBeDefined();
     });
 
+    it('rejects a duplicate email with a clean 409 AuthError (not a raw SQLite error)', async () => {
+      await store.create({
+        email: 'dup@example.com',
+        password: 'hashedpassword123',
+        username: 'dupuser',
+      });
+
+      let thrown: any = null;
+      try {
+        await store.create({
+          email: 'dup@example.com',
+          password: 'hashedpassword123',
+          username: 'dupuser2',
+        });
+      } catch (e) { thrown = e; }
+
+      expect(thrown).toBeTruthy();
+      expect(thrown.statusCode).toBe(409);
+      expect(thrown.message).toContain('already exists');
+    });
+
+    it('rejects a duplicate username with a clean 409 AuthError', async () => {
+      await store.create({
+        email: 'name1@example.com',
+        password: 'hashedpassword123',
+        username: 'sharedname',
+      });
+
+      let thrown: any = null;
+      try {
+        await store.create({
+          email: 'name2@example.com',
+          password: 'hashedpassword123',
+          username: 'sharedname',
+        });
+      } catch (e) { thrown = e; }
+
+      expect(thrown).toBeTruthy();
+      expect(thrown.statusCode).toBe(409);
+      expect(thrown.message).toContain('taken');
+    });
+
     it('should find user by email', async () => {
       await store.create({
         email: 'find@example.com',

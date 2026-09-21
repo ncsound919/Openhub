@@ -28,19 +28,20 @@ test.describe.serial('Auth', () => {
 
     await browserLogin(page, email, password);
 
-    await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Active Contracts')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Command console/i })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Do next')).toBeVisible();
   });
 
   test('dashboard shows navigation elements after login', async ({ page }) => {
     test.setTimeout(60000);
     // Page state unreliable between serial tests — refresh via browser login
     await browserLogin(page, email, password);
-    await expect(page.getByText('Logistics')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Orchestration')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Cloud')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Workspace')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Studio')).toBeVisible({ timeout: 15000 });
+    const sidebar = page.locator('aside');
+    await expect(sidebar.getByRole('link', { name: 'Command', exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(sidebar.getByRole('link', { name: 'Workspace', exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(sidebar.getByRole('link', { name: 'Assurance', exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(sidebar.getByRole('link', { name: 'Fleet', exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(sidebar.getByRole('link', { name: 'Settings', exact: true })).toBeVisible({ timeout: 15000 });
   });
 
   test('invalid login shows error', async ({ page }) => {
@@ -69,7 +70,7 @@ test.describe.serial('Auth', () => {
     // Navigate to dashboard — wait for ProtectedRoute auth check to settle
     await page.goto('/');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('Logistics')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('aside').getByRole('link', { name: 'Command', exact: true })).toBeVisible({ timeout: 20000 });
 
     // Logout
     await page.getByText('Sign out').click();

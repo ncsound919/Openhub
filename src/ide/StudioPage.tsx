@@ -7,9 +7,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
+import { useModelStore, AXIOM_ROUTES } from '../lib/modelStore';
 
 type StepStatus = 'idle' | 'running' | 'success' | 'failed' | 'skipped';
 type LLMChoice = 'ollama' | 'gemini' | 'anthropic' | 'deepseek' | 'openrouter';
+type LogLevel = 'info' | 'success' | 'error';
+type PipelineLog = { level: LogLevel; text: string };
 
 interface PipelineStep {
   id: string;
@@ -56,29 +59,50 @@ const LLM_COLORS: Record<LLMChoice, string> = {
   openrouter: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
 };
 
+/** Axiom's own routing modes (single source of truth: lib/modelStore). */
+const ROUTE_LABELS: Record<(typeof AXIOM_ROUTES)[number], string> = {
+  auto: 'Auto (Axiom decides)',
+  opencode: 'OpenCode harness',
+  deterministic: 'Deterministic only (no model)',
+  local: 'Local model only',
+};
+
 export function StudioPage() {
   const [steps, setSteps] = useState<PipelineStep[]>(() => {
-    const saved = localStorage.getItem('openhub_pipeline_steps');
-    return saved ? JSON.parse(saved) : DEFAULT_STEPS;
+    try {
+      const saved = localStorage.getItem('openhub_pipeline_steps');
+      if (!saved) return DEFAULT_STEPS;
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) && parsed.length ? (parsed as PipelineStep[]) : DEFAULT_STEPS;
+    } catch {
+      // Corrupt persisted state must not blank the page.
+      return DEFAULT_STEPS;
+    }
   });
   const [intent, setIntent] = useState('');
   const [targetStack, setTargetStack] = useState('react');
   const [isRunning, setIsRunning] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<PipelineLog[]>([]);
+  const [intentError, setIntentError] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState('');
+  // Axiom's routing mode is owned by lib/modelStore (shared with WorkspacePage).
+  const axiomRoute = useModelStore((s) => s.routes.axiom || 'auto') as (typeof AXIOM_ROUTES)[number];
+  const setRoute = useModelStore((s) => s.setRoute);
 
   useEffect(() => {
     localStorage.setItem('openhub_pipeline_steps', JSON.stringify(steps));
   }, [steps]);
 
-  const addLog = (msg: string) => setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  // Cancel an in-flight pipeline poll when the page unmounts; otherwise the
+  // for(;;) loop keeps fetching after navigation.
+  const runRef = React.useRef<{ cancelled: boolean } | null>(null);
+  useEffect(() => () => { if (runRef.current) runRef.current.cancelled = true; }, []);
+
+  const addLog = (msg: string, level: LogLevel = 'info') =>
+    setLogs((prev) => [...prev, { level, text: `[${new Date().toLocaleTimeString()}] ${msg}` }]);
 
   const toggleStep = (id: string) => {
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s)));
-  };
-
-  const setStepLLM = (id: string, llm: LLMChoice) => {
-    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, llm } : s)));
   };
 
   const applyPreset = (preset: typeof PRESETS[0]) => {
@@ -97,65 +121,74 @@ export function StudioPage() {
     setActivePreset('');
   };
 
-  const MCP_TOOLS: Record<string, string> = {
-    architect: 'vibe_architect',
-    code: 'vibe_code',
-    review: 'vibe_review',
-    verify: 'vibe_review',
-    iterate: 'vibe_architect',
-    test: 'vibe_test',
-    deploy: 'vibe_architect',
-  };
-
   const runPipeline = async () => {
-    if (!intent.trim()) return;
+    if (!intent.trim()) {
+      setIntentError('Describe what you want to build before running the pipeline.');
+      return;
+    }
+    setIntentError(null);
     setIsRunning(true);
     setLogs([]);
-    addLog(`Pipeline started with intent: "${intent}"`);
+    addLog(`Axiom loop started with intent: "${intent}" (route: ${axiomRoute})`);
 
-    const enabledSteps = steps.filter((s) => s.enabled);
-    let context = intent;
+    setSteps((prev) => prev.map((s) => (s.enabled ? { ...s, status: 'running' } : s)));
 
-    for (const step of enabledSteps) {
-      setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: 'running' } : s)));
-      addLog(`[${step.name}] Running with ${LLM_LABELS[step.llm]}...`);
+    const run = { cancelled: false };
+    runRef.current = run;
+    const startedAt = Date.now();
+    const MAX_POLL_MS = 15 * 60 * 1000;
 
-      const tool = MCP_TOOLS[step.key] || 'vibe_architect';
-
-      try {
-        const res = await fetch(`/api/mcp/${tool}`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: getAuthHeaders({
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': getCsrfToken(),
-          }),
-          body: JSON.stringify({
-            intent: context,
-            constraints: [step.key],
-            target_stack: targetStack,
-            code: context,
-            language: targetStack === 'python' || targetStack === 'rust' || targetStack === 'go' ? targetStack : 'typescript',
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: 'success' } : s)));
-          addLog(`[${step.name}] Completed successfully`);
-          if (data?.plan?.architecture) context += ` | Architecture: ${data.plan.architecture}`;
-        } else {
-          setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: 'failed' } : s)));
-          addLog(`[${step.name}] Failed: ${res.statusText} (code ${res.status})`);
-        }
-      } catch (err: any) {
-        setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: 'failed' } : s)));
-        addLog(`[${step.name}] Error: ${err.message}`);
+    try {
+      // Axiom is the single engine. The legacy per-step vibeserve MCP tools
+      // were removed; the whole pipeline is one Axiom project loop.
+      const res = await fetch('/api/axiom/project/run', {
+        method: 'POST',
+        credentials: 'include',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() }),
+        body: JSON.stringify({ goal: `${intent} (target stack: ${targetStack})`, modelRoute: axiomRoute }),
+      });
+      const body = await res.json();
+      const loopId: string | undefined = body?.data?.id;
+      if (!res.ok || !loopId) {
+        setSteps((prev) => prev.map((s) => (s.enabled ? { ...s, status: 'failed' } : s)));
+        addLog(`Axiom loop failed to start: ${body?.error || res.statusText} (code ${res.status})`, 'error');
+        setIsRunning(false);
+        return;
       }
+      addLog(`Axiom loop ${String(loopId).slice(0, 8)} running…`);
+
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2000));
+        if (run.cancelled) return;
+        if (Date.now() - startedAt > MAX_POLL_MS) {
+          addLog('Stopped watching after 15 minutes — open the loop console for live status.', 'error');
+          break;
+        }
+        const sres = await fetch(`/api/axiom/project/status/${encodeURIComponent(loopId)}`, {
+          credentials: 'include',
+          headers: getAuthHeaders(),
+        });
+        const sbody = await sres.json();
+        if (run.cancelled) return;
+        const loop = sbody?.data;
+        if (!loop) continue;
+        const iterations = Array.isArray(loop.iterations) ? loop.iterations : [];
+        const latest = iterations.length ? iterations[iterations.length - 1] : null;
+        if (latest) addLog(`Axiom iteration ${loop.iteration ?? 0}/${loop.maxIterations ?? '?'}: ${latest.verdict ?? ''}`);
+        if (loop.status !== 'running') {
+          const ok = loop.status === 'done';
+          setSteps((prev) => prev.map((s) => (s.enabled ? { ...s, status: ok ? 'success' : 'failed' } : s)));
+          addLog(`Axiom loop ${loop.status}.`, ok ? 'success' : 'error');
+          break;
+        }
+      }
+    } catch (err: any) {
+      if (run.cancelled) return;
+      setSteps((prev) => prev.map((s) => (s.enabled ? { ...s, status: 'failed' } : s)));
+      addLog(`Error: ${err.message}`, 'error');
     }
 
-    setIsRunning(false);
-    addLog('Pipeline finished.');
+    if (!run.cancelled) setIsRunning(false);
   };
 
   const statusIcon = (status: StepStatus) => {
@@ -163,30 +196,30 @@ export function StudioPage() {
       case 'running': return <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />;
       case 'success': return <CheckCircle2 className="w-4 h-4 text-green-400" />;
       case 'failed': return <AlertCircle className="w-4 h-4 text-red-400" />;
-      case 'skipped': return <Pause className="w-4 h-4 text-gray-600" />;
-      default: return <div className="w-4 h-4 rounded-full border border-[#30363d]" />;
+      case 'skipped': return <Pause className="w-4 h-4 text-gray-400" />;
+      default: return <div className="w-4 h-4 rounded-full border border-border-muted" />;
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#0A0C10' }}>
+    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'var(--color-bg-base)' }}>
       {/* Header */}
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-[#30363d]">
+      <div className="flex items-center gap-4 px-6 py-4 border-b border-border-muted">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
             <Zap className="w-4 h-4 text-purple-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">Studio Pipeline</h1>
-            <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Autonomous Agentic Workflow</p>
+            <h1 className="text-lg font-bold text-[var(--color-text-primary)]">Studio Pipeline</h1>
+            <p className="text-xs text-gray-400 font-mono uppercase tracking-widest">Autonomous Agentic Workflow</p>
           </div>
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-2">
-          <button onClick={resetSteps} className="flex items-center gap-1 px-3 py-1.5 bg-[#161b22] hover:bg-[#30363d] rounded text-gray-300 text-xs">
+          <button onClick={resetSteps} className="flex items-center gap-1 px-3 py-1.5 bg-surface-raised hover:bg-border-muted rounded text-gray-400 text-xs">
             <RefreshCw className="w-3.5 h-3.5" /> Reset
           </button>
-          <Link to="/workspace" className="flex items-center gap-1 px-3 py-1.5 bg-[#161b22] hover:bg-[#30363d] rounded text-gray-300 text-xs">
+          <Link to="/workspace" className="flex items-center gap-1 px-3 py-1.5 bg-surface-raised hover:bg-border-muted rounded text-gray-400 text-xs">
             <ArrowRight className="w-3.5 h-3.5" /> Workspace
           </Link>
         </div>
@@ -197,21 +230,29 @@ export function StudioPage() {
         <div className="flex-1 flex flex-col overflow-y-auto p-6 gap-6">
           {/* Intent Input */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">
+            <label htmlFor="studio-intent" className="block text-xs font-bold text-gray-400 uppercase tracking-wider">
               What do you want to build?
             </label>
             <textarea
+              id="studio-intent"
               value={intent}
-              onChange={(e) => setIntent(e.target.value)}
+              onChange={(e) => { setIntent(e.target.value); if (intentError) setIntentError(null); }}
               placeholder="e.g. Build a SaaS analytics dashboard with dark mode, user auth, and Stripe billing integration..."
-              className="w-full bg-[#161b22] border border-[#30363d] rounded-lg p-4 text-sm text-white placeholder-gray-600 resize-none focus:border-purple-500 focus:outline-none"
+              aria-invalid={intentError ? true : undefined}
+              aria-describedby={intentError ? 'studio-intent-error' : undefined}
+              className="w-full bg-surface-raised border border-border-muted rounded-lg p-4 text-sm text-[var(--color-text-primary)] placeholder-gray-500 resize-none focus:border-purple-500 focus:outline-none"
               rows={3}
             />
+            {intentError && (
+              <p id="studio-intent-error" role="alert" className="text-[11px] text-red-400">
+                {intentError}
+              </p>
+            )}
             <div className="flex items-center gap-4">
               <select
                 value={targetStack}
                 onChange={(e) => setTargetStack(e.target.value)}
-                className="bg-[#161b22] border border-[#30363d] rounded px-3 py-1.5 text-xs text-gray-300"
+                className="bg-surface-raised border border-border-muted rounded px-3 py-1.5 text-xs text-gray-400"
               >
                 <option value="react">React + TypeScript</option>
                 <option value="nextjs">Next.js</option>
@@ -222,8 +263,11 @@ export function StudioPage() {
                 <option value="go">Go</option>
               </select>
               <button
+                type="button"
                 onClick={runPipeline}
                 disabled={isRunning || !intent.trim()}
+                aria-busy={isRunning}
+                aria-describedby={intentError ? 'studio-intent-error' : undefined}
                 className="flex items-center gap-2 px-5 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 rounded-lg text-white text-xs font-bold transition-colors"
               >
                 {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
@@ -244,7 +288,7 @@ export function StudioPage() {
                     className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                       activePreset === p.name
                         ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                        : 'bg-[#161b22] border border-[#30363d] text-gray-500 hover:text-gray-300'
+                        : 'bg-surface-raised border border-border-muted text-gray-400 hover:text-gray-200'
                     }`}
                   >
                     {p.name}
@@ -264,14 +308,14 @@ export function StudioPage() {
                       step.status === 'running' ? 'border-blue-500/50 bg-blue-500/5' :
                       step.status === 'success' ? 'border-green-500/30 bg-green-500/5' :
                       step.status === 'failed' ? 'border-red-500/30 bg-red-500/5' :
-                      step.enabled ? 'border-[#30363d] bg-[#161b22]' :
-                      'border-[#21262d] bg-[#0D1117] opacity-50'
+                      step.enabled ? 'border-border-muted bg-surface-raised' :
+                      'border-surface-overlay bg-surface-base opacity-50'
                     }`}
                   >
                     <div className="flex items-center justify-center w-5">{statusIcon(step.status)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold ${step.enabled ? 'text-gray-200' : 'text-gray-600'}`}>
+                        <span className={`text-sm font-bold ${step.enabled ? 'text-gray-400' : 'text-gray-400'}`}>
                           {step.name}
                         </span>
                         {step.status === 'success' && (
@@ -281,25 +325,27 @@ export function StudioPage() {
                           <span className="text-[10px] text-blue-400 font-bold animate-pulse">RUNNING</span>
                         )}
                       </div>
-                      <p className="text-[10px] text-gray-600 mt-0.5">{step.description}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{step.description}</p>
                     </div>
 
-                    <select
-                      value={step.llm}
-                      onChange={(e) => setStepLLM(step.id, e.target.value as LLMChoice)}
-                      disabled={!step.enabled || isRunning}
-                      className={`px-2 py-1 rounded text-[10px] font-bold border ${LLM_COLORS[step.llm]} cursor-pointer disabled:opacity-50`}
+                    {/* Advisory only: Axiom runs the whole pipeline loop under a
+                        single route, so this is informational, not a control. */}
+                    <span
+                      className={`px-2 py-1 rounded text-[10px] font-bold border ${LLM_COLORS[step.llm]} ${step.enabled ? '' : 'opacity-50'}`}
+                      title={`Advisory: ${LLM_LABELS[step.llm]}. Axiom runs the whole pipeline under one route (${ROUTE_LABELS[axiomRoute]}).`}
                     >
-                      {Object.entries(LLM_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
-                    </select>
+                      {LLM_LABELS[step.llm]}
+                    </span>
 
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={step.enabled}
+                      aria-label={`Enable ${step.name} step`}
                       onClick={() => toggleStep(step.id)}
                       disabled={isRunning}
                       className={`w-9 h-5 rounded-full relative transition-colors ${
-                        step.enabled ? 'bg-purple-600' : 'bg-[#30363d]'
+                        step.enabled ? 'bg-purple-600' : 'bg-border-muted'
                       } disabled:opacity-50`}
                     >
                       <div
@@ -311,7 +357,7 @@ export function StudioPage() {
 
                     {/* Arrow between steps */}
                     {idx < steps.length - 1 && (
-                      <div className="absolute left-7 bottom-[-18px] w-px h-4 bg-[#30363d]" />
+                      <div className="absolute left-7 bottom-[-18px] w-px h-4 bg-border-muted" />
                     )}
                   </motion.div>
                 ))}
@@ -323,17 +369,22 @@ export function StudioPage() {
           {logs.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pipeline Log</h2>
-              <div className="bg-[#0D1117] border border-[#30363d] rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
+              <div
+                role="log"
+                aria-live="polite"
+                aria-label="Pipeline log"
+                className="bg-surface-base border border-border-muted rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs"
+              >
                 {logs.map((line, i) => (
                   <div
                     key={i}
-                    className={`${
-                      line.includes('Failed') || line.includes('Error') ? 'text-red-400' :
-                      line.includes('successfully') || line.includes('Completed') ? 'text-green-400' :
-                      'text-gray-500'
-                    }`}
+                    className={
+                      line.level === 'error' ? 'text-red-400' :
+                      line.level === 'success' ? 'text-green-400' :
+                      'text-gray-400'
+                    }
                   >
-                    {line}
+                    {line.text}
                   </div>
                 ))}
               </div>
@@ -342,49 +393,48 @@ export function StudioPage() {
         </div>
 
         {/* Right Sidebar: Settings */}
-        <div className="w-72 border-l border-[#30363d] p-4 space-y-4 overflow-y-auto" style={{ background: '#0D1117' }}>
+        <div className="w-72 border-l border-border-muted p-4 space-y-4 overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pipeline Configuration</h3>
 
           <div className="space-y-3">
-            <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-2">Model Routing</div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-gray-500">Local Tasks (Ollama)</span>
-                  <span className="text-green-400 font-bold">Active</span>
-                </div>
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-gray-500">API Providers</span>
-                  <span className="text-yellow-400 font-bold">Config Required</span>
-                </div>
-              </div>
+            <div className="bg-surface-raised border border-border-muted rounded-lg p-3">
+              <label htmlFor="axiom-route" className="block text-xs text-gray-400 mb-2">Model routing (Axiom)</label>
+              <select
+                id="axiom-route"
+                value={axiomRoute}
+                onChange={(e) => setRoute('axiom', e.target.value)}
+                disabled={isRunning}
+                className="w-full bg-surface-base border border-border-muted rounded px-2 py-1.5 text-[11px] text-[var(--color-text-primary)] disabled:opacity-50"
+              >
+                {AXIOM_ROUTES.map((r) => (
+                  <option key={r} value={r}>{ROUTE_LABELS[r]}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[10px] text-gray-500">
+                Applies to the whole loop. The per-step labels above are advisory.
+              </p>
             </div>
 
-            <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-3">
+            <div className="bg-surface-raised border border-border-muted rounded-lg p-3">
               <div className="text-xs text-gray-400 mb-2">Quality Gates</div>
               <div className="space-y-1">
-                <label className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <input type="checkbox" defaultChecked className="rounded" />
-                  WCAG AAA Accessibility
-                </label>
-                <label className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <input type="checkbox" defaultChecked className="rounded" />
-                  80% Test Coverage
-                </label>
-                <label className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <input type="checkbox" defaultChecked className="rounded" />
-                  Security Scan (SAST/SCA)
-                </label>
-                <label className="flex items-center gap-2 text-[10px] text-gray-500">
-                  <input type="checkbox" className="rounded" />
-                  Bundle Size &lt; 1MB
-                </label>
+                <div className="flex items-center gap-2 text-[10px] text-green-400">
+                  <CheckCircle2 className="w-3 h-3" /> Typecheck (enforced by Axiom)
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-green-400">
+                  <CheckCircle2 className="w-3 h-3" /> Unit tests (enforced by Axiom)
+                </div>
+                {['WCAG AAA accessibility', '80% test coverage', 'Security scan (SAST/SCA)', 'Bundle size < 1MB'].map((g) => (
+                  <div key={g} className="flex items-center gap-2 text-[10px] text-gray-500" title="Axiom's project loop does not enforce this gate yet">
+                    <AlertCircle className="w-3 h-3" /> {g} · not enforced
+                  </div>
+                ))}
               </div>
             </div>
 
             <Link
               to="/models"
-              className="flex items-center justify-between w-full px-3 py-2 bg-[#161b22] border border-[#30363d] rounded-lg text-xs text-gray-400 hover:text-white transition-colors"
+              className="flex items-center justify-between w-full px-3 py-2 bg-surface-raised border border-border-muted rounded-lg text-xs text-gray-400 hover:text-[var(--color-text-primary)] transition-colors"
             >
               <div className="flex items-center gap-2">
                 <Cpu className="w-3.5 h-3.5" />

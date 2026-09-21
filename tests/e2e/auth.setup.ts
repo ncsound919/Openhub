@@ -36,7 +36,7 @@ setup('authenticate', async ({ page }) => {
     await page.waitForURL('/');
   }
 
-  await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Command console/i })).toBeVisible();
 
   await page.context().storageState({ path: authFile });
 

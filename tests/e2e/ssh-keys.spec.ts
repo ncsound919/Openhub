@@ -26,12 +26,12 @@ test('add and delete SSH key via browser', async ({ page }) => {
     await submitBtn.click();
   }
 
-  await expect(page.getByText(/E2E-TEST-KEY/)).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('heading', { name: 'E2E-TEST-KEY' })).toBeVisible({ timeout: 5000 });
 
   const trashIcons = page.locator('svg.lucide-trash2, button:has(svg.lucide-trash2)');
   const trashCount = await trashIcons.count();
   if (trashCount > 0) {
     await trashIcons.first().click();
-    await expect(page.getByText(/E2E-TEST-KEY/)).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'E2E-TEST-KEY' })).not.toBeVisible({ timeout: 5000 });
   }
 });

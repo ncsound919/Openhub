@@ -21,9 +21,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      // Requests arrive via the Cloudflare tunnel with a public Host header
+      // (openhub.overlay365.com). Vite's dev server blocks unknown Hosts with a
+      // 403 by default; allow the fleet domain (and local dev hosts).
+      allowedHosts: ['.overlay365.com', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': { target: 'http://localhost:3000', changeOrigin: true },
-        '/ws': { target: 'ws://localhost:3001', ws: true },
       },
       hmr: process.env.DISABLE_HMR !== 'true',
     },
@@ -41,6 +44,7 @@ export default defineConfig(({ mode }) => {
             icons: ['lucide-react'],
             forms: ['react-hook-form', 'zod'],
             terminal: ['xterm', 'xterm-addon-fit'],
+            three: ['three', '@react-three/fiber', '@react-three/drei', 'react-force-graph-3d'],
           },
         },
       },

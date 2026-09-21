@@ -1,61 +1,54 @@
-# OpenHub: The Autonomous Developer OS
+# OpenHub
 
-OpenHub is a high-performance, industrial-grade developer orchestration platform designed to enable engineering teams to run autonomously. It combines deep system visibility with AI-driven automation to maximize developer velocity.
+OpenHub is the operator console and control plane for the Axiom coding harness.
+It gives one place to browse repos, run Axiom loops, read the audit/assurance
+results, watch the fleet, and work with Recourse, CRM, and SEO.
 
-## 🚀 Key Components
+Axiom is the single execution engine. The earlier Python `vibeserve` MCP bridge
+and the in-process orchestrator that spoke to it were removed; every run — a
+"pipeline", a mission, a verification loop — is an Axiom project loop whose
+stages and gates come from commands Axiom actually executed.
 
-### 1. Unified Command Center (Dashboard)
-The central nervous system of your engineering organization. Track utilization, cycle times, and productivity metrics in real-time.
-- **Productivity Matrix**: Live stream of system events and agent interventions.
-- **Velocity Tracking**: Instant visibility into deployment cycles and contract health.
+## Surfaces
 
-### 2. Autonomous Orchestration (`/autonomous`)
-A decentralized fleet of specialized AI agents that handle the "heavy lifting" of maintenance and operations.
-- **RefactorBot-Alpha**: Automated legacy code migration and dependency pruning.
-- **GuardAgent-9**: Continuous security scanning and global patch propagation.
-- **Deploy-Commander**: Zero-downtime hotfix distribution across edge clusters.
-- **Heatmap Intelligence**: Visualize global developer activity zones to optimize sync times.
+- **Command** (`/`) — status, active project, autonomy snapshot.
+- **Workspace** (`/workspace`) — Monaco editor, terminal, drift, agent dock.
+- **Projects** (`/projects`) — local folders + GitHub import.
+- **Loops** (`/axiom`) — Axiom project loops: start, watch, stop, rewind, diff.
+- **Assurance** (`/assurance`) — pipelines, audit, repair, readiness.
+- **Fleet** (`/fleet`) — managed services, agents, ecosystem, toolkit registry.
+- **CRM** (`/crm`) — contacts/deals (real integration pending).
+- **Insights / Reporter / Activity** — telemetry, trends, self-report, incidents.
+- **Settings** — identity, keys, models, integrations.
+- **Studio** (`/studio`) — intent → Axiom loop pipeline builder.
 
-### 3. Cloud Integrations Hub (`/integrations`)
-Full-spectrum management of 3rd party cloud providers via secure encrypted tunnels.
-- **Database Scaling**: Direct management of Supabase and Redis instances.
-- **Edge Deployment**: Real-time sync with Vercel and AWS infrastructure.
-- **Secure gRPC Tunnels**: Automatic credential rotation via OpenHub Vault.
+Recourse (`:3050`) is integrated over its HTTP API behind `/api/recourse/*`.
 
-### 4. Logistics & Intelligence (`/registry`, `/business`)
-- **Toolkit Registry**: Centralized repository for internal tools, RFCs, and infrastructure documentation.
-- **Business Operations**: Strategic analytics for leadership, including budget burn rates and resource allocation.
+## Tech stack
 
-### 5. OpenHub Co-Pilot (AI Assistant)
-A pervasive AI assistant integrated into every workflow.
-- **Research Support**: Instant access to internal wikis and external technical documentation.
-- **Shadow Mode**: Agents observe local dev patterns to prep ephemeral staging environments.
-- **3rd Party Assistance**: Step-by-step guidance for complex cloud deployments.
+- React 19 + Vite, Tailwind CSS, Framer Motion, Lucide, Zustand
+- Node/Express full-stack server, better-sqlite3, WebSocket terminal
+- Axiom HTTP API as the execution engine; Keywire as the credential authority
 
-## 🛠 Tech Stack
-
-- **Framework**: React 18 with Vite
-- **Styling**: Tailwind CSS (Industrial Aesthetic)
-- **Animations**: Framer Motion
-- **Icons**: Lucide React
-- **Runtime**: Node.js (Full-stack Express environment)
-- **State**: Zustand
-
-## 🏗 Build & Execution
+## Build & run
 
 ```bash
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
+npm run dev      # tsx server.ts (default http://localhost:3000)
+npm run build    # vite build + esbuild server bundle -> dist/
+npm start        # serve the built bundle
 ```
 
-## 🔐 Security & Autonomy
-OpenHub follows a Zero-Trust architecture. Every agent action is logged and verifiable. Our **Human Autonomy Index** ensures that while the system runs itself, engineers maintain "Shadow Mode" oversight.
+## Verify
+
+```bash
+npm run lint     # tsc --noEmit
+npx vitest run   # unit suite
+npm run e2e      # playwright (needs a built + running app)
+```
+
+## Security & honesty
+
+Zero-trust credentials: secrets resolve from Keywire (or env/file fallback) and
+never reach the browser. A bridge that is down reports `available: false` with a
+reason — no fabricated scores, no simulated checks.
