@@ -1,0 +1,24 @@
+# Gitleaks allowlist for OpenHub.
+#
+# Test fixtures, smoke scripts and documented example keys are not leaks. Real
+# secrets elsewhere are still reported; this only suppresses the known noise so
+# the security signal stays meaningful.
+[allowlist]
+description = "OpenHub: test fixtures, smoke scripts and example keys are not leaks"
+paths = [
+  '''(^|/)tests?/''',
+  '''(^|/)__tests__/''',
+  '''(^|/)__mocks__/''',
+  '''(^|/)fixtures?/''',
+  '''(^|/)e2e/''',
+  '''[._-](test|spec)\.[cm]?[jt]sx?$''',
+  '''smoke[-_]''',
+]
+regexes = [
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''(?:sk|pk|rk)_test_''',
+  '''your[_-]?api[_-]?key''',
+  '''SmokeTest''',
+  '''changeme''',
+  '''placeholder''',
+]

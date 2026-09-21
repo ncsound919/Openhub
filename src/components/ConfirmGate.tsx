@@ -29,6 +29,9 @@ const emit = () => { for (const l of listeners) l(); };
  */
 export function confirmGate(req: GateRequest): Promise<boolean> {
   return new Promise((resolve) => {
+    // A second gate replaces the first; resolve the orphan as cancelled so its
+    // caller never hangs on a promise that can no longer be settled.
+    if (pending) { const prev = pending; pending = null; prev.resolve(false); }
     pending = { ...req, resolve };
     emit();
   });

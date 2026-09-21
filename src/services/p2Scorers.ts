@@ -665,7 +665,7 @@ const SECRET_PATTERNS: Array<{ category: string; re: RegExp; severity: string }>
 
 /** Paths whose "secrets" are almost always fixtures, not leaks. The heuristic
  *  scan skips these; the authoritative gitleaks scan still covers them. */
-const TEST_PATH_RE = /(^|\/)(tests?|__tests__|__mocks__|fixtures?|e2e|spec)(\/|$)|[._-](test|spec)\.[cm]?[jt]sx?$/i;
+const TEST_PATH_RE = /(^|\/)(tests?|__tests__|__mocks__|fixtures?|e2e|spec)(\/|$)|[._-](test|spec)\.[cm]?[jt]sx?$|smoke[-_]/i;
 /** Values that are obviously placeholders, not credentials. */
 const PLACEHOLDER_RE = /(example|dummy|fake|sample|placeholder|changeme|redacted|your[_-]|xxxx|not[_-]?a[_-]?real|(?:sk|pk|rk)_test_|test[_-]?key|test[_-]?token)/i;
 
@@ -750,13 +750,21 @@ export async function runGitHistoryScorer(
   // 4. gitleaks history scan when available (authoritative).
   if (ctx?.preflight && toolReady(ctx.preflight, 'gitleaks')) {
     const reportPath = path.join(os.tmpdir(), `openhub-gitleaks-${process.pid}-${Date.now()}.json`);
-    await runLocalCommand('gitleaks', ['detect', '--no-banner', '--report-format', 'json', '--report-path', reportPath], {
-      cwd: targetDir, timeoutMs: 180_000,
-    });
-    const parsed = parseJson<Array<{ RuleID?: string; Description?: string; File?: string; StartLine?: number }>>(readText(reportPath, 4_000_000));
+    const configPath = path.join(targetDir, '.gitleaks.toml');
+    const args = ['detect', '--no-banner', '--report-format', 'json', '--report-path', reportPath];
+    if (fs.existsSync(configPath)) args.push('--config', configPath);
+    await runLocalCommand('gitleaks', args, { cwd: targetDir, timeoutMs: 180_000 });
+    const parsed = parseJson<Array<{ RuleID?: string; Description?: string; File?: string; StartLine?: number; Secret?: string }>>(readText(reportPath, 4_000_000));
     try { fs.rmSync(reportPath, { force: true }); } catch { /* best-effort */ }
     if (Array.isArray(parsed)) {
-      for (const leak of parsed.slice(0, 25)) {
+      // Even with the authoritative scanner, a dummy key in a test fixture is not
+      // a leak. Skip test paths and obvious placeholder values (same policy as the
+      // heuristic scan above); the .gitleaks.toml allowlist is the primary guard.
+      const leaks = parsed.filter((l) =>
+        !TEST_PATH_RE.test(String(l.File ?? '')) &&
+        !(typeof l.Secret === 'string' && PLACEHOLDER_RE.test(l.Secret)));
+      const suppressed = parsed.length - leaks.length;
+      for (const leak of leaks.slice(0, 25)) {
         findings.push(makeFinding({
           source: 'git_history', dimension: 'security', category: `secret:${leak.RuleID ?? 'gitleaks'}`,
           severity: 'high', confidence: 0.95, determinism: 'static',
@@ -765,7 +773,7 @@ export async function runGitHistoryScorer(
           remediation: 'Rotate the secret and purge it from history.',
         }));
       }
-      notes.push('gitleaks history scan');
+      notes.push(`gitleaks history scan${suppressed > 0 ? ` (${suppressed} test/placeholder hit(s) suppressed)` : ''}`);
     }
   }
 

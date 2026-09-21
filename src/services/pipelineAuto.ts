@@ -115,11 +115,15 @@ let watcher: fs.FSWatcher | null = null;
 let watchedPath: string | null = null;
 let watchUnsupported = false;
 let lastChangeAt = 0;
+/** True while an auto run is in flight — the run's OWN writes must not count as
+ *  a fresh change, or the agent would re-trigger itself forever. */
+let autoRunActive = false;
 
 /** Paths whose churn is not a source change (build output, deps, vcs, our data). */
 const IGNORE_RE = /(^|[\\/])(node_modules|\.git|dist|build|\.next|coverage|\.turbo|data|\.vitest|test-results)([\\/]|$)|\.(log|tmp|swp)$/i;
 
 function noteChange(filename: string | null): void {
+  if (autoRunActive) return;
   if (filename && IGNORE_RE.test(String(filename))) return;
   lastChangeAt = Date.now();
 }
@@ -210,6 +214,7 @@ export async function runAutoTick(now = Date.now()): Promise<AutoTickResult> {
 
   // Never start while a run is in flight or parked for approval.
   const busy = listPipelines(5).some((j) => j.status === 'running' || j.status === 'awaiting-approval');
+  autoRunActive = busy;
   if (busy) return { started: false, skipped: 'busy' };
 
   const project = activeProject();
@@ -243,6 +248,9 @@ export async function runAutoTick(now = Date.now()): Promise<AutoTickResult> {
   }
 
   const job = startPipeline({ projectPath: project.path, projectName: project.name, mode: cfg.mode });
+  // The run's own writes must not look like an operator change.
+  autoRunActive = true;
+  lastChangeAt = 0;
   const why = changed ? ' (change)' : drift ? ' (drift)' : ' (timer)';
   write({
     [KEYS.lastRunAt]: new Date(now).toISOString(),
