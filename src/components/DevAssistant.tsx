@@ -161,6 +161,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
   ]);
   const [input, setInput] = useState('');
   const [autonomy, setAutonomy] = useState<AutonomyMode>(() => getAutonomyMode());
+  const [autoTrigger, setAutoTrigger] = useState<'interval' | 'drift' | 'both'>('drift');
   const [busy, setBusy] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoadedFor, setTodosLoadedFor] = useState<string | null>(null);
@@ -187,6 +188,13 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
     const h = () => inputElRef.current?.focus();
     window.addEventListener('openhub:focus-ask', h);
     return () => window.removeEventListener('openhub:focus-ask', h);
+  }, []);
+  // Reflect the server-side Auto trigger (set here or in Settings → Automation).
+  useEffect(() => {
+    void fetch('/api/pipeline/auto', { credentials: 'include', headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((j) => { if (j?.auto?.trigger) setAutoTrigger(j.auto.trigger); })
+      .catch(() => { /* offline */ });
   }, []);
   useEffect(() => {
     const el = scrollRef.current;
@@ -1578,6 +1586,27 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
                 {AUTONOMY_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </label>
+            {autonomy === 'auto' && (
+              <select
+                value={autoTrigger}
+                onChange={(e) => {
+                  const t = e.target.value as 'interval' | 'drift' | 'both';
+                  setAutoTrigger(t);
+                  void fetch('/api/pipeline/auto', {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+                    body: JSON.stringify({ trigger: t }),
+                  }).catch(() => { /* best-effort */ });
+                }}
+                title="What triggers an unattended run (full controls in Settings → Automation)"
+                className="rounded border border-white/10 bg-[var(--color-surface-base)] px-1.5 py-0.5 text-[10px] font-bold text-gray-300 outline-none focus:border-orange-500"
+              >
+                <option value="drift">On drift</option>
+                <option value="interval">On timer</option>
+                <option value="both">Drift or timer</option>
+              </select>
+            )}
             <button
               type="button"
               onClick={() => void handleSend('/audit')}

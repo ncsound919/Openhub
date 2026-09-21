@@ -70,17 +70,18 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pip
   });
 
   router.put('/pipeline/auto', (req, res) => {
-    const body = (req.body ?? {}) as { enabled?: unknown; intervalMs?: unknown; mode?: unknown };
+    const body = (req.body ?? {}) as { enabled?: unknown; intervalMs?: unknown; mode?: unknown; trigger?: unknown };
     const auto = setAutoConfig({
       ...(typeof body.enabled === 'boolean' ? { enabled: body.enabled } : {}),
       ...(Number.isFinite(Number(body.intervalMs)) ? { intervalMs: Number(body.intervalMs) } : {}),
       ...(body.mode === 'audit' || body.mode === 'autopilot' ? { mode: body.mode } : {}),
+      ...(body.trigger === 'interval' || body.trigger === 'drift' || body.trigger === 'both' ? { trigger: body.trigger } : {}),
     });
     res.json({ ok: true, auto });
   });
 
-  router.post('/pipeline/auto/tick', (_req, res) => {
-    res.json({ ok: true, result: runAutoTick() });
+  router.post('/pipeline/auto/tick', async (_req, res) => {
+    res.json({ ok: true, result: await runAutoTick() });
   });
 
   router.get('/pipeline/:id', (req, res) => {
