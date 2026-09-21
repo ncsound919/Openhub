@@ -13,6 +13,7 @@ import { driftTaskText, matchSkills, type Matchable } from '../lib/skillMatch';
 import { useModelStore } from '../lib/modelStore';
 import { DevAssistant } from '../components/DevAssistant';
 import { AgentDock } from './AgentDock';
+import { AxiomBar } from './AxiomBar';
 import { registerAxiomMonaco, setAxiomMonacoOptions, getAxiomTabStats, subscribeAxiomTabStats } from './monacoProviders';
 import {
   axiomEditorModelCatalog,
@@ -1387,6 +1388,16 @@ export function WorkspacePage() {
         </button>
       </div>
 
+      {/* Axiom command bar: one obvious place to direct the agent, plus the
+          headline actions and live state lights. */}
+      <AxiomBar
+        projectName={activeProject?.repositoryName}
+        hasProject={!!activeProject}
+        axiomOnline={axiomOnline}
+        onRequestChat={() => setShowCopilot(true)}
+        onOpenPanel={(panel) => setActivePanel(panel)}
+      />
+
       {/* Main IDE Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Activity Bar */}
@@ -1416,7 +1427,8 @@ export function WorkspacePage() {
               'flex h-10 w-10 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover)]',
               showCopilot ? 'text-[var(--color-accent-text)]' : 'text-[var(--color-text-muted)]',
             )}
-            title="Co-Pilot"
+            title="Ask Axiom — chat & commands"
+            aria-label="Toggle Axiom chat"
           >
             <Bot className="w-5 h-5" />
           </button>

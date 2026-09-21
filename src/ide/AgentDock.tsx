@@ -9,6 +9,7 @@ import {
   clampFocus, flattenHunks, hunkKey, isHunkSelected, moveFocus,
   reviewKeyAction, setHunkSelected, summarizeSelection,
 } from './agentDockReview';
+import { taskRows, taskTotal, type MissionView } from './missionView';
 
 interface LoopState {
   id: string;
@@ -19,14 +20,6 @@ interface LoopState {
   checkpointSha?: string;
   report?: string;
   iterations?: Array<{ iteration: number; verdict?: string; verification?: string | null; findings?: string[] }>;
-}
-
-interface MissionView {
-  id: string;
-  goal: string;
-  status: string;
-  pendingPlan?: Array<{ label: string; dependsOn: string[] }>;
-  tasks: Array<{ id: string; label: string; status: string; subagentRole?: string; costUsd?: number | null }>;
 }
 
 interface ReviewItem {
@@ -611,20 +604,39 @@ export function AgentDock({
                     </div>
                   </div>
                 )}
-                {m.status === 'running' && (
-                  <div className="space-y-1">
-                    {m.tasks.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between text-[10px]">
-                        <span className="text-gray-400 truncate">{t.id} {t.label}</span>
-                        <span className="flex items-center gap-1.5">
-                          {t.subagentRole && <span className="rounded bg-blue-500/20 px-1 text-blue-300">{t.subagentRole}</span>}
-                          {t.costUsd != null && <span className="rounded bg-purple-500/20 px-1 text-purple-300">${t.costUsd.toFixed(4)}</span>}
-                          <span className={t.status === 'done' ? 'text-emerald-400' : t.status === 'failed' || t.status === 'blocked' ? 'text-red-400' : 'text-gray-500'}>{t.status}</span>
+                {m.status === 'running' && (() => {
+                  const rows = taskRows(m);
+                  const total = taskTotal(m);
+                  const done = Number(m.done) || rows.filter((t) => t.status === 'done').length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
+                            style={{ width: `${pct}%`, boxShadow: '0 0 8px rgba(52,211,153,0.7)' }}
+                          />
+                        </div>
+                        <span className="shrink-0 font-mono text-[10px] text-emerald-400">{done}/{total || '?'}</span>
+                        <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         </span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {rows.map((t) => (
+                        <div key={t.id} className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-400 truncate">{t.id} {t.label}</span>
+                          <span className="flex items-center gap-1.5">
+                            {t.subagentRole && <span className="rounded bg-blue-500/20 px-1 text-blue-300">{t.subagentRole}</span>}
+                            {t.costUsd != null && <span className="rounded bg-purple-500/20 px-1 text-purple-300">${t.costUsd.toFixed(4)}</span>}
+                            <span className={t.status === 'done' ? 'text-emerald-400' : t.status === 'failed' || t.status === 'blocked' ? 'text-red-400' : 'text-gray-500'}>{t.status}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

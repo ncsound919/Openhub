@@ -143,7 +143,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
     selectActiveProject, unloadActiveProject, fetchRepositories } = useStore();
 
   const [msgs, setMsgs] = useState<Msg[]>([
-    { id: nextMsgId(), role: 'assistant', text: 'Co-pilot online. I act on this workspace — read files, run Axiom loops, research knowledge, and keep the todo list. Type /help for commands.' },
+    { id: nextMsgId(), role: 'assistant', text: 'Axiom is online. I act on this workspace — read files, run Axiom loops, audit and repair, research knowledge, and keep the todo list. Type /help for commands.' },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -171,6 +171,21 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
     const el = scrollRef.current;
     if (el && typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight });
   }, [msgs, isOpen]);
+
+  // Any surface (the workspace command bar, quick actions) can hand a request
+  // to the assistant by dispatching `openhub:ask` — no duplicated send pipeline.
+  const sendRef = useRef<(raw?: string) => void>(() => {});
+  useEffect(() => {
+    sendRef.current = handleSend;
+  });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: unknown }>).detail?.text;
+      if (typeof text === 'string' && text.trim()) void sendRef.current(text);
+    };
+    window.addEventListener('openhub:ask', handler as EventListener);
+    return () => window.removeEventListener('openhub:ask', handler as EventListener);
+  }, []);
 
   const checkAxiom = async () => {
     try {
@@ -1454,7 +1469,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSend();
                 }}
-                placeholder="Give me a task… (/help for commands, @file to attach context)"
+                placeholder="Ask Axiom… (/help for commands, @file to attach context)"
                 className="flex-1 bg-[var(--color-surface-base)] border border-[var(--color-border-muted)] p-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-orange-500"
               />
               <button
