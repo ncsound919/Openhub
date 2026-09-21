@@ -24,6 +24,7 @@ const cleanTypecheck: TypecheckResult = { available: true, errors: [] };
 function baseDeps(overrides: Partial<PipelineDeps> = {}): Partial<PipelineDeps> {
   return {
     typecheck: async () => cleanTypecheck,
+    adversary: async () => ({ checked: true, verdict: 'strong', survived: 0, mutantsRun: 12, killRatePct: 100 }),
     audit: async () => report('pass'),
     repair: async () => ({ ok: true }),
     startLoop: async () => ({ id: 'L1' }),
@@ -47,14 +48,27 @@ async function waitForTerminal(id: string, timeoutMs = 4000): Promise<PipelineJo
 }
 
 describe('pipeline runner', () => {
-  it('runs autopilot to completion: typecheck → audit → (skip repair) → loop → verify', async () => {
+  it('runs autopilot to completion: typecheck → adversary → audit → (skip repair) → loop → verify', async () => {
     const job = startPipeline({ projectPath: '/tmp/p1', projectName: 'p1', goal: 'fix bugs', mode: 'autopilot' }, baseDeps());
     const done = await waitForTerminal(job.id);
     expect(done.status).toBe('complete');
-    expect(done.stages.map((s) => s.id)).toEqual(['typecheck', 'audit', 'repair', 'loop', 'verify']);
-    expect(done.stages.map((s) => s.status)).toEqual(['done', 'done', 'skipped', 'done', 'done']);
+    expect(done.stages.map((s) => s.id)).toEqual(['typecheck', 'adversary', 'audit', 'repair', 'loop', 'verify']);
+    expect(done.stages.map((s) => s.status)).toEqual(['done', 'done', 'done', 'skipped', 'done', 'done']);
     expect(done.stages.find((s) => s.id === 'repair')?.detail).toContain('audit passed');
     expect(overallProgress(done)).toBe(1);
+  });
+
+  it('flags weak tests from the adversary as a warn, not a failure', async () => {
+    const job = startPipeline(
+      { projectPath: '/tmp/p1b', projectName: 'p1b', mode: 'autopilot' },
+      baseDeps({ adversary: async () => ({ checked: true, verdict: 'weak', survived: 7, mutantsRun: 12, killRatePct: 42 }) }),
+    );
+    const done = await waitForTerminal(job.id);
+    const adv = done.stages.find((s) => s.id === 'adversary');
+    expect(adv?.status).toBe('done');
+    expect(adv?.ok).toBe(false);
+    expect(adv?.detail).toContain('7/12');
+    expect(done.status).toBe('complete');
   });
 
   it('dispatches repair when the audit fails, and reports a failed dispatch', async () => {

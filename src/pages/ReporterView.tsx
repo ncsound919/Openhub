@@ -2,6 +2,33 @@ import { useCallback, useEffect, useState } from 'react';
 import { Archive, BookOpen, Dices, Fingerprint, Gauge, Newspaper, PenLine, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { MarkdownProse } from '../components/MarkdownProse';
+import { InsightsView } from './InsightsView';
+import { ActivityView } from './ActivityView';
+
+type ReporterTab = 'report' | 'insights' | 'activity';
+
+/** Reporter absorbs the former standalone Insights and Activity pages: they are
+ *  all "what is the system telling me", so they belong in one place. */
+function ReporterTabs({ tab, setTab }: { tab: ReporterTab; setTab: (t: ReporterTab) => void }) {
+  const tabs: Array<{ id: ReporterTab; label: string }> = [
+    { id: 'report', label: 'Dispatch' },
+    { id: 'insights', label: 'Insights' },
+    { id: 'activity', label: 'Activity' },
+  ];
+  return (
+    <div className="flex items-center gap-1.5">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => setTab(t.id)}
+          className={`rounded-lg px-3 py-1.5 text-xs font-bold ${tab === t.id ? 'bg-[var(--color-accent)] text-white' : 'border border-border-muted text-gray-400 hover:text-[var(--color-text-primary)]'}`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface ReporterCounts {
   registryTotal: number;
@@ -110,6 +137,7 @@ export function ReporterView() {
   const [busy, setBusy] = useState<'write' | 'narrate' | 'preview' | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [message, setMessage] = useState('');
+  const [tab, setTab] = useState<ReporterTab>('report');
 
   const headers = useCallback(
     () => ({ ...getAuthHeaders(), 'X-CSRF-Token': getCsrfToken(), 'Content-Type': 'application/json' }),
@@ -223,8 +251,18 @@ export function ReporterView() {
       ]
     : [];
 
+  if (tab === 'insights' || tab === 'activity') {
+    return (
+      <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6">
+        <ReporterTabs tab={tab} setTab={setTab} />
+        {tab === 'insights' ? <InsightsView /> : <ActivityView />}
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6">
+      <ReporterTabs tab={tab} setTab={setTab} />
       <section className="gradient-hero rounded-2xl p-6 relative overflow-hidden">
         <div className="absolute -right-8 -top-12 opacity-[0.12] pointer-events-none">
           <Newspaper className="w-56 h-56 text-cyan-300" strokeWidth={1} />

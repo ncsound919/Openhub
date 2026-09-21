@@ -1,18 +1,11 @@
 import {
-  Activity,
-  Crosshair,
   FolderCode,
   Github,
   LayoutDashboard,
   Newspaper,
   Radar,
-  Radio,
   Settings,
-  ShieldCheck,
   Terminal,
-  TrendingUp,
-  Users,
-  Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -28,39 +21,35 @@ export type NavItem = {
 
 export type NavGroup = { label: string; items: NavItem[] };
 
-/** Single source of truth for the workspace IA. Sidebar and ⌘K share this. */
+/**
+ * Single source of truth for the workspace IA. Sidebar and ⌘K share this.
+ *
+ * Kept deliberately small. Adversary, auditing, API Studio, insights, activity
+ * and CRM are NOT top-level destinations — the adversary and audit run inside
+ * the autonomous pipeline, insights/activity are tabs of Reporter, and the rest
+ * are reachable from Settings → Advanced. A navigation bar is not a feature
+ * list; every entry here must be something you do regularly.
+ */
 export const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Business',
-    items: [
-      { to: '/crm', label: 'CRM', icon: Users, keywords: ['contacts', 'deals', 'pipeline', 'leads', 'sales', 'forecast', 'actions'] },
-    ],
-  },
   {
     label: 'Build',
     items: [
-      { to: '/', label: 'Command', icon: LayoutDashboard, end: true, keywords: ['status', 'home', 'dashboard'] },
-      { to: '/workspace', label: 'Workspace', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift'] },
+      { to: '/', label: 'Command', icon: LayoutDashboard, end: true, keywords: ['status', 'home', 'dashboard', 'control', 'console', 'run'] },
+      { to: '/workspace', label: 'Workspace', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'agent', 'files'] },
       { to: '/projects', label: 'Projects', icon: Github, keywords: ['repositories', 'repos', 'import', 'github', 'local folder'] },
-      { to: '/api-studio', label: 'API Studio', icon: Radio, keywords: ['postman', 'mock', 'api', 'rest', 'swagger', 'openapi', 'contract'] },
     ],
   },
   {
-    label: 'Autonomy',
+    label: 'Operations',
     items: [
-      { to: '/axiom', label: 'Loops', icon: Zap, keywords: ['axiom', 'loop console', 'missions', 'agents'] },
-      { to: '/antagonist', label: 'Adversary', icon: Crosshair, keywords: ['antagonist', 'prospector', 'mutation', 'verification strength', 'opportunities', 'self-directed'] },
-      { to: '/assurance', label: 'Assurance', icon: ShieldCheck, keywords: ['pipelines', 'audit', 'repair', 'readiness', 'tests'] },
-      { to: '/fleet', label: 'Fleet', icon: Radar, keywords: ['agents', 'services', 'ecosystem', 'tools', 'registry'] },
+      { to: '/fleet', label: 'Fleet', icon: Radar, keywords: ['agents', 'services', 'ecosystem', 'tools', 'registry', 'start', 'stop', 'dispatch'] },
+      { to: '/reporter', label: 'Reporter', icon: Newspaper, keywords: ['insights', 'activity', 'recourse', 'trends', 'self-report', 'findings', 'discoveries', 'tips'] },
     ],
   },
   {
     label: 'System',
     items: [
-      { to: '/insights', label: 'Insights', icon: TrendingUp, keywords: ['telemetry', 'trends', 'recourse', 'synergy', 'self-learning', 'learning'] },
-      { to: '/reporter', label: 'Reporter', icon: Newspaper, keywords: ['recourse', 'self-report', 'article', 'dispatch', 'narrative', 'writing'] },
-      { to: '/activity', label: 'Activity', icon: Activity, keywords: ['feed', 'incidents', 'events', 'log'] },
-      { to: '/settings', label: 'Settings', icon: Settings, keywords: ['preferences', 'account', 'integrations', 'keys'] },
+      { to: '/settings', label: 'Settings', icon: Settings, keywords: ['preferences', 'account', 'integrations', 'keys', 'advanced', 'labs'] },
     ],
   },
 ];
@@ -69,17 +58,19 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 export const BREADCRUMBS: Record<string, string> = {
   '/': 'Command',
-  '/crm': 'CRM',
   '/workspace': 'Workspace',
   '/projects': 'Projects',
-  '/axiom': 'Loops',
-  '/antagonist': 'Adversary',
-  '/assurance': 'Assurance',
   '/fleet': 'Fleet',
-  '/insights': 'Insights',
   '/reporter': 'Reporter',
-  '/activity': 'Activity',
   '/settings': 'Settings',
+  // Retained for deep links into the surfaces that no longer sit in the rail.
+  '/assurance': 'Assurance',
+  '/axiom': 'Loops',
+  '/insights': 'Insights',
+  '/activity': 'Activity',
+  '/antagonist': 'Adversary',
+  '/api-studio': 'API Studio',
+  '/crm': 'CRM',
 };
 
 /** Icons referenced by dynamic nav entries. */

@@ -3,12 +3,16 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity, ArrowRight, ArrowUpRight, FolderGit2, Github, ShieldCheck,
   Sparkles, Terminal as TerminalIcon, Wrench, Zap, Radar, LayoutDashboard, ShieldAlert,
+  Rocket, Loader2, XCircle,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { LocalFolderLoader } from '../components/LocalFolderLoader';
 import { AutonomyBar } from '../components/AutonomyBar';
 import { GitHubIntegrationPage } from './GitHubIntegrationPage';
 import { AssuranceView } from './AssuranceView';
+import { StatusLight } from '../components/StatusLight';
+import { usePipelineContext } from '../ide/PipelineProvider';
+import { stageLight } from '../ide/usePipeline';
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { cn } from '../lib/utils';
 
@@ -18,6 +22,8 @@ export function Dashboard() {
   const rawTab = searchParams.get('tab') ?? 'status';
   const tab = ['status', 'assurance', 'repositories'].includes(rawTab) ? rawTab : 'status';
   const { repositories, registryItems, activeProject, activeProjectLoading, activeProjectError, fetchRepositories, fetchActiveProject, fetchRegistryItems, drift, driftState } = useStore();
+  // Command console controls: run the autonomous pipeline from the home surface.
+  const pipeline = usePipelineContext();
   const [projectStatus, setProjectStatus] = useState<any>(null);
   const [auditTools, setAuditTools] = useState<any[]>([]);
   const [dream, setDream] = useState<{ entries: any[]; summary: any } | null>(null);
@@ -166,7 +172,54 @@ export function Dashboard() {
               <Link to="/?tab=assurance" className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 px-4 py-2 text-sm font-bold text-emerald-300">
                 <ShieldCheck className="w-4 h-4" /> Assurance
               </Link>
+              <button
+                type="button"
+                onClick={() => void pipeline.start('autopilot')}
+                disabled={!activeProject || pipeline.running || pipeline.starting}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-bold disabled:opacity-40"
+                title="Run the autonomous pipeline: typecheck → adversary → audit → repair → loop → verify"
+              >
+                {pipeline.starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />} Run Autopilot
+              </button>
+              <button
+                type="button"
+                onClick={() => void pipeline.start('audit')}
+                disabled={!activeProject || pipeline.running || pipeline.starting}
+                className="inline-flex items-center gap-2 rounded-lg border border-border-muted bg-surface-base/70 hover:border-emerald-500/50 px-4 py-2 text-sm font-bold text-gray-300 disabled:opacity-40"
+                title="Audit the active project and dispatch repair if it fails"
+              >
+                <ShieldCheck className="w-4 h-4" /> Audit
+              </button>
             </div>
+
+            {/* Live pipeline status — the console always shows whether work is happening. */}
+            {pipeline.job && (
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="font-mono text-[11px] text-gray-400">{Math.round((pipeline.job.progress ?? 0) * 100)}%</span>
+                <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  {pipeline.job.stages.map((s) => (
+                    <StatusLight key={s.id} state={stageLight(s)} label={s.label} title={`${s.label}: ${s.detail || s.status}`} />
+                  ))}
+                </span>
+                <StatusLight
+                  state={pipeline.running ? 'working' : pipeline.job.status === 'complete' ? 'ok' : pipeline.job.status === 'cancelled' ? 'warn' : 'error'}
+                  label={pipeline.running ? 'Running' : pipeline.job.status}
+                  title={pipeline.job.error || pipeline.job.status}
+                />
+                {pipeline.running && (
+                  <button
+                    type="button"
+                    onClick={() => void pipeline.cancel()}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 hover:text-red-400"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Cancel
+                  </button>
+                )}
+              </div>
+            )}
+            {!pipeline.job && pipeline.error && (
+              <StatusLight state="error" label={pipeline.error} className="mt-4 max-w-[44rem]" />
+            )}
           </section>
 
           {/* Live self-awareness — services, Recourse, insights, severity. */}

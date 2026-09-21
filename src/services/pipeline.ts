@@ -3,7 +3,7 @@ import { getDb } from '../auth/db.js';
 import { executeAuditSuite, type AuditReport, type AuditRunParams } from './auditSuite.js';
 import { triggerRepairTriage } from './repairClient.js';
 import { runTypecheck, type TypecheckResult } from './typecheck.js';
-import { startAxiomProjectLoop, getAxiomProjectStatus, stopAxiomProjectLoop } from './axiomClient.js';
+import { startAxiomProjectLoop, getAxiomProjectStatus, stopAxiomProjectLoop, runAxiomAdversary } from './axiomClient.js';
 import { buildRepairBrief, renderRepairBrief } from './repairBrief.js';
 import { reportIncident } from './incidentBus.js';
 
@@ -19,7 +19,7 @@ import { reportIncident } from './incidentBus.js';
  * error, and the audit/verify verdicts come from the real report.
  */
 
-export type PipelineStageId = 'typecheck' | 'audit' | 'repair' | 'loop' | 'verify';
+export type PipelineStageId = 'typecheck' | 'adversary' | 'audit' | 'repair' | 'loop' | 'verify';
 export type StageStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed' | 'cancelled';
 export type PipelineStatus = 'running' | 'complete' | 'failed' | 'cancelled';
 export type PipelineMode = 'audit' | 'autopilot' | 'custom';
@@ -54,6 +54,7 @@ export interface PipelineJob {
 
 const STAGE_LABELS: Record<PipelineStageId, string> = {
   typecheck: 'Typecheck',
+  adversary: 'Adversary',
   audit: 'Audit team',
   repair: 'Repair dispatch',
   loop: 'Agent loop',
@@ -63,6 +64,7 @@ const STAGE_LABELS: Record<PipelineStageId, string> = {
 /** Relative cost of each stage, used to fold per-stage progress into one bar. */
 const STAGE_WEIGHTS: Record<PipelineStageId, number> = {
   typecheck: 1,
+  adversary: 4,
   audit: 5,
   repair: 2,
   loop: 3,
@@ -71,11 +73,14 @@ const STAGE_WEIGHTS: Record<PipelineStageId, number> = {
 
 const MODE_STAGES: Record<Exclude<PipelineMode, 'custom'>, PipelineStageId[]> = {
   audit: ['audit', 'repair'],
-  autopilot: ['typecheck', 'audit', 'repair', 'loop', 'verify'],
+  // Adversary (mutation testing) and the audit team are part of the autonomous
+  // run, not separate screens you have to remember to visit.
+  autopilot: ['typecheck', 'adversary', 'audit', 'repair', 'loop', 'verify'],
 };
 
 export interface PipelineDeps {
   typecheck: (projectPath: string, timeoutMs?: number) => Promise<TypecheckResult>;
+  adversary: (dir: string, maxMutants?: number) => Promise<{ checked?: boolean; verdict?: string; survived?: number; mutantsRun?: number; killRatePct?: number | null; reason?: string } | null | undefined>;
   audit: (params: AuditRunParams) => Promise<AuditReport>;
   repair: (params: { signal: string; detail: string; kind?: 'job' | 'monitor'; repoUrl?: string }) => Promise<{ ok?: boolean; error?: string } | null | undefined>;
   startLoop: (params: { goal: string; targetDir: string; maxIterations?: number }) => Promise<{ id?: string } | null | undefined>;
@@ -89,6 +94,7 @@ export interface PipelineDeps {
 
 const defaultDeps: PipelineDeps = {
   typecheck: runTypecheck,
+  adversary: runAxiomAdversary,
   audit: executeAuditSuite,
   repair: triggerRepairTriage,
   startLoop: startAxiomProjectLoop,
@@ -312,6 +318,7 @@ async function runPipeline(id: string, d: PipelineDeps): Promise<void> {
     persist(job);
     try {
       if (stage.id === 'typecheck') await runTypecheckStage(job, stage, d);
+      else if (stage.id === 'adversary') await runAdversaryStage(job, stage, d);
       else if (stage.id === 'audit') await runAuditStage(job, stage, d);
       else if (stage.id === 'repair') await runRepairStage(job, stage, d);
       else if (stage.id === 'loop') await runLoopStage(job, stage, d);
@@ -366,6 +373,23 @@ async function runTypecheckStage(job: PipelineJob, stage: PipelineStage, d: Pipe
   stage.detail = r.available
     ? r.errors.length ? `${r.errors.length} type error${r.errors.length === 1 ? '' : 's'}` : 'clean'
     : r.reason || 'typecheck unavailable';
+}
+
+/** Mutation-test the target: a suite that does not catch injected faults is a
+ *  blind spot the audit's coverage numbers cannot see. Weak tests are a warn,
+ *  not a hard failure. */
+async function runAdversaryStage(job: PipelineJob, stage: PipelineStage, d: PipelineDeps): Promise<void> {
+  const report = await d.adversary(job.projectPath, 12);
+  if (!report || report.checked === false) {
+    stage.ok = null;
+    stage.detail = report?.reason || 'adversary did not run (no test command)';
+    return;
+  }
+  const survived = Number(report.survived) || 0;
+  const ran = Number(report.mutantsRun) || 0;
+  const kill = typeof report.killRatePct === 'number' ? `${Math.round(report.killRatePct)}% killed` : 'no kill rate';
+  stage.ok = report.verdict === 'strong';
+  stage.detail = `${survived}/${ran} mutants survived · ${kill}`;
 }
 
 async function runAuditStage(job: PipelineJob, stage: PipelineStage, d: PipelineDeps): Promise<void> {

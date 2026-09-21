@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store';
-import { Key, Shield, User, Globe, Bell, Mail, Plus, Trash2, CheckCircle2, AlertTriangle, Fingerprint, Lock, ShieldCheck, Terminal, Cpu, Clock, Bot, PlusCircle, UploadCloud, Plug, Loader2 } from 'lucide-react';
+import { Key, Shield, User, Globe, Bell, Mail, Plus, Trash2, CheckCircle2, AlertTriangle, Fingerprint, Lock, ShieldCheck, Terminal, Cpu, Clock, Bot, PlusCircle, UploadCloud, Plug, Loader2, FlaskConical, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { IntegrationsHub } from './IntegrationsHub';
 import { ModelSelectionView } from './ModelSelectionView';
 
-const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations'];
+const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations', 'advanced'];
+
+/** Surfaces deliberately kept out of the main rail. They still exist for
+ *  power users and deep links, but they are not part of the daily flow. */
+const ADVANCED_LINKS: Array<{ to: string; label: string; note: string }> = [
+  { to: '/assurance', label: 'Assurance', note: 'Audit reports, pipelines, repair history, readiness' },
+  { to: '/axiom', label: 'Loops', note: 'Manual Axiom loop control and loop history' },
+  { to: '/antagonist', label: 'Adversary', note: 'Mutation testing and opportunity prospecting' },
+  { to: '/api-studio', label: 'API Studio', note: 'Discover, mock and exercise HTTP endpoints' },
+  { to: '/insights', label: 'Insights (standalone)', note: 'Also available as a Reporter tab' },
+  { to: '/activity', label: 'Activity (standalone)', note: 'Also available as a Reporter tab' },
+  { to: '/crm', label: 'CRM', note: 'Business contacts and deals' },
+];
 
 export function UserSettingsView() {
   const { currentUser, sshKeys, fetchSSHKeys, addSSHKey, deleteSSHKey } = useStore();
@@ -176,12 +188,40 @@ export function UserSettingsView() {
         <button onClick={() => setActiveTab('integrations')} className={`sidebar-link w-full ${activeTab === 'integrations' ? 'active' : ''}`}>
           <Plug className="w-4 h-4 mr-3" /> Integrations
         </button>
+        <button onClick={() => setActiveTab('advanced')} className={`sidebar-link w-full ${activeTab === 'advanced' ? 'active' : ''}`}>
+          <FlaskConical className="w-4 h-4 mr-3" /> Advanced
+        </button>
       </div>
 
       {/* Content */}
       <div className="flex-1 industrial-card overflow-hidden self-start min-h-[600px]">
         {activeTab === 'models' && <div className="p-8"><ModelSelectionView /></div>}
         {activeTab === 'integrations' && <IntegrationsHub />}
+        {activeTab === 'advanced' && (
+          <div className="p-8 space-y-6 animate-in fade-in duration-300">
+            <div className="border-b border-white/5 pb-6">
+              <h2 className="text-2xl font-industrial text-[var(--color-text-primary)] tracking-tight">Advanced</h2>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
+                Power surfaces kept out of the main navigation. Adversary and auditing run automatically inside the Autopilot pipeline; these pages are for direct access.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {ADVANCED_LINKS.map((l) => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className="group flex items-center justify-between gap-3 rounded-md border border-border-muted bg-surface-overlay px-4 py-3 hover:border-orange-500/60 transition-colors"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{l.label}</span>
+                    <span className="block truncate text-[11px] text-gray-400">{l.note}</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 shrink-0 text-gray-500 group-hover:text-orange-400" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
         {activeTab === 'profile' && (
           <div className="p-8 space-y-8 animate-in fade-in duration-300">
             <div className="border-b border-white/5 pb-6">
