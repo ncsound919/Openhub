@@ -5,7 +5,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getDb } from '../src/auth/db.js';
-import { setAutoConfig, runAutoTick, hasDrift } from '../src/services/pipelineAuto.js';
+import { setAutoConfig, runAutoTick, hasDrift, getWatchState } from '../src/services/pipelineAuto.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -62,6 +62,30 @@ describe('pipeline auto (unattended Autopilot)', () => {
       expect(await hasDrift(dir)).toBe(true);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports the save watcher state and holds the on-save trigger until a change is seen', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-watch-'));
+    try {
+      const db = getDb();
+      db.exec('CREATE TABLE IF NOT EXISTS active_project_context (user_id TEXT, repo_id TEXT, path TEXT NOT NULL, selected_at TEXT NOT NULL)');
+      db.prepare('DELETE FROM active_project_context').run();
+      db.prepare('INSERT INTO active_project_context (user_id, repo_id, path, selected_at) VALUES (?, ?, ?, ?)')
+        .run('u1', 'r1', dir, new Date().toISOString());
+      setAutoConfig({ enabled: true, trigger: 'change' });
+      // The watcher state is always reported honestly (watching or unsupported).
+      const ws = getWatchState();
+      expect(typeof ws.watching).toBe('boolean');
+      expect(typeof ws.unsupported).toBe('boolean');
+      // With no fresh change since the last run, the on-save trigger must not fire
+      // (busy is an equally valid fail-closed skip if another run is in flight).
+      const r = await runAutoTick();
+      expect(r.started).toBe(false);
+      expect(['no-change', 'busy']).toContain(r.skipped);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+      try { getDb().prepare('DELETE FROM active_project_context').run(); } catch { /* ignore */ }
     }
   });
 });

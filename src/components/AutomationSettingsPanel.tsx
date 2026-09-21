@@ -5,12 +5,19 @@ import { StatusLight } from './StatusLight';
 
 interface AutoConfig {
   enabled: boolean;
-  trigger: 'interval' | 'drift' | 'both';
+  trigger: 'interval' | 'drift' | 'change' | 'reactive' | 'both';
   intervalMs: number;
   mode: 'audit' | 'autopilot';
   lastRunAt: string | null;
   lastJobId: string | null;
   lastNote: string | null;
+}
+
+interface WatchState {
+  watching: boolean;
+  path: string | null;
+  lastChangeAt: string | null;
+  unsupported: boolean;
 }
 
 const INTERVALS: Array<{ label: string; ms: number }> = [
@@ -21,9 +28,11 @@ const INTERVALS: Array<{ label: string; ms: number }> = [
 ];
 
 const TRIGGERS: Array<{ id: AutoConfig['trigger']; label: string; hint: string }> = [
+  { id: 'change', label: 'On save', hint: 'Run when a file in the project changes (ignores node_modules, .git and build output)' },
   { id: 'drift', label: 'On drift', hint: 'Run when the project has uncommitted changes or commits ahead of upstream' },
+  { id: 'reactive', label: 'Save or drift', hint: 'Run on either a file save or git drift' },
   { id: 'interval', label: 'On a timer', hint: 'Run every N minutes regardless of state' },
-  { id: 'both', label: 'Drift or timer', hint: 'Run on drift, or on the timer if nothing changed' },
+  { id: 'both', label: 'Everything', hint: 'Save, drift, or the timer — whichever comes first' },
 ];
 
 /**
@@ -32,6 +41,7 @@ const TRIGGERS: Array<{ id: AutoConfig['trigger']; label: string; hint: string }
  */
 export function AutomationSettingsPanel() {
   const [cfg, setCfg] = useState<AutoConfig | null>(null);
+  const [watch, setWatch] = useState<WatchState | null>(null);
   const [killSwitch, setKillSwitch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -41,6 +51,7 @@ export function AutomationSettingsPanel() {
       const res = await fetch('/api/pipeline/auto', { credentials: 'include', headers: getAuthHeaders() });
       const json = await res.json().catch(() => ({}));
       if (json?.auto) setCfg(json.auto as AutoConfig);
+      if (json?.watch) setWatch(json.watch as WatchState);
       setKillSwitch(json?.killSwitch === true);
     } catch { /* leave prior state */ }
   }, []);
@@ -135,7 +146,7 @@ export function AutomationSettingsPanel() {
           </span>
           <select
             value={cfg?.intervalMs ?? 15 * 60_000}
-            disabled={!cfg || busy || cfg?.trigger === 'drift'}
+            disabled={!cfg || busy || !(cfg?.trigger === 'interval' || cfg?.trigger === 'both')}
             onChange={(e) => void save({ intervalMs: Number(e.target.value) })}
             className="rounded border border-border-muted bg-surface-base px-2 py-1 text-[12px] font-bold disabled:opacity-40"
           >
@@ -163,6 +174,14 @@ export function AutomationSettingsPanel() {
           <div className="flex items-center gap-2"><Bot className="w-3.5 h-3.5" /> <span className="truncate">last run: {cfg?.lastRunAt ? new Date(cfg.lastRunAt).toLocaleString() : 'never'}</span></div>
           {cfg?.lastNote && <div className="truncate">note: {cfg.lastNote}</div>}
           {cfg?.lastJobId && <div className="truncate">job: {cfg.lastJobId}</div>}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <StatusLight
+              state={watch?.unsupported ? 'warn' : watch?.watching ? 'ok' : 'idle'}
+              label={watch?.unsupported ? 'save watcher unsupported on this platform' : watch?.watching ? 'watching for saves' : 'save watcher idle'}
+              title={watch?.path ?? undefined}
+            />
+            {watch?.lastChangeAt && <span className="text-[10px] text-gray-500">last change {new Date(watch.lastChangeAt).toLocaleTimeString()}</span>}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
