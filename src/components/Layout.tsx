@@ -10,6 +10,7 @@ import { getAuthHeaders } from '../auth/AuthProvider';
 import { TerminalPanel } from './TerminalPanel';
 import { CommandPalette } from './CommandPalette';
 import { GlobalRunIndicator } from './GlobalRunIndicator';
+import { ConfirmGateHost } from './ConfirmGate';
 import { PipelineProvider } from '../ide/PipelineProvider';
 import { cn } from '../lib/utils';
 
@@ -274,6 +275,7 @@ export function Layout() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ConfirmGateHost />
     </div>
     </PipelineProvider>
   );

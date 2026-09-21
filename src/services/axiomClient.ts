@@ -191,10 +191,14 @@ export async function listAxiomMissions(): Promise<any> {
   return axiomFetch('/api/mission/list');
 }
 
-export async function approveAxiomMission(id: string, by?: string): Promise<any> {
+export async function approveAxiomMission(
+  id: string,
+  by?: string,
+  plan?: Array<{ label: string; goal?: string; dependsOn?: string[] }>,
+): Promise<any> {
   return axiomFetch(`/api/mission/approve/${encodeURIComponent(id)}`, {
     method: 'POST',
-    body: JSON.stringify({ by }),
+    body: JSON.stringify({ by, ...(plan && plan.length ? { plan } : {}) }),
   });
 }
 

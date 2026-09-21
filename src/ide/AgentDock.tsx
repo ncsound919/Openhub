@@ -56,6 +56,8 @@ export function AgentDock({
   const [undoBusy, setUndoBusy] = useState(false);
   const [shareMarkdown, setShareMarkdown] = useState<string | null>(null);
   const [missions, setMissions] = useState<MissionView[]>([]);
+  // Editable plan drafts for parked (plan-gate) missions, keyed by mission id.
+  const [planDrafts, setPlanDrafts] = useState<Record<string, Array<{ label: string; goal: string; dependsOn: string[] }>>>({});
   const [busy, setBusy] = useState(false);
   const [approveBusy, setApproveBusy] = useState(false);
   const [explainText, setExplainText] = useState<string | null>(null);
@@ -409,14 +411,20 @@ export function AgentDock({
     }
   };
 
-  const handleMissionDecision = async (id: string, approve: boolean) => {
+  const handleMissionDecision = async (
+    id: string,
+    approve: boolean,
+    plan?: Array<{ label: string; goal?: string; dependsOn?: string[] }>,
+  ) => {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/axiom/mission/${approve ? 'approve' : 'reject'}/${id}`, {
         method: 'POST', credentials: 'include',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-        body: JSON.stringify(approve ? { by: 'openhub-workspace' } : { reason: 'rejected from workspace' }),
+        body: JSON.stringify(approve
+          ? { by: 'openhub-workspace', ...(plan && plan.length ? { plan } : {}) }
+          : { reason: 'rejected from workspace' }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error || `Mission ${approve ? 'approve' : 'reject'} failed (HTTP ${res.status})`);
@@ -587,23 +595,52 @@ export function AgentDock({
                   <span className="text-[11px] font-mono text-gray-500 truncate">{m.id}</span>
                 </div>
                 <div className="truncate text-[var(--color-text-primary)]" title={m.goal}>{m.goal.slice(0, 50)}</div>
-                {m.status === 'awaiting-approval' && (
-                  <div className="space-y-1">
-                    {m.pendingPlan?.map((t, i) => (
-                      <div key={i} className="text-[10px] text-gray-400">
-                        <span className="text-emerald-400">t{i + 1}</span> {t.label}{t.dependsOn?.length ? ` · after ${t.dependsOn.join(',')}` : ''}
+                {m.status === 'awaiting-approval' && (() => {
+                  const plan = planDrafts[m.id] ?? (m.pendingPlan ?? []).map((p) => ({ label: p.label, goal: p.label, dependsOn: p.dependsOn ?? [] }));
+                  const update = (next: Array<{ label: string; goal: string; dependsOn: string[] }>) =>
+                    setPlanDrafts((d) => ({ ...d, [m.id]: next }));
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Plan · edit before approving</div>
+                      {plan.map((step, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="w-5 shrink-0 font-mono text-[10px] text-emerald-400">t{i + 1}</span>
+                          <input
+                            value={step.label}
+                            onChange={(e) => update(plan.map((s, j) => (j === i ? { ...s, label: e.target.value } : s)))}
+                            aria-label={`Step ${i + 1}`}
+                            className="min-w-0 flex-1 rounded border border-border-muted bg-bg-base px-1.5 py-0.5 text-[10px] text-gray-200 outline-none focus:border-[var(--color-accent)]"
+                          />
+                          <button onClick={() => update(plan.filter((_, j) => j !== i))} title="Remove step" aria-label="Remove step" className="shrink-0 px-0.5 text-gray-500 hover:text-red-400">✕</button>
+                          <button
+                            onClick={() => { if (i > 0) { const n = [...plan]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; update(n); } }}
+                            disabled={i === 0} title="Move up" aria-label="Move up"
+                            className="shrink-0 px-0.5 text-gray-500 hover:text-gray-200 disabled:opacity-30"
+                          >↑</button>
+                          <button
+                            onClick={() => { if (i < plan.length - 1) { const n = [...plan]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; update(n); } }}
+                            disabled={i === plan.length - 1} title="Move down" aria-label="Move down"
+                            className="shrink-0 px-0.5 text-gray-500 hover:text-gray-200 disabled:opacity-30"
+                          >↓</button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => update([...plan, { label: `step ${plan.length + 1}`, goal: '', dependsOn: [] }])}
+                        className="text-[10px] font-semibold text-gray-400 hover:text-gray-200"
+                      >
+                        + Add step
+                      </button>
+                      <div className="flex gap-1.5 pt-1">
+                        <button onClick={() => void handleMissionDecision(m.id, true, plan)} disabled={busy || plan.length === 0} className="flex items-center gap-1 rounded bg-success hover:brightness-110 disabled:opacity-40 px-2 py-1 text-white font-bold">
+                          <CheckCircle2 className="w-3 h-3" /> Approve plan
+                        </button>
+                        <button onClick={() => void handleMissionDecision(m.id, false)} disabled={busy} className="flex items-center gap-1 rounded bg-danger hover:brightness-110 disabled:opacity-40 px-2 py-1 text-white font-bold">
+                          <XCircle className="w-3 h-3" /> Reject
+                        </button>
                       </div>
-                    ))}
-                    <div className="flex gap-1.5 pt-1">
-                      <button onClick={() => void handleMissionDecision(m.id, true)} disabled={busy} className="flex items-center gap-1 rounded bg-success hover:brightness-110 disabled:opacity-40 px-2 py-1 text-white font-bold">
-                        <CheckCircle2 className="w-3 h-3" /> Approve
-                      </button>
-                      <button onClick={() => void handleMissionDecision(m.id, false)} disabled={busy} className="flex items-center gap-1 rounded bg-danger hover:brightness-110 disabled:opacity-40 px-2 py-1 text-white font-bold">
-                        <XCircle className="w-3 h-3" /> Reject
-                      </button>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {m.status === 'running' && (() => {
                   const rows = taskRows(m);
                   const total = taskTotal(m);

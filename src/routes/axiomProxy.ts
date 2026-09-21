@@ -208,7 +208,16 @@ export function createAxiomProxyRouter(deps: { authMiddleware: express.RequestHa
   router.post('/axiom/mission/approve/:id', async (req, res) => {
     try {
       const by = typeof req.body?.by === 'string' ? req.body.by : undefined;
-      const result = await approveAxiomMission(req.params.id, by);
+      const plan = Array.isArray(req.body?.plan)
+        ? (req.body.plan as Array<Record<string, unknown>>)
+            .filter((p) => p && typeof p === 'object' && typeof p.label === 'string')
+            .map((p) => ({
+              label: String(p.label),
+              goal: typeof p.goal === 'string' ? p.goal : undefined,
+              dependsOn: Array.isArray(p.dependsOn) ? p.dependsOn.map(String) : [],
+            }))
+        : undefined;
+      const result = await approveAxiomMission(req.params.id, by, plan);
       res.json({ ok: true, data: result });
     } catch (err) {
       res.status(502).json({ ok: false, error: errorMessage(err) });

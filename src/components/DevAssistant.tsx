@@ -55,6 +55,20 @@ import {
 import { axiomEditorChat, axiomEditorMentions } from '../ide/axiomEditorClient';
 import { ContextMentions } from '../ide/MentionContext';
 import { hasMentions, withContextBlock } from '../ide/contextMentions';
+import { confirmGate } from './ConfirmGate';
+import {
+  AUTONOMY_MODES, getAutonomyMode, setAutonomyMode, gateRequired, prefersPlanGate,
+  type AutonomyMode, type GateIntensity,
+} from '../lib/autonomy';
+
+/** How much friction each confirmed action deserves. */
+const INTENSITY_BY_KIND: Record<string, GateIntensity> = {
+  import: 'reversible', generate: 'reversible', 'ssh-add': 'reversible', 'webhook-add': 'reversible',
+  tool: 'reversible', commit: 'reversible', pipeline: 'reversible', 'plan-mission': 'reversible',
+  loop: 'destructive', repair: 'destructive', agent: 'destructive', mcp: 'destructive',
+  service: 'destructive', 'webhook-test': 'destructive', 'webhook-remove': 'destructive',
+  'ssh-remove': 'destructive', 'audit-repair': 'destructive', supervise: 'destructive',
+};
 
 interface Msg {
   id: number;
@@ -146,6 +160,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
     { id: nextMsgId(), role: 'assistant', text: 'Axiom is online. I act on this workspace — read files, run Axiom loops, audit and repair, research knowledge, and keep the todo list. Type /help for commands.' },
   ]);
   const [input, setInput] = useState('');
+  const [autonomy, setAutonomy] = useState<AutonomyMode>(() => getAutonomyMode());
   const [busy, setBusy] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoadedFor, setTodosLoadedFor] = useState<string | null>(null);
@@ -273,8 +288,22 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
     );
   }, [activeProject?.repositoryName, drift, registryItems]);
 
-  const say = (text: string, confirm?: Msg['confirm']) =>
-    setMsgs((prev) => [...prev.slice(-60), { id: nextMsgId(), role: 'assistant', text, confirm }]);
+  const say = (text: string, confirm?: Msg['confirm']) => {
+    const id = nextMsgId();
+    setMsgs((prev) => [...prev.slice(-60), { id, role: 'assistant', text }]);
+    if (!confirm) return;
+    // Confirmation gate: pop up (triaged by intensity) unless the autonomy mode
+    // says this action may run freely.
+    const intensity = INTENSITY_BY_KIND[confirm.kind] ?? 'destructive';
+    if (!gateRequired(intensity)) {
+      void runConfirm({ id, role: 'assistant', text, confirm });
+      return;
+    }
+    void confirmGate({ title: confirm.label, detail: text, intensity, confirmLabel: confirm.label }).then((ok) => {
+      if (ok) void runConfirm({ id, role: 'assistant', text, confirm });
+      else say('Cancelled — no changes made.');
+    });
+  };
 
   // ---- real actions (control layer in lib/copilotActions) ----
   const ctx = { project: activeProject };
@@ -477,6 +506,10 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
         return;
       }
       if (cmd === 'loop' && arg) {
+        if (prefersPlanGate()) {
+          say(`Plan-gate a mission for: “${arg}”? (it runs only after you approve the plan)`, { kind: 'plan-mission', label: 'Plan mission', payload: arg });
+          return;
+        }
         say(`Dispatch an Axiom loop for: “${arg}”?`, { kind: 'loop', label: 'Run loop', payload: arg });
         return;
       }
@@ -1069,6 +1102,28 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
         }
         break;
       }
+      case 'supervise':
+        say(await startSupervisionRun(ctx, confirm.payload));
+        break;
+      case 'plan-mission': {
+        // Plan mode: park the agent's work as an approvable plan (nothing runs
+        // until the operator approves it in Run status).
+        try {
+          const res = await fetch('/api/axiom/mission/run', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+            body: JSON.stringify({ goal: confirm.payload, planGate: true }),
+          });
+          const json = await res.json().catch(() => ({}));
+          say(json?.ok
+            ? `Mission ${json?.data?.id ?? ''} parked for approval — review the plan in Run status.`
+            : `Could not plan the mission: ${json?.error ?? `HTTP ${res.status}`}`);
+        } catch (e) {
+          say(`Could not plan the mission: ${e instanceof Error ? e.message : 'request error'}`);
+        }
+        break;
+      }
       case 'repair':
         say(await triggerRepair(ctx, confirm.payload));
         break;
@@ -1501,6 +1556,16 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
           <span className="text-sm font-bold text-[var(--color-text-primary)]">Axiom</span>
           <span className="hidden xl:inline text-[10px] text-gray-500">chat · loops · audit · compose</span>
           <div className="ml-auto flex items-center gap-1">
+            <label className="mr-1 flex items-center gap-1" title={AUTONOMY_MODES.find((m) => m.id === autonomy)?.hint}>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Autonomy</span>
+              <select
+                value={autonomy}
+                onChange={(e) => { const m = e.target.value as AutonomyMode; setAutonomy(m); setAutonomyMode(m); }}
+                className="rounded border border-white/10 bg-[var(--color-surface-base)] px-1.5 py-0.5 text-[10px] font-bold text-gray-300 outline-none focus:border-orange-500"
+              >
+                {AUTONOMY_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => void handleSend('/audit')}
