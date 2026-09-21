@@ -14,6 +14,7 @@ import { StatusLight } from '../components/StatusLight';
 import { InsightFeedPanel } from '../components/InsightFeedPanel';
 import { usePipelineContext } from '../ide/PipelineProvider';
 import { stageLight } from '../ide/usePipeline';
+import { getAutonomyMode, prefersPlanGate } from '../lib/autonomy';
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { cn } from '../lib/utils';
 
@@ -26,8 +27,6 @@ export function Dashboard() {
   // Command console controls: run the autonomous pipeline from the home surface.
   const pipeline = usePipelineContext();
   const [projectStatus, setProjectStatus] = useState<any>(null);
-  const [auditTools, setAuditTools] = useState<any[]>([]);
-  const [dream, setDream] = useState<{ entries: any[]; summary: any } | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('openhub.onboarding.done'));
   // Auxiliary status sources degrade independently; name them instead of
   // swallowing the failure so "no data" is distinguishable from "unavailable".
@@ -55,23 +54,6 @@ export function Dashboard() {
         const data = await res.json();
         if (data.ok) setProjectStatus(data);
       } catch { markDegraded('project status'); }
-    })();
-  }, [activeProject, reloadKey]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/audit/tools', { credentials: 'include', headers: getAuthHeaders() });
-        const data = await res.json();
-        if (data.ok && Array.isArray(data.tools)) setAuditTools(data.tools);
-      } catch { markDegraded('audit tools'); }
-    })();
-    (async () => {
-      try {
-        const res = await fetch('/api/dream', { credentials: 'include', headers: getAuthHeaders() });
-        const data = await res.json();
-        if (data.ok) setDream({ entries: data.entries ?? [], summary: data.summary ?? {} });
-      } catch { markDegraded('dream state'); }
     })();
   }, [activeProject, reloadKey]);
 
@@ -159,7 +141,7 @@ export function Dashboard() {
               </Link>
               <button
                 type="button"
-                onClick={() => void pipeline.start('autopilot')}
+                onClick={() => void pipeline.start('autopilot', undefined, { planGate: prefersPlanGate(getAutonomyMode()) })}
                 disabled={!activeProject || pipeline.running || pipeline.starting}
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 text-sm font-bold disabled:opacity-40"
                 title="Run the autonomous pipeline: typecheck → adversary → audit → repair → loop → verify"
@@ -187,8 +169,8 @@ export function Dashboard() {
                   ))}
                 </span>
                 <StatusLight
-                  state={pipeline.running ? 'working' : pipeline.job.status === 'complete' ? 'ok' : pipeline.job.status === 'cancelled' ? 'warn' : 'error'}
-                  label={pipeline.running ? 'Running' : pipeline.job.status}
+                  state={pipeline.running ? 'working' : pipeline.job.status === 'complete' ? 'ok' : pipeline.job.status === 'cancelled' || pipeline.job.status === 'awaiting-approval' ? 'warn' : 'error'}
+                  label={pipeline.running ? 'Running' : pipeline.job.status === 'awaiting-approval' ? 'Plan ready — approve in Workspace' : pipeline.job.status}
                   title={pipeline.job.error || pipeline.job.status}
                 />
                 {pipeline.running && (
@@ -272,88 +254,8 @@ export function Dashboard() {
             </Link>
           </section>
 
-          {/* Repo status & weaknesses — know before working */}
-          <section aria-labelledby="repo-status" className="space-y-3">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-blue-300" />
-              <h2 id="repo-status" className="!text-base">Repo status &amp; weaknesses</h2>
-            </div>
-            {!activeProject ? (
-              <div className="industrial-card p-5 text-sm text-gray-400">
-                {activeProjectLoading ? 'Reading the active project…' : 'Load a project to see its status, weaknesses, and last work point.'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-accent)' }}>
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Last audit</div>
-                  <div className={`mt-1 text-2xl font-extrabold tracking-tight ${auditVerdict === 'pass' ? 'text-emerald-400' : auditVerdict === 'warn' ? 'text-amber-400' : auditVerdict === 'fail' ? 'text-red-400' : 'text-gray-400'}`}>
-                    {auditVerdict ?? '—'}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-gray-400">{lastAudit ? `${lastAudit.scores?.length ?? 0} scorers · ${new Date(lastAudit.timestamp).toLocaleDateString()}` : 'no audit recorded'}</div>
-                </div>
-                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-info)' }}>
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Delivery state</div>
-                  <div className="mt-1 text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)]">{driftSummary}</div>
-                  <div className="mt-0.5 truncate text-[11px] text-gray-400">drift vs last push</div>
-                </div>
-                <div className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: 'var(--color-warning)' }}>
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">Last run</div>
-                  <div className="mt-1 truncate text-2xl font-extrabold tracking-tight text-[var(--color-text-primary)]">{lastRun?.status ?? '—'}</div>
-                  <div className="mt-0.5 truncate text-[11px] text-gray-400">{lastRun ? lastRun.goal.slice(0, 48) : 'no supervised run yet'}</div>
-                </div>
-              </div>
-            )}
-            {auditTools.length > 0 && (
-              <div className="industrial-card p-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="!text-base">Audit tools</h2>
-                  <span className="count-pill">{auditTools.length}</span>
-                </div>
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {auditTools.map((t) => (
-                    <div key={t.name} className="rounded-lg border border-surface-overlay bg-surface-base/60 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-1.5 w-1.5 rounded-full ${t.configured ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                        <span className="truncate text-xs font-bold text-[var(--color-text-primary)]">{t.label ?? t.name}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 font-mono text-[10px] text-gray-400">
-                        <span>{t.kind}</span>
-                        <span>{t.stats?.runs ?? 0} runs</span>
-                        {typeof t.stats?.avgScore === 'number' && <span>avg {t.stats.avgScore}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Dream state — continuous monitoring + grading of every repo */}
-          {dream && dream.entries.length > 0 && (
-            <section className="industrial-card overflow-hidden" aria-label="Dream state">
-              <div className="flex items-center justify-between gap-2 border-b border-surface-overlay bg-surface-raised/60 px-4 py-3">
-                <h2 className="!text-base flex items-center gap-2"><Radar className="w-4 h-4 text-purple-300" /> Dream state</h2>
-                <span className="count-pill">{dream.summary?.graded ?? 0}/{dream.summary?.total ?? 0} graded</span>
-              </div>
-              <div className="divide-y divide-surface-overlay max-h-72 overflow-y-auto">
-                {dream.entries.map((e: any) => (
-                  <div key={e.repoId} className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${e.status === 'healthy' ? 'bg-emerald-400' : e.status === 'attention' ? 'bg-amber-400' : e.status === 'critical' ? 'bg-red-400' : 'bg-gray-400'}`} />
-                      <span className="truncate text-xs font-bold text-[var(--color-text-primary)]">{e.name}</span>
-                      <span className="ml-auto shrink-0 font-mono text-sm font-extrabold text-gray-200">{e.grade ?? '—'}</span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-3 font-mono text-[10px] text-gray-400">
-                      <span className="truncate">{e.purpose.slice(0, 40)}</span>
-                      <span className="shrink-0">{e.development}</span>
-                      {typeof e.score === 'number' && <span className="shrink-0">score {e.score}</span>}
-                      {e.findings > 0 && <span className="shrink-0 text-orange-300">{e.findings} findings</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Repo status lives in the compact status strip above; the card wall
+              that used to be here is gone (it was info without controls). */}
 
           {/* Discoveries & insights — what the system learned, not stat cards. */}
           <InsightFeedPanel />

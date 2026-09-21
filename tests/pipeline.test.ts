@@ -5,6 +5,8 @@ import {
   startPipeline,
   getPipeline,
   cancelPipeline,
+  approvePipeline,
+  rejectPipeline,
   overallProgress,
   type PipelineDeps,
   type PipelineJob,
@@ -130,5 +132,29 @@ describe('pipeline runner', () => {
     const done = await waitForTerminal(job.id);
     expect(done.status).toBe('failed');
     expect(done.stages.find((s) => s.id === 'audit')?.detail).toContain('audit exploded');
+  });
+
+  it('parks a plan-gated run and only executes after approval', async () => {
+    const job = startPipeline({ projectPath: '/tmp/pg', projectName: 'pg', mode: 'audit', planGate: true }, baseDeps());
+    expect(job.status).toBe('awaiting-approval');
+    // Nothing runs while parked.
+    await new Promise((r) => setTimeout(r, 40));
+    expect(getPipeline(job.id)?.status).toBe('awaiting-approval');
+
+    // Approve with the repair stage disabled — the run must match the plan.
+    const approved = approvePipeline(job.id, [{ id: 'audit', enabled: true }, { id: 'repair', enabled: false }], undefined, baseDeps());
+    expect(approved?.status).toBe('running');
+    const done = await waitForTerminal(job.id);
+    expect(done.status).toBe('complete');
+    expect(done.stages.map((s) => s.id)).toEqual(['audit']);
+  });
+
+  it('rejects a parked plan without running it', () => {
+    const job = startPipeline({ projectPath: '/tmp/pg2', projectName: 'pg2', mode: 'audit', planGate: true }, baseDeps());
+    expect(rejectPipeline(job.id)).toBe(true);
+    expect(getPipeline(job.id)?.status).toBe('cancelled');
+    // A non-parked job cannot be approved/rejected.
+    const running = startPipeline({ projectPath: '/tmp/pg3', projectName: 'pg3', mode: 'audit' }, baseDeps());
+    expect(rejectPipeline(running.id)).toBe(false);
   });
 });

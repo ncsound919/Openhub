@@ -12,6 +12,8 @@ const INERT: PipelineController = {
   error: null,
   start: async () => {},
   cancel: async () => {},
+  approve: async () => {},
+  reject: async () => {},
   refresh: async () => {},
 };
 

@@ -9,11 +9,13 @@ export interface PipelineStageView {
   ok: boolean | null;
   detail: string;
   progress: number;
+  enabled?: boolean;
 }
-export type PipelineJobStatus = 'running' | 'complete' | 'failed' | 'cancelled';
+export type PipelineJobStatus = 'awaiting-approval' | 'running' | 'complete' | 'failed' | 'cancelled';
 export interface PipelineJobView {
   id: string;
   mode: string;
+  goal?: string;
   status: PipelineJobStatus;
   progress: number;
   stages: PipelineStageView[];
@@ -25,8 +27,10 @@ export interface PipelineController {
   starting: boolean;
   running: boolean;
   error: string | null;
-  start: (mode: 'autopilot' | 'audit', goal?: string) => Promise<void>;
+  start: (mode: 'autopilot' | 'audit', goal?: string, opts?: { planGate?: boolean }) => Promise<void>;
   cancel: () => Promise<void>;
+  approve: (plan?: Array<{ id: string; enabled: boolean }>, goal?: string) => Promise<void>;
+  reject: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -80,7 +84,7 @@ export function usePipeline(): PipelineController {
     } catch { /* no runs yet */ }
   }, [poll]);
 
-  const start = useCallback(async (mode: 'autopilot' | 'audit', goal?: string) => {
+  const start = useCallback(async (mode: 'autopilot' | 'audit', goal?: string, opts?: { planGate?: boolean }) => {
     setStarting(true);
     setError(null);
     try {
@@ -88,7 +92,7 @@ export function usePipeline(): PipelineController {
         method: 'POST',
         credentials: 'include',
         headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() }),
-        body: JSON.stringify({ mode, ...(goal && goal.trim() ? { goal: goal.trim() } : {}) }),
+        body: JSON.stringify({ mode, ...(goal && goal.trim() ? { goal: goal.trim() } : {}), ...(opts?.planGate ? { planGate: true } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.job) {
@@ -98,13 +102,39 @@ export function usePipeline(): PipelineController {
       const next = json.job as PipelineJobView;
       setJob(next);
       if (timer.current) clearTimeout(timer.current);
-      void poll(next.id);
+      if (next.status === 'running') void poll(next.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start pipeline');
     } finally {
       setStarting(false);
     }
   }, [poll]);
+
+  const decide = useCallback(async (action: 'approve' | 'reject', plan?: Array<{ id: string; enabled: boolean }>, goal?: string) => {
+    const id = job?.id;
+    if (!id) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/pipeline/${encodeURIComponent(id)}/${action}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() }),
+        body: JSON.stringify({ ...(plan ? { plan } : {}), ...(goal ? { goal } : {}) }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) { setError(json?.error || `Could not ${action} pipeline`); return; }
+      if (json?.job) setJob(json.job as PipelineJobView);
+      if (action === 'approve' && json?.job) void poll((json.job as PipelineJobView).id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Could not ${action} pipeline`);
+    } finally {
+      setStarting(false);
+    }
+  }, [job, poll]);
+
+  const approve = useCallback((plan?: Array<{ id: string; enabled: boolean }>, goal?: string) => decide('approve', plan, goal), [decide]);
+  const reject = useCallback(() => decide('reject'), [decide]);
 
   const cancel = useCallback(async () => {
     if (!job) return;
@@ -120,7 +150,7 @@ export function usePipeline(): PipelineController {
   // an in-flight pipeline.
   useEffect(() => { void refresh(); }, [refresh]);
 
-  return { job, starting, running: job?.status === 'running', error, start, cancel, refresh };
+  return { job, starting, running: job?.status === 'running', error, start, cancel, approve, reject, refresh };
 }
 
 /** Light-state mapping for a pipeline stage, shared by every indicator. */

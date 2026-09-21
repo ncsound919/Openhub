@@ -21,7 +21,7 @@ import { reportIncident } from './incidentBus.js';
 
 export type PipelineStageId = 'typecheck' | 'adversary' | 'audit' | 'repair' | 'loop' | 'verify';
 export type StageStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed' | 'cancelled';
-export type PipelineStatus = 'running' | 'complete' | 'failed' | 'cancelled';
+export type PipelineStatus = 'awaiting-approval' | 'running' | 'complete' | 'failed' | 'cancelled';
 export type PipelineMode = 'audit' | 'autopilot' | 'custom';
 
 export interface PipelineStage {
@@ -35,6 +35,8 @@ export interface PipelineStage {
   progress: number;
   startedAt: string | null;
   endedAt: string | null;
+  /** Plan gate: a disabled stage is dropped when the plan is approved. */
+  enabled?: boolean;
 }
 
 export interface PipelineJob {
@@ -237,9 +239,25 @@ export interface StartPipelineParams {
   goal?: string;
   mode?: PipelineMode;
   stages?: PipelineStageId[];
+  /** Park the run as an editable plan; nothing executes until approved. */
+  planGate?: boolean;
 }
 
-/** Start a pipeline in the background; returns the job immediately. */
+/** Start the background runner for a job that is ready to execute. */
+function launchRunner(id: string, d: PipelineDeps): void {
+  activeRunners.add(id);
+  void runPipeline(id, d).catch((e: unknown) => {
+    const j = readJob(id);
+    if (j) { j.status = 'failed'; j.error = e instanceof Error ? e.message : String(e); j.updatedAt = d.now(); persist(j); }
+  }).finally(() => {
+    activeRunners.delete(id);
+    cancelFlags.delete(id);
+  });
+}
+
+/** Start a pipeline in the background; returns the job immediately. With
+ *  `planGate`, the job is parked as `awaiting-approval` and only runs after
+ *  approvePipeline. */
 export function startPipeline(params: StartPipelineParams, deps: Partial<PipelineDeps> = {}): PipelineJob {
   const d: PipelineDeps = { ...defaultDeps, ...deps };
   ensureTable();
@@ -254,14 +272,16 @@ export function startPipeline(params: StartPipelineParams, deps: Partial<Pipelin
     progress: 0,
     startedAt: null,
     endedAt: null,
+    enabled: true,
   }));
+  const planGate = params.planGate === true;
   const job: PipelineJob = {
     id: crypto.randomUUID(),
     projectPath: params.projectPath,
     projectName: params.projectName,
     goal: (params.goal ?? '').trim(),
     mode,
-    status: 'running',
+    status: planGate ? 'awaiting-approval' : 'running',
     stages,
     loopId: null,
     audit: null,
@@ -270,15 +290,47 @@ export function startPipeline(params: StartPipelineParams, deps: Partial<Pipelin
     updatedAt: now,
   };
   persist(job);
-  activeRunners.add(job.id);
-  void runPipeline(job.id, d).catch((e: unknown) => {
-    const j = readJob(job.id);
-    if (j) { j.status = 'failed'; j.error = e instanceof Error ? e.message : String(e); j.updatedAt = d.now(); persist(j); }
-  }).finally(() => {
-    activeRunners.delete(job.id);
-    cancelFlags.delete(job.id);
-  });
+  if (!planGate) launchRunner(job.id, d);
   return job;
+}
+
+/** Approve a parked pipeline (optionally with an edited plan) and run it.
+ *  `plan` toggles stages on/off; a `goal` override is honored too. */
+export function approvePipeline(
+  id: string,
+  plan?: Array<{ id: PipelineStageId; enabled?: boolean }>,
+  goalOverride?: string,
+  deps: Partial<PipelineDeps> = {},
+): PipelineJob | null {
+  const d: PipelineDeps = { ...defaultDeps, ...deps };
+  const job = readJob(id);
+  if (!job || job.status !== 'awaiting-approval') return null;
+  if (plan) {
+    const byId = new Map(plan.map((p) => [p.id, p]));
+    for (const stage of job.stages) {
+      const p = byId.get(stage.id);
+      if (p) stage.enabled = p.enabled !== false;
+    }
+  }
+  if (typeof goalOverride === 'string') job.goal = goalOverride.trim();
+  // Drop disabled stages; the run executes exactly the approved plan.
+  job.stages = job.stages.filter((s) => s.enabled !== false);
+  job.status = 'running';
+  job.updatedAt = d.now();
+  persist(job);
+  launchRunner(job.id, d);
+  return job;
+}
+
+export function rejectPipeline(id: string): boolean {
+  const job = readJob(id);
+  if (!job || job.status !== 'awaiting-approval') return false;
+  job.status = 'cancelled';
+  job.error = 'plan rejected';
+  for (const s of job.stages) if (s.status === 'pending') { s.status = 'cancelled'; s.detail = 'plan rejected'; }
+  job.updatedAt = new Date().toISOString();
+  persist(job);
+  return true;
 }
 
 export function cancelPipeline(id: string): boolean {
@@ -312,6 +364,7 @@ async function runPipeline(id: string, d: PipelineDeps): Promise<void> {
 
   for (const stage of job.stages) {
     if (isCancelled(id)) { stopRemaining(); return; }
+    if (stage.enabled === false) { stage.status = 'skipped'; stage.detail = 'not in approved plan'; continue; }
     stage.status = 'running';
     stage.startedAt = d.now();
     job.updatedAt = d.now();

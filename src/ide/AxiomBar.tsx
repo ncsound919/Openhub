@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import { ShieldCheck, Loader2, Rocket, XCircle, ArrowRight, MessageSquare } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ShieldCheck, Loader2, Rocket, XCircle, ArrowRight, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { StatusLight, type LightState } from '../components/StatusLight';
 import { stageLight, type PipelineController } from './usePipeline';
+import { getAutonomyMode, prefersPlanGate } from '../lib/autonomy';
 import { cn } from '../lib/utils';
 
 /**
@@ -27,7 +28,14 @@ export function AxiomBar({
   pipeline: PipelineController;
 }) {
   const { job, starting, running } = pipeline;
-  const chatRef = useRef<HTMLButtonElement>(null);
+  const awaiting = job?.status === 'awaiting-approval';
+  const [planEdits, setPlanEdits] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (job && job.status === 'awaiting-approval') {
+      setPlanEdits(Object.fromEntries(job.stages.map((s) => [s.id, s.enabled !== false])));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.id, job?.status]);
 
   // ⌘K / Ctrl+K focuses the Axiom chat input (the single input).
   useEffect(() => {
@@ -42,7 +50,11 @@ export function AxiomBar({
     return () => window.removeEventListener('keydown', onKey);
   }, [onRequestChat]);
 
-  const run = (mode: 'autopilot' | 'audit') => { void pipeline.start(mode); };
+  // In Plan autonomy mode, Autopilot parks as an approvable plan instead of
+  // running immediately.
+  const run = (mode: 'autopilot' | 'audit') => {
+    void pipeline.start(mode, undefined, { planGate: mode === 'autopilot' && prefersPlanGate(getAutonomyMode()) });
+  };
 
   const pct = job ? Math.round((job.progress ?? 0) * 100) : 0;
   const resultLight: LightState = !job
@@ -81,7 +93,41 @@ export function AxiomBar({
       </div>
 
       {/* Progress stream, or a prompt to open the chat. */}
-      {job ? (
+      {awaiting && job ? (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-warning)]">Plan ready · {job.mode}</span>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {job.stages.map((s) => (
+              <label key={s.id} className="inline-flex items-center gap-1 text-[10px] text-gray-300" title={`Include the ${s.label} stage`}>
+                <input
+                  type="checkbox"
+                  checked={planEdits[s.id] ?? true}
+                  onChange={(e) => setPlanEdits((p) => ({ ...p, [s.id]: e.target.checked }))}
+                />
+                {s.label}
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void pipeline.approve(job.stages.map((s) => ({ id: s.id, enabled: planEdits[s.id] ?? true })))}
+              disabled={starting || job.stages.every((s) => (planEdits[s.id] ?? true) === false)}
+              className="flex items-center gap-1 rounded-md bg-[var(--color-success)] px-2 py-1 text-[10px] font-bold text-white hover:brightness-110 disabled:opacity-40"
+            >
+              {starting ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve &amp; run
+            </button>
+            <button
+              type="button"
+              onClick={() => void pipeline.reject()}
+              disabled={starting}
+              className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-danger)] disabled:opacity-40"
+            >
+              <XCircle className="h-3 w-3" /> Reject
+            </button>
+          </div>
+        </div>
+      ) : job ? (
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
           <div className="flex min-w-[8rem] flex-1 items-center gap-2">
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
@@ -110,7 +156,6 @@ export function AxiomBar({
         </div>
       ) : (
         <button
-          ref={chatRef}
           type="button"
           onClick={onRequestChat}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"

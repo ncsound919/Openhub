@@ -37,6 +37,7 @@ export function GlobalRunIndicator() {
           <Rocket className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" />
         )}
         <span className="font-semibold text-[var(--color-text-secondary)] capitalize">{job.mode}</span>
+        {job.status === 'awaiting-approval' && <span className="shrink-0 font-bold text-[var(--color-warning)]">plan ready</span>}
         <span className="relative h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-white/10">
           <span
             className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500"
@@ -62,7 +63,7 @@ export function GlobalRunIndicator() {
           <XCircle className="h-3.5 w-3.5" />
         </button>
       ) : (
-        <StatusLight state={job.status === 'complete' ? 'ok' : job.status === 'cancelled' ? 'warn' : 'error'} dotOnly title={job.error || job.status} />
+        <StatusLight state={job.status === 'complete' ? 'ok' : job.status === 'cancelled' ? 'warn' : job.status === 'awaiting-approval' ? 'warn' : 'error'} dotOnly title={job.error || (job.status === 'awaiting-approval' ? 'plan ready — approve in the workspace' : job.status)} />
       )}
     </div>
   );

@@ -160,6 +160,8 @@ const ALLOWLIST = new Set([
   '/api/lifecycle/services/*/*',
   '/api/project/active/git/*',
   '/api/browse*',
+  // `${action}` is always approve|reject (both mounted as literal routes).
+  '/api/pipeline/*/*',
 ]);
 
 const allowed = (p) => ALLOWLIST.has(p) || p.startsWith('/api/browse');

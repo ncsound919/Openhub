@@ -5,6 +5,8 @@ import {
   getPipeline,
   listPipelines,
   cancelPipeline,
+  approvePipeline,
+  rejectPipeline,
   overallProgress,
   type PipelineDeps,
   type PipelineMode,
@@ -40,7 +42,7 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pip
     if (!project) {
       return res.status(409).json({ ok: false, code: 'NO_ACTIVE_PROJECT', error: 'Load a project before running a pipeline' });
     }
-    const body = (req.body ?? {}) as { mode?: unknown; goal?: unknown; stages?: unknown };
+    const body = (req.body ?? {}) as { mode?: unknown; goal?: unknown; stages?: unknown; planGate?: unknown };
     const mode: PipelineMode = body.mode === 'audit' || body.mode === 'custom' ? body.mode : 'autopilot';
     const goal = typeof body.goal === 'string' ? body.goal : '';
     const stages = Array.isArray(body.stages) ? (body.stages.map(String) as PipelineStageId[]) : undefined;
@@ -50,6 +52,7 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pip
       goal,
       mode,
       stages,
+      planGate: body.planGate === true,
     }, deps.pipelineDeps);
     res.json({ ok: true, job: withProgress(job) });
   });
@@ -66,6 +69,22 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pip
 
   router.post('/pipeline/:id/cancel', (req, res) => {
     res.json({ ok: cancelPipeline(req.params.id) });
+  });
+
+  // Plan gate: approve (optionally with an edited plan) or reject a parked run.
+  router.post('/pipeline/:id/approve', (req, res) => {
+    const raw = Array.isArray(req.body?.plan) ? (req.body.plan as Array<Record<string, unknown>>) : undefined;
+    const plan = raw
+      ?.filter((p) => p && typeof p.id === 'string')
+      .map((p) => ({ id: String(p.id) as PipelineStageId, enabled: p.enabled !== false }));
+    const goal = typeof req.body?.goal === 'string' ? req.body.goal : undefined;
+    const job = approvePipeline(req.params.id, plan, goal, deps.pipelineDeps);
+    if (!job) return res.status(409).json({ ok: false, error: 'pipeline is not awaiting approval' });
+    res.json({ ok: true, job: withProgress(job) });
+  });
+
+  router.post('/pipeline/:id/reject', (req, res) => {
+    res.json({ ok: rejectPipeline(req.params.id) });
   });
 
   return router;
