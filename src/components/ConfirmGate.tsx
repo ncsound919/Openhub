@@ -59,20 +59,23 @@ export function ConfirmGateHost() {
     return () => { listeners.delete(l); };
   }, []);
 
+  if (!pending) return null;
+  // Keyed so a new gate remounts the body and clears any typed phrase.
+  return <GateBody key={`${pending.intensity}:${pending.title}`} req={pending} />;
+}
+
+function GateBody({ req }: { req: GateRequest }) {
   const [typed, setTyped] = useState('');
-  useEffect(() => { setTyped(''); }, [pending?.title]);
   useEffect(() => {
-    if (!pending) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') settle(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [pending]);
+  }, []);
 
-  if (!pending) return null;
-  const tone = TONE[pending.intensity];
+  const tone = TONE[req.intensity];
   const Icon = tone.icon;
-  const needsPhrase = pending.intensity === 'catastrophic';
-  const phrase = pending.phrase ?? 'confirm';
+  const needsPhrase = req.intensity === 'catastrophic';
+  const phrase = req.phrase ?? 'confirm';
   const canConfirm = !needsPhrase || typed.trim().toLowerCase() === phrase.toLowerCase();
 
   return (
@@ -80,11 +83,11 @@ export function ConfirmGateHost() {
       <div className="absolute inset-0 bg-black/70" onClick={() => settle(false)} />
       <div className={cn('relative w-full max-w-md rounded-lg border-2 bg-[var(--color-surface-overlay)] p-5 shadow-2xl shadow-black/60', tone.ring)}>
         <div className="flex items-start gap-3">
-          <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', pending.intensity === 'reversible' ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]')} />
+          <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', req.intensity === 'reversible' ? 'text-[var(--color-warning)]' : 'text-[var(--color-danger)]')} />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-black uppercase tracking-widest text-[var(--color-text-muted)]">{tone.label}</div>
-            <div className="mt-1 text-sm font-bold text-[var(--color-text-primary)]">{pending.title}</div>
-            {pending.detail && <p className="mt-1 text-xs leading-relaxed text-gray-400 whitespace-pre-wrap">{pending.detail}</p>}
+            <div className="mt-1 text-sm font-bold text-[var(--color-text-primary)]">{req.title}</div>
+            {req.detail && <p className="mt-1 text-xs leading-relaxed text-gray-400 whitespace-pre-wrap">{req.detail}</p>}
           </div>
           <button onClick={() => settle(false)} aria-label="Close" className="shrink-0 text-gray-500 hover:text-[var(--color-text-primary)]"><X className="h-4 w-4" /></button>
         </div>
@@ -116,10 +119,10 @@ export function ConfirmGateHost() {
             disabled={!canConfirm}
             className={cn(
               'rounded-md px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40',
-              pending.intensity === 'reversible' ? 'bg-[var(--color-accent)] hover:brightness-110' : 'bg-[var(--color-danger)] hover:brightness-110',
+              req.intensity === 'reversible' ? 'bg-[var(--color-accent)] hover:brightness-110' : 'bg-[var(--color-danger)] hover:brightness-110',
             )}
           >
-            {pending.confirmLabel ?? (pending.intensity === 'reversible' ? 'Confirm' : 'Proceed')}
+            {req.confirmLabel ?? (req.intensity === 'reversible' ? 'Confirm' : 'Proceed')}
           </button>
         </div>
       </div>

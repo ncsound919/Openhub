@@ -128,6 +128,7 @@ export async function readProjectDrift(cwd: string): Promise<ProjectDrift> {
 /** Stage all project changes and create a real commit. */
 export async function commitProject(cwd: string, message: string): Promise<ProjectGitState> {
   const cleanMessage = message.trim();
+  // eslint-disable-next-line no-control-regex -- intentionally reject NUL/CR/LF in a commit message
   if (!cleanMessage || cleanMessage.length > 200 || /[\u0000\r\n]/.test(cleanMessage)) {
     throw new Error('Commit message must be 1–200 characters and contain no line breaks');
   }

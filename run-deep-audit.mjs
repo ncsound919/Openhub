@@ -10,14 +10,14 @@ function getSigningSecret() {
     try {
       const parsed = JSON.parse(fs.readFileSync(keysFile, 'utf8').replace(/^\uFEFF/, ''));
       if (typeof parsed?.jwtSecret === 'string' && parsed.jwtSecret) return parsed.jwtSecret;
-    } catch {}
+    } catch { /* unreadable key file — fall through to the emergency key */ }
   }
   const emergencyPath = process.env.AXIOM_EMERGENCY_KEY_FILE || path.join(process.env.USERPROFILE || '', '.axiom', 'emergency-key.json');
   if (fs.existsSync(emergencyPath)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(emergencyPath, 'utf8'));
       if (typeof parsed?.key === 'string' && parsed.key) return parsed.key;
-    } catch {}
+    } catch { /* corrupt emergency key — no secret available */ }
   }
   return '';
 }

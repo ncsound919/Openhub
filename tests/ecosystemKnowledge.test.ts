@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import path from 'path';
+import fs from 'fs';
 import { initializeDatabase, getDb } from '../src/auth/db.js';
 import {
   scanEcosystem,
@@ -15,7 +15,7 @@ import {
 const ECOSYSTEM_ROOT = process.env.OPENHUB_ECOSYSTEM_ROOT || 'C:/Users/User/Desktop/Ecosystem';
 
 const folderPresent = (() => {
-  try { return require('fs').existsSync(ECOSYSTEM_ROOT); } catch { return false; }
+  try { return fs.existsSync(ECOSYSTEM_ROOT); } catch { return false; }
 })();
 
 describe('ecosystemKnowledge (real folder)', () => {

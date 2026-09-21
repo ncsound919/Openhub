@@ -4,7 +4,7 @@
  *
  * Supported syntax: `**` (any depth), `*` (within a segment), `?` (one char),
  * and single-level `{a,b}` alternation. Patterns without a `/` match at any
- * depth (so `*.test.ts` behaves like `**​/*.test.ts`). Paths are normalized to
+ * depth (so a bare `*.test.ts` matches at any depth). Paths are normalized to
  * forward slashes. An empty include list means "all paths".
  */
 

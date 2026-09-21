@@ -1110,9 +1110,6 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
         }
         break;
       }
-      case 'supervise':
-        say(await startSupervisionRun(ctx, confirm.payload));
-        break;
       case 'plan-mission': {
         // Plan mode: park the agent's work as an approvable plan (nothing runs
         // until the operator approves it in Run status).
