@@ -5,7 +5,7 @@ import {
   Files, Search, GitBranch, Package, Settings, Terminal as TerminalIcon,
   X, Play, Save, ChevronRight, RefreshCw, GitCommitHorizontal, Upload,
   Cpu, Loader2, CircleDot, Github, Check, Zap, Wrench, Square, Bot, Orbit, Activity, Plus,
-  Server, FileDiff, GitBranchPlus, ChevronDown, CornerDownRight, AlertTriangle, ListTree, Wand2, FilePlus2, Layers,
+  Server, FileDiff, GitBranchPlus, ChevronDown, CornerDownRight, AlertTriangle, ListTree, Wand2, FilePlus2, Layers, Rocket, ShieldCheck,
 } from 'lucide-react';
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react';
 import { useStore } from '../store';
@@ -14,6 +14,7 @@ import { useModelStore } from '../lib/modelStore';
 import { DevAssistant } from '../components/DevAssistant';
 import { AgentDock } from './AgentDock';
 import { AxiomBar } from './AxiomBar';
+import { usePipeline } from './usePipeline';
 import { registerAxiomMonaco, setAxiomMonacoOptions, getAxiomTabStats, subscribeAxiomTabStats } from './monacoProviders';
 import {
   axiomEditorModelCatalog,
@@ -94,6 +95,9 @@ type EditorApi = Parameters<OnMount>[0];
 export function WorkspacePage() {
   const { activeProject, activeProjectLoading, activeProjectError, fetchActiveProject,
     drift, driftState, refreshDrift, registryItems, fetchRegistryItems, theme } = useStore();
+  // One pipeline controller for the whole workspace: the command bar and the
+  // empty-editor actions start the same job, and only one poller exists.
+  const pipeline = usePipeline();
   const [activePanel, setActivePanel] = useState<'explorer' | 'search' | 'git' | 'agent' | 'extensions' | 'autonomy' | 'services' | 'visualize' | 'problems' | 'outline' | 'composer' | 'review' | 'threads'>('explorer');
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -1396,6 +1400,7 @@ export function WorkspacePage() {
         axiomOnline={axiomOnline}
         onRequestChat={() => setShowCopilot(true)}
         onOpenPanel={(panel) => setActivePanel(panel)}
+        pipeline={pipeline}
       />
 
       {/* Main IDE Area */}
@@ -1621,6 +1626,29 @@ export function WorkspacePage() {
                       : activeProjectLoading ? 'Checking the active project…' : 'Load a project to start working.'}
                   </div>
                 </div>
+                {activeProject && (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void pipeline.start('autopilot')}
+                      disabled={pipeline.running || pipeline.starting}
+                      className="flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+                      title="typecheck → audit → repair → agent loop → verify"
+                    >
+                      {pipeline.starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
+                      Run Autopilot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void pipeline.start('audit')}
+                      disabled={pipeline.running || pipeline.starting}
+                      className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
+                      title="Audit the project and dispatch repair if it fails"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" /> Audit project
+                    </button>
+                  </div>
+                )}
                 {!activeProject && !activeProjectLoading && (
                   <Link to="/projects" className="inline-block rounded-md bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)]">
                     Load a project

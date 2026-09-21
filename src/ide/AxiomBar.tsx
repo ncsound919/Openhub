@@ -1,29 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, ShieldCheck, Loader2, Sparkles, Wand2, Play, CornerDownLeft, Rocket, XCircle, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { StatusLight, type LightState } from '../components/StatusLight';
+import { stageLight, type PipelineController } from './usePipeline';
 import { cn } from '../lib/utils';
 
 type PanelId = 'autonomy' | 'composer' | 'agent' | 'threads' | 'review';
-
-type StageStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed' | 'cancelled';
-interface PipelineStageView {
-  id: string;
-  label: string;
-  status: StageStatus;
-  ok: boolean | null;
-  detail: string;
-  progress: number;
-}
-interface PipelineJobView {
-  id: string;
-  mode: string;
-  status: 'running' | 'complete' | 'failed' | 'cancelled';
-  progress: number;
-  stages: PipelineStageView[];
-  error: string | null;
-}
 
 const SUGGESTIONS: Array<{ label: string; prompt: string }> = [
   { label: 'Explain this project', prompt: 'Explain this project: what it does, its architecture, and its riskiest areas.' },
@@ -31,23 +13,13 @@ const SUGGESTIONS: Array<{ label: string; prompt: string }> = [
   { label: 'Write tests', prompt: 'Identify the least-tested critical paths in this project and write focused tests for them.' },
 ];
 
-function stageLight(s: PipelineStageView): LightState {
-  if (s.status === 'running') return 'working';
-  if (s.status === 'failed') return 'error';
-  if (s.status === 'cancelled') return 'warn';
-  if (s.status === 'done') return s.ok === false ? 'warn' : 'ok';
-  if (s.status === 'skipped') return 'idle';
-  return 'idle';
-}
-
 /**
  * AxiomBar — the single, always-visible place to direct Axiom in the workspace.
  *
- * It offers the two headline actions as one click: Autopilot runs the whole
- * project pipeline (typecheck → audit → repair → agent loop → verify) as a
- * background job, and Audit runs the audit/repair half. Both are polled, so the
- * bar shows a real progress bar and a light per stage instead of a spinner that
- * may or may not be doing anything.
+ * Autopilot runs the whole project pipeline (typecheck → audit → repair → agent
+ * loop → verify) as a background job; Audit runs the audit/repair half. Both are
+ * polled through the shared pipeline controller, so the bar shows a real
+ * progress bar and a light per stage.
  */
 export function AxiomBar({
   projectName,
@@ -55,21 +27,18 @@ export function AxiomBar({
   axiomOnline,
   onRequestChat,
   onOpenPanel,
+  pipeline,
 }: {
   projectName?: string;
   hasProject: boolean;
   axiomOnline: boolean | null;
   onRequestChat: () => void;
   onOpenPanel: (panel: PanelId) => void;
+  pipeline: PipelineController;
 }) {
   const [text, setText] = useState('');
-  const [pipeline, setPipeline] = useState<PipelineJobView | null>(null);
-  const [starting, setStarting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
-
-  useEffect(() => () => { mountedRef.current = false; if (pollTimer.current) clearTimeout(pollTimer.current); }, []);
+  const { job, starting, running } = pipeline;
 
   const ask = useCallback(
     (prompt: string) => {
@@ -87,53 +56,10 @@ export function AxiomBar({
     setText('');
   };
 
-  const pollPipeline = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/pipeline/${encodeURIComponent(id)}`, { credentials: 'include', headers: getAuthHeaders() });
-      const json = await res.json().catch(() => ({}));
-      if (!mountedRef.current) return;
-      const job = json?.job as PipelineJobView | undefined;
-      if (job) setPipeline(job);
-      if (job && job.status === 'running') {
-        pollTimer.current = setTimeout(() => void pollPipeline(id), 1500);
-      }
-    } catch {
-      if (mountedRef.current) pollTimer.current = setTimeout(() => void pollPipeline(id), 3000);
-    }
-  }, []);
-
-  const runPipeline = async (mode: 'autopilot' | 'audit') => {
-    if (!hasProject || starting || pipeline?.status === 'running') return;
+  const run = (mode: 'autopilot' | 'audit') => {
     const goal = text.trim();
-    setStarting(true);
-    try {
-      const res = await fetch('/api/pipeline/run', {
-        method: 'POST',
-        credentials: 'include',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() }),
-        body: JSON.stringify({ mode, ...(goal ? { goal } : {}) }),
-      });
-      const json = await res.json().catch(() => ({}));
-      const job = json?.job as PipelineJobView | undefined;
-      if (job) {
-        setPipeline(job);
-        if (goal) setText('');
-        if (pollTimer.current) clearTimeout(pollTimer.current);
-        void pollPipeline(job.id);
-      }
-    } catch { /* surfaced by the next poll / result light */ } finally {
-      setStarting(false);
-    }
-  };
-
-  const cancel = async () => {
-    if (!pipeline) return;
-    try {
-      await fetch(`/api/pipeline/${encodeURIComponent(pipeline.id)}/cancel`, {
-        method: 'POST', credentials: 'include',
-        headers: getAuthHeaders({ 'X-CSRF-Token': getCsrfToken() }),
-      });
-    } catch { /* poll will reflect the final state */ }
+    if (goal) setText('');
+    void pipeline.start(mode, goal);
   };
 
   // ⌘K / Ctrl+K focuses the command bar.
@@ -148,26 +74,25 @@ export function AxiomBar({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const running = pipeline?.status === 'running';
-  const pct = pipeline ? Math.round((pipeline.progress ?? 0) * 100) : 0;
-  const resultLight: LightState = !pipeline
+  const pct = job ? Math.round((job.progress ?? 0) * 100) : 0;
+  const resultLight: LightState = !job
     ? 'idle'
     : running
       ? 'working'
-      : pipeline.status === 'complete'
+      : job.status === 'complete'
         ? 'ok'
-        : pipeline.status === 'cancelled'
+        : job.status === 'cancelled'
           ? 'warn'
           : 'error';
-  const resultLabel = !pipeline
+  const resultLabel = !job
     ? ''
     : running
-      ? `Running ${pipeline.mode}…`
-      : pipeline.status === 'complete'
+      ? `Running ${job.mode}…`
+      : job.status === 'complete'
         ? 'Pipeline complete'
-        : pipeline.status === 'cancelled'
+        : job.status === 'cancelled'
           ? 'Pipeline cancelled'
-          : pipeline.error || 'Pipeline failed';
+          : job.error || 'Pipeline failed';
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2">
@@ -222,7 +147,7 @@ export function AxiomBar({
       <div className="flex shrink-0 items-center gap-1.5">
         <button
           type="button"
-          onClick={() => void runPipeline('autopilot')}
+          onClick={() => run('autopilot')}
           disabled={!hasProject || running || starting}
           className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[10px] font-bold text-white hover:brightness-110 disabled:opacity-50"
           style={running ? { boxShadow: '0 0 10px var(--color-accent)' } : undefined}
@@ -233,7 +158,7 @@ export function AxiomBar({
         </button>
         <button
           type="button"
-          onClick={() => void runPipeline('audit')}
+          onClick={() => run('audit')}
           disabled={!hasProject || running || starting}
           className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
           title="Run the audit team and dispatch repair if it fails"
@@ -262,19 +187,19 @@ export function AxiomBar({
 
       {/* Pipeline progress / result, or one-click starting prompts. */}
       <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1.5">
-        {pipeline ? (
+        {job ? (
           <>
             <div className="flex min-w-[10rem] flex-1 items-center gap-2">
               <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className={cn('h-full rounded-full transition-[width] duration-500', running ? 'bg-[var(--color-accent)]' : pipeline.status === 'complete' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')}
+                  className={cn('h-full rounded-full transition-[width] duration-500', running ? 'bg-[var(--color-accent)]' : job.status === 'complete' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')}
                   style={{ width: `${pct}%`, boxShadow: running ? '0 0 8px var(--color-accent)' : undefined }}
                 />
               </div>
               <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{pct}%</span>
             </div>
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              {pipeline.stages.map((s) => (
+              {job.stages.map((s) => (
                 <StatusLight key={s.id} state={stageLight(s)} label={s.label} title={`${s.label}: ${s.detail || s.status}`} />
               ))}
             </div>
@@ -282,7 +207,7 @@ export function AxiomBar({
             {running ? (
               <button
                 type="button"
-                onClick={() => void cancel()}
+                onClick={() => void pipeline.cancel()}
                 className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-danger)]"
               >
                 <XCircle className="h-3 w-3" /> Cancel
