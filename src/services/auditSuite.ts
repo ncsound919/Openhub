@@ -103,6 +103,13 @@ export interface AuditRunParams {
    * configured PR/release gate. Off by default so existing runs are unchanged.
    */
   core?: boolean;
+  /**
+   * Optional progress hook, called before each scorer runs (and once more with
+   * `index === total` when the sweep finishes). Lets a background job surface
+   * "scorer i of n" instead of a silent multi-minute wait. Throwing from it
+   * never breaks the audit.
+   */
+  onProgress?: (p: { scorer: ScorerName; index: number; total: number }) => void;
 }
 
 /**
@@ -2258,9 +2265,12 @@ export async function executeAuditSuite(params: AuditRunParams): Promise<AuditRe
     return Promise.resolve(honest(s, `unknown scorer "${s}"`));
   };
 
-  for (const s of scorersToRun) {
+  for (let i = 0; i < scorersToRun.length; i++) {
+    const s = scorersToRun[i];
+    try { params.onProgress?.({ scorer: s, index: i, total: scorersToRun.length }); } catch { /* progress is best-effort */ }
     results.push(await memo(s, () => runWithReceipts({ runId: receiptRunId, target, scorer: s }, () => run(s))));
   }
+  try { params.onProgress?.({ scorer: scorersToRun[scorersToRun.length - 1] ?? 'typecheck', index: scorersToRun.length, total: scorersToRun.length }); } catch { /* best-effort */ }
 
   // Reconcile every scored result into ONE weighted grade. Missing scorers are
   // excluded (with a reason), never counted as zero. Scoring v2 rolls up by

@@ -1,0 +1,71 @@
+import { Router, type RequestHandler } from 'express';
+import { getActiveProject } from '../services/projectContext.js';
+import {
+  startPipeline,
+  getPipeline,
+  listPipelines,
+  cancelPipeline,
+  overallProgress,
+  type PipelineMode,
+  type PipelineStageId,
+} from '../services/pipeline.js';
+
+/**
+ * Project pipeline surface: start a chained run (typecheck → audit → repair →
+ * agent loop → verify) against the active project and poll its progress.
+ * Auth-gated, mounted at /api.
+ *
+ *   POST /api/pipeline/run          { mode?, goal?, stages? }
+ *   GET  /api/pipeline              recent jobs
+ *   GET  /api/pipeline/:id          one job (with overall progress)
+ *   POST /api/pipeline/:id/cancel
+ */
+export function createPipelineRouter(deps: { authMiddleware: RequestHandler }): Router {
+  const router = Router();
+  router.use(deps.authMiddleware);
+
+  function userId(req: Parameters<RequestHandler>[0]): string | null {
+    const u = (req as unknown as { user?: { sub?: unknown } }).user;
+    return typeof u?.sub === 'string' && u.sub.trim() !== '' ? u.sub : null;
+  }
+
+  const withProgress = (job: ReturnType<typeof getPipeline>) =>
+    job ? { ...job, progress: overallProgress(job) } : null;
+
+  router.post('/pipeline/run', (req, res) => {
+    const id = userId(req);
+    if (!id) return res.status(401).json({ ok: false, error: 'Authentication required' });
+    const project = getActiveProject(id);
+    if (!project) {
+      return res.status(409).json({ ok: false, code: 'NO_ACTIVE_PROJECT', error: 'Load a project before running a pipeline' });
+    }
+    const body = (req.body ?? {}) as { mode?: unknown; goal?: unknown; stages?: unknown };
+    const mode: PipelineMode = body.mode === 'audit' || body.mode === 'custom' ? body.mode : 'autopilot';
+    const goal = typeof body.goal === 'string' ? body.goal : '';
+    const stages = Array.isArray(body.stages) ? (body.stages.map(String) as PipelineStageId[]) : undefined;
+    const job = startPipeline({
+      projectPath: project.path,
+      projectName: project.repositoryName || project.repoId,
+      goal,
+      mode,
+      stages,
+    });
+    res.json({ ok: true, job: withProgress(job) });
+  });
+
+  router.get('/pipeline', (_req, res) => {
+    res.json({ ok: true, jobs: listPipelines(25).map((j) => ({ ...j, progress: overallProgress(j) })) });
+  });
+
+  router.get('/pipeline/:id', (req, res) => {
+    const job = withProgress(getPipeline(req.params.id));
+    if (!job) return res.status(404).json({ ok: false, error: 'Pipeline not found' });
+    res.json({ ok: true, job });
+  });
+
+  router.post('/pipeline/:id/cancel', (req, res) => {
+    res.json({ ok: cancelPipeline(req.params.id) });
+  });
+
+  return router;
+}
