@@ -80,6 +80,36 @@ export function resolveReviewTarget(userId: string | undefined, requested: unkno
 }
 
 /**
+ * The authenticated subject, as the auth middleware puts it on the request.
+ * Accepts `unknown` so any caller can pass its `req` without importing auth types.
+ */
+export function callerId(req: unknown): string | undefined {
+  const sub = (req as { user?: { sub?: unknown } } | null | undefined)?.user?.sub;
+  return typeof sub === 'string' && sub.trim() ? sub : undefined;
+}
+
+/**
+ * Resolve a directory a read-only scan/discovery route may operate on.
+ *
+ * Same allowlist as review targets, but with a different default: an omitted
+ * target falls back to `fallback` (the server's working directory) instead of
+ * erroring, preserving the historic cwd default. An explicit target must be the
+ * caller's active project or live under a configured repo root — a raw
+ * `path.resolve(req.query.dir)` let any authenticated caller enumerate and read
+ * arbitrary host directories (audit-core, vuln scan, endpoint discovery).
+ */
+export function resolveScanTarget(
+  userId: string | undefined,
+  requested: unknown,
+  fallback: string = process.cwd(),
+): ReviewTarget {
+  if (requested === undefined || requested === null || (typeof requested === 'string' && !requested.trim())) {
+    return { ok: true, dir: path.resolve(fallback) };
+  }
+  return resolveReviewTarget(userId, requested);
+}
+
+/**
  * Validate a caller-supplied git revision. Anything starting with `-` is an
  * option, not a ref: `git diff --output=<path>` writes files and
  * `git diff --ext-diff` runs a command configured by the repo under review.

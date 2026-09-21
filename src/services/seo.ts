@@ -1,5 +1,5 @@
 import { keywireSecrets, keywireSites } from './keywire.js';
-import { assertOutboundUrlAllowed } from './webhooks.js';
+import { fetchWithUrlGuard } from './webhooks.js';
 
 /**
  * SEO provider — OpenHub's read-only window onto the fleet's SEO engine
@@ -156,12 +156,13 @@ function crawlableBody(html: string): string {
 async function fetchText(url: string, timeoutMs: number): Promise<{ status: number | null; text: string; finalUrl: string; ms: number; headers: Headers | null; error?: string }> {
   const started = Date.now();
   try {
-    // SSRF guard: audit targets are request-supplied. Refuse non-http(s) and,
-    // by default, loopback/private targets so the audit cannot probe internal
-    // services. (Redirect hops are followed by fetch; the initial target is
-    // what the caller controls.)
-    assertOutboundUrlAllowed(url, 'SEO audit URL');
-    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
+    // SSRF guard on EVERY hop: audit targets are request-supplied, and a public
+    // target can 30x-redirect into loopback/private space.
+    const res = await fetchWithUrlGuard(
+      url,
+      { signal: AbortSignal.timeout(timeoutMs) },
+      { label: 'SEO audit URL' },
+    );
     const text = await res.text().catch(() => '');
     return { status: res.status, text: text.slice(0, MAX_AUDIT_BYTES), finalUrl: res.url || url, ms: Date.now() - started, headers: res.headers };
   } catch (err) {

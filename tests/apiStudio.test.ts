@@ -254,5 +254,21 @@ describe('Interactive API Studio & Mock Engine (Phase E3)', () => {
       expect(stopRes.status).toBe(200);
       expect(stopRes.body.ok).toBe(true);
     });
+
+    it('GET /api/studio/endpoints refuses a targetDir outside the configured repo roots', async () => {
+      const app = express();
+      app.use(express.json());
+      app.use('/api/studio', createApiStudioRouter());
+      const prev = process.env.OPENHUB_EXTRA_REPO_ROOTS;
+      delete process.env.OPENHUB_EXTRA_REPO_ROOTS;
+      try {
+        const res = await request(app).get(`/api/studio/endpoints?targetDir=${encodeURIComponent(os.tmpdir())}`);
+        expect(res.status).toBe(403);
+        expect(res.body.ok).toBe(false);
+      } finally {
+        if (prev === undefined) delete process.env.OPENHUB_EXTRA_REPO_ROOTS;
+        else process.env.OPENHUB_EXTRA_REPO_ROOTS = prev;
+      }
+    });
   });
 });

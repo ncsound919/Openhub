@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { recordReceipt } from './receipts.js';
-import { assertOutboundUrlAllowed } from './webhooks.js';
+import { fetchWithUrlGuard } from './webhooks.js';
 
 export interface DiscoveredEndpoint {
   id: string;
@@ -254,16 +254,19 @@ export async function executeApiRequest(options: {
   }
 
   try {
-    // SSRF guard: the URL is request-supplied. Refuse non-http(s) and, by
-    // default, loopback/private targets so the studio cannot be aimed at the
-    // host's internal services.
-    assertOutboundUrlAllowed(finalUrl, 'API Studio request URL');
-    const res = await fetch(finalUrl, {
-      method: options.method,
-      headers: reqHeaders,
-      body: reqBody,
-      signal: AbortSignal.timeout(options.timeoutMs || 10_000),
-    });
+    // SSRF guard: the URL is request-supplied. `fetchWithUrlGuard` re-checks
+    // every redirect hop, so a public target that 30x-redirects into
+    // loopback/private space is refused too.
+    const res = await fetchWithUrlGuard(
+      finalUrl,
+      {
+        method: options.method,
+        headers: reqHeaders,
+        body: reqBody,
+        signal: AbortSignal.timeout(options.timeoutMs || 10_000),
+      },
+      { label: 'API Studio request URL' },
+    );
 
     const durationMs = Date.now() - startedAt;
     const resHeaders: Record<string, string> = {};

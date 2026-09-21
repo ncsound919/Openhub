@@ -90,6 +90,42 @@ export function assertWebhookUrlAllowed(rawUrl: string): void {
   assertOutboundUrlAllowed(rawUrl, 'webhook URL');
 }
 
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * `fetch` that validates EVERY hop. Plain `fetch` with `redirect: 'follow'`
+ * silently follows a 30x into loopback/private space, so a public URL the
+ * caller controls (or a public site that redirects) can still reach internal
+ * services — the initial-URL-only guard is trivially bypassed. This follows
+ * redirects manually, re-running the SSRF guard on each Location before
+ * requesting it, and preserves method semantics (303 and 301/302 on a
+ * non-GET/HEAD become GET with the body dropped; 307/308 keep both).
+ */
+export async function fetchWithUrlGuard(
+  rawUrl: string,
+  init: RequestInit = {},
+  opts: { maxRedirects?: number; label?: string } = {},
+): Promise<Response> {
+  const maxRedirects = opts.maxRedirects ?? 5;
+  const label = opts.label ?? 'outbound URL';
+  let current = new URL(String(rawUrl)).toString();
+  let method = String(init.method ?? 'GET').toUpperCase();
+  let body = init.body;
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    assertOutboundUrlAllowed(current, label);
+    const res = await fetch(current, { ...init, method, body, redirect: 'manual' });
+    if (!REDIRECT_STATUS.has(res.status)) return res;
+    const location = res.headers.get('location');
+    if (!location) return res;
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
+      method = 'GET';
+      body = undefined;
+    }
+    current = new URL(location, current).toString();
+  }
+  throw new Error(`${label} exceeded ${maxRedirects} redirects`);
+}
+
 async function sendWebhook(hook: Webhook, payload: WebhookPayload): Promise<void> {
   assertWebhookUrlAllowed(hook.url);
   const body = JSON.stringify(payload);

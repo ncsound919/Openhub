@@ -1,5 +1,4 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import path from 'node:path';
 import {
   discoverEndpoints,
   executeApiRequest,
@@ -7,6 +6,7 @@ import {
   stopMockServer,
   getMockServerStatus,
 } from '../services/apiStudio.js';
+import { callerId, resolveScanTarget } from '../lib/reviewTarget.js';
 
 export interface ApiStudioRouterOptions {
   authMiddleware?: (req: Request, res: Response, next: NextFunction) => void;
@@ -21,8 +21,10 @@ export function createApiStudioRouter(options: ApiStudioRouterOptions = {}): Rou
    * List auto-discovered API endpoints and OpenAPI schemas in project.
    */
   router.get('/endpoints', auth, (req: Request, res: Response) => {
-    const rawTarget = (req.query.targetDir as string) || process.cwd();
-    const targetDir = path.resolve(rawTarget);
+    // Constrain endpoint discovery to an allowed repo root (or the cwd default).
+    const target = resolveScanTarget(callerId(req), req.query.targetDir);
+    if (!target.ok) return res.status(target.status).json({ ok: false, error: target.error });
+    const targetDir = target.dir;
 
     try {
       const endpoints = discoverEndpoints(targetDir);
@@ -63,8 +65,9 @@ export function createApiStudioRouter(options: ApiStudioRouterOptions = {}): Rou
    * Start local autonomous mock server for discovered endpoints.
    */
   router.post('/mock/start', auth, async (req: Request, res: Response) => {
-    const rawTarget = req.body.targetDir || process.cwd();
-    const targetDir = path.resolve(rawTarget);
+    const target = resolveScanTarget(callerId(req), req.body.targetDir);
+    if (!target.ok) return res.status(target.status).json({ ok: false, error: target.error });
+    const targetDir = target.dir;
     const port = req.body.port || 4050;
     const latencyMs = req.body.latencyMs !== undefined ? req.body.latencyMs : 30;
     const errorRate = req.body.errorRate || 0;

@@ -25,15 +25,21 @@ function makeApp() {
 
 let prevBase: string | undefined;
 let prevModel: string | undefined;
+let prevRoots: string | undefined;
 beforeEach(() => {
   prevBase = process.env.OPENHUB_LLM_BASE_URL;
   prevModel = process.env.OPENHUB_LLM_MODEL;
+  prevRoots = process.env.OPENHUB_EXTRA_REPO_ROOTS;
   delete process.env.OPENHUB_LLM_BASE_URL;
   delete process.env.OPENHUB_LLM_MODEL;
+  // Target contents are confined to the configured repo roots. Tests use temp
+  // dirs, so allow the OS temp root (the production default is ~/…/openhub/repos).
+  process.env.OPENHUB_EXTRA_REPO_ROOTS = os.tmpdir();
 });
 afterEach(() => {
   if (prevBase === undefined) delete process.env.OPENHUB_LLM_BASE_URL; else process.env.OPENHUB_LLM_BASE_URL = prevBase;
   if (prevModel === undefined) delete process.env.OPENHUB_LLM_MODEL; else process.env.OPENHUB_LLM_MODEL = prevModel;
+  if (prevRoots === undefined) delete process.env.OPENHUB_EXTRA_REPO_ROOTS; else process.env.OPENHUB_EXTRA_REPO_ROOTS = prevRoots;
 });
 
 describe('auditCore routes', () => {
@@ -73,5 +79,16 @@ describe('auditCore routes', () => {
     const autofix = await request(makeApp()).post('/api/audit-core/autofix').send({ targetDir: d, findings: [] });
     expect(autofix.status).toBe(200);
     expect(autofix.body.configured).toBe(false);
+  });
+
+  it('refuses a target outside the configured repo roots', async () => {
+    const outside = tmpDir();
+    const allowed = tmpDir();
+    // Narrow the allowlist to `allowed`, so `outside` is rejected even though
+    // it exists and is a real directory.
+    process.env.OPENHUB_EXTRA_REPO_ROOTS = allowed;
+    const res = await request(makeApp()).get(`/api/audit-core/config?targetDir=${encodeURIComponent(outside)}`);
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
   });
 });
