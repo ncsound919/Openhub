@@ -454,3 +454,47 @@ export async function reapIdleServices(idleTtlMs = DEFAULT_IDLE_TTL_MS): Promise
   return stopped;
 }
 
+export type ServiceCategory = ManagedServiceConfig['category'];
+
+/** The fleet grouped by category — "audit team", "repair team", etc. */
+export const SERVICE_CATEGORIES: ServiceCategory[] = ['core', 'audit', 'repair', 'llm', 'game'];
+
+export function slugsInCategory(category: ServiceCategory): string[] {
+  return Object.values(MANAGED_SERVICES).filter((s) => s.category === category).map((s) => s.slug);
+}
+
+export interface GroupActionResult { slug: string; ok: boolean; message: string }
+
+/** Start every service in a category. Idempotent: an already-up service is a
+ *  no-op success, so "the fleet is down, bring it up" is one call. */
+export async function startCategory(category: ServiceCategory): Promise<GroupActionResult[]> {
+  const out: GroupActionResult[] = [];
+  for (const slug of slugsInCategory(category)) {
+    const r = await startServiceSafe(slug);
+    out.push({ slug, ok: r.ok, message: r.message });
+  }
+  return out;
+}
+
+export async function stopCategory(category: ServiceCategory): Promise<GroupActionResult[]> {
+  const out: GroupActionResult[] = [];
+  for (const slug of slugsInCategory(category)) {
+    const r = await stopServiceSafe(slug);
+    out.push({ slug, ok: r.ok, message: r.message });
+  }
+  return out;
+}
+
+export async function startAllServices(): Promise<GroupActionResult[]> {
+  const out: GroupActionResult[] = [];
+  for (const category of SERVICE_CATEGORIES) out.push(...await startCategory(category));
+  return out;
+}
+
+export async function stopAllServices(): Promise<GroupActionResult[]> {
+  const out: GroupActionResult[] = [];
+  for (const category of SERVICE_CATEGORIES) out.push(...await stopCategory(category));
+  return out;
+}
+
+

@@ -11,6 +11,7 @@ import { AutonomyBar } from '../components/AutonomyBar';
 import { GitHubIntegrationPage } from './GitHubIntegrationPage';
 import { AssuranceView } from './AssuranceView';
 import { StatusLight } from '../components/StatusLight';
+import { InsightFeedPanel } from '../components/InsightFeedPanel';
 import { usePipelineContext } from '../ide/PipelineProvider';
 import { stageLight } from '../ide/usePipeline';
 import { getAuthHeaders } from '../auth/AuthProvider';
@@ -89,22 +90,6 @@ export function Dashboard() {
       : driftState === 'scanning'
         ? 'scanning vs last push…'
         : `branch ${activeProject.defaultBranch ?? 'n/a'}`;
-
-  const stats = [
-    { label: 'Repositories', value: String(repoCount), sub: repoCount ? 'tracked in account' : 'none yet — import one', accent: 'var(--color-info)', accent2: 'var(--color-accent)', pct: Math.min(100, repoCount * 12) },
-    { label: 'Project context', value: activeProject ? 'Active' : 'Empty', sub: activeProject?.repositoryName ?? 'load one to unlock loops', accent: 'var(--color-success)', accent2: 'var(--color-success)', pct: activeProject ? 100 : 6 },
-    { label: 'Tool health', value: toolCount ? `${toolHealth}%` : '—', sub: toolCount ? `${activeTools}/${toolCount} tools active` : 'no tools discovered', accent: 'var(--color-warning)', accent2: 'var(--color-warning)', pct: toolHealth },
-    { label: 'Delivery', value: activeProject ? 'Ready' : 'Idle', sub: driftSummary, accent: 'var(--color-accent)', accent2: 'var(--color-accent)', pct: activeProject ? 82 : 8 },
-  ];
-
-  const actions = [
-    { to: '/workspace', icon: TerminalIcon, title: 'Open workspace', desc: 'Code, loops, drift & skills in one', hover: 'var(--color-info)' },
-    { to: '/axiom', icon: Zap, title: 'Loop console', desc: 'Full detail on running loops', hover: 'var(--color-success)' },
-    { to: '/?tab=assurance', icon: ShieldCheck, title: 'Assurance', desc: 'Pipelines, audit, repair, readiness', hover: 'var(--color-info)' },
-    { to: '/?tab=repositories', icon: Github, title: 'Load a project', desc: 'Import from GitHub or a local folder', hover: 'var(--color-warning)' },
-    { to: '/fleet', icon: Radar, title: 'Fleet hub', desc: 'Agents, services, ecosystem, tools', hover: 'var(--color-accent-hover)' },
-    { to: '/settings?tab=integrations', icon: Wrench, title: 'Configure', desc: 'Integrations, business & keys', hover: 'var(--color-warning)' },
-  ];
 
   const lastAudit = projectStatus?.current?.lastAudit ?? projectStatus?.persisted?.lastAudit ?? null;
   const lastRun = projectStatus?.current?.lastRun ?? projectStatus?.persisted?.lastRun ?? null;
@@ -257,23 +242,33 @@ export function Dashboard() {
             </section>
           )}
 
-          {/* Active project strip */}
-          <section className="glass rounded-xl px-4 py-3 flex items-center gap-3" aria-label="Active project">
-            <span className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
-              <FolderGit2 className="w-4 h-4 text-blue-300" />
-            </span>
-            {activeProject ? (
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold text-[var(--color-text-primary)]">{activeProject.repositoryName}</div>
-                <div className="truncate font-mono text-[11px] text-gray-400">{activeProject.path}{activeProject.githubFullName ? ` · ${activeProject.githubFullName}` : ''}</div>
-              </div>
-            ) : (
-              <div className="flex-1 text-sm text-gray-400">
-                {activeProjectLoading ? 'Reading the active project context…' : activeProjectError || 'No project is loaded. Import one from GitHub to begin.'}
-              </div>
-            )}
-            <Link to={activeProject ? '/workspace' : '/?tab=repositories'} className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200">
-              {activeProject ? 'Workspace' : 'Projects'} <ArrowUpRight className="w-3.5 h-3.5" />
+          {/* Compact status: one line, no cards. */}
+          <section className="industrial-card px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="Status">
+            <StatusLight
+              state={activeProject ? 'ok' : 'warn'}
+              label={activeProject ? activeProject.repositoryName : activeProjectLoading ? 'Loading project…' : 'No project loaded'}
+              title={activeProject?.path ?? activeProjectError ?? undefined}
+            />
+            <StatusLight
+              state={auditVerdict === 'pass' ? 'ok' : auditVerdict === 'fail' ? 'error' : auditVerdict === 'warn' ? 'warn' : 'idle'}
+              label={`audit ${auditVerdict ?? '—'}`}
+              title={lastAudit ? `${lastAudit.scores?.length ?? 0} scorers · ${new Date(lastAudit.timestamp).toLocaleString()}` : 'no audit recorded'}
+            />
+            <StatusLight
+              state={driftState === 'scanning' ? 'working' : drift && drift.ahead + drift.behind + drift.uncommitted > 0 ? 'warn' : 'ok'}
+              label={driftSummary}
+            />
+            <StatusLight
+              state={lastRun ? (lastRun.status === 'failed' ? 'error' : 'ok') : 'idle'}
+              label={`run ${lastRun?.status ?? '—'}`}
+              title={lastRun?.goal}
+            />
+            <span className="font-mono text-[10px] text-[var(--color-text-muted)]">{repoCount} repos</span>
+            <Link
+              to={activeProject ? '/workspace' : '/?tab=repositories'}
+              className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-bold text-[var(--color-accent-text)] hover:text-[var(--color-accent)]"
+            >
+              {activeProject ? 'Workspace' : 'Load a project'} <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </section>
 
@@ -360,37 +355,9 @@ export function Dashboard() {
             </section>
           )}
 
-          {/* Stats */}
-          <section className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="Status">
-            {stats.map((s) => (
-              <div key={s.label} className="industrial-card stat-tile p-4" style={{ ['--accent' as string]: s.accent, ['--accent2' as string]: s.accent2 }}>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-gray-400">{s.label}</div>
-                <div className="mt-1 text-2xl font-extrabold text-[var(--color-text-primary)] tracking-tight">{s.value}</div>
-                <div className="mt-0.5 truncate text-[11px] text-gray-400">{s.sub}</div>
-                <div className="meter mt-2.5"><span style={{ width: `${s.pct}%` }} /></div>
-              </div>
-            ))}
-          </section>
+          {/* Discoveries & insights — what the system learned, not stat cards. */}
+          <InsightFeedPanel />
 
-          {/* Quick actions */}
-          <section aria-label="Quick actions">
-            <div className="flex items-center gap-2 mb-2.5">
-              <Sparkles className="w-4 h-4 text-yellow-300" />
-              <h2 className="!text-base">Do next</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {actions.map((a) => (
-                <Link key={a.to + a.title} to={a.to} className="quick-action" style={{ ['--hover' as string]: a.hover }}>
-                  <span className="quick-icon"><a.icon className="w-[18px] h-[18px]" style={{ color: a.hover }} /></span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold text-[var(--color-text-primary)]">{a.title}</span>
-                    <span className="block text-xs text-gray-400 mt-0.5">{a.desc}</span>
-                  </span>
-                  <ArrowUpRight className="w-4 h-4 ml-auto shrink-0 text-gray-400" />
-                </Link>
-              ))}
-            </div>
-          </section>
         </>
       )}
     </div>

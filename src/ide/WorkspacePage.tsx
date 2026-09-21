@@ -15,19 +15,13 @@ import { DevAssistant } from '../components/DevAssistant';
 import { AgentDock } from './AgentDock';
 import { AxiomBar } from './AxiomBar';
 import { usePipelineContext } from './PipelineProvider';
-import { registerAxiomMonaco, setAxiomMonacoOptions, getAxiomTabStats, subscribeAxiomTabStats } from './monacoProviders';
+import { registerAxiomMonaco, getAxiomTabStats, subscribeAxiomTabStats } from './monacoProviders';
 import {
-  axiomEditorModelCatalog,
-  axiomEditorModels,
-  axiomEditorSetModel,
-  axiomEditorWarm,
   axiomEditorWarmStart,
   axiomEditorDiagnostics,
-  type EditorModelCatalogResult,
-  type EditorModelsResult,
 } from './axiomEditorClient';
 import { toMonacoMarkers, lspLanguageSupported, type LspDiagnostic } from './lspDiagnostics';
-import { modelPickerOptions, parseModelCatalog } from './editorModelCatalog';
+import { loadTabPrefs, applyTabPrefs } from '../lib/editorPrefs';
 import { FileTree, type TreeNode } from './FileTree';
 import { TerminalView } from './TerminalView';
 import { ServicesDock } from './ServicesDock';
@@ -115,127 +109,17 @@ export function WorkspacePage() {
   const [loopId, setLoopId] = useState<string | null>(null);
   const [loopStatus, setLoopStatus] = useState<string | null>(null);
   const [axiomOnline, setAxiomOnline] = useState<boolean | null>(null);
-  // Tab completion prefs (Cursor-style Tab status cluster, bottom-right).
-  // Persisted per browser; applied live via setAxiomMonacoOptions so no
-  // editor remount is needed (providers read liveOpts on every call).
-  const [tabPrefs, setTabPrefs] = useState(() => {
-    try {
-      const raw = localStorage.getItem('openhub.tab.prefs');
-      if (raw) {
-        const p = JSON.parse(raw) as Partial<{ enabled: boolean; delayMs: number; singleLine: boolean; model: string }>;
-        return {
-          enabled: p.enabled !== false,
-          delayMs: [0, 150, 500].includes(p.delayMs ?? 0) ? (p.delayMs ?? 0) : 0,
-          singleLine: p.singleLine === true,
-          model: typeof p.model === 'string' ? p.model : '',
-        };
-      }
-    } catch { /* corrupt — defaults */ }
-    return { enabled: true, delayMs: 0, singleLine: false, model: '' };
-  });
-  const [tabOpen, setTabOpen] = useState(false);
-  const [tabModelDetail, setTabModelDetail] = useState<string | null>(null);
-  const [tabWarm, setTabWarm] = useState<string | null>(null);
-  const [editorModels, setEditorModels] = useState<EditorModelsResult | null>(null);
-  const [editorCatalog, setEditorCatalog] = useState<EditorModelCatalogResult | null>(null);
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const [modelSave, setModelSave] = useState<'saving' | 'saved' | 'error' | null>(null);
+  // Tab-completion prefs are configured in Settings → Editor. The workspace
+  // only reads them and applies them to Monaco on mount — no config UI here.
+  const [tabPrefs] = useState(() => loadTabPrefs());
   // Last message from Axiom's editor lanes (Tab completion / Ctrl+I). Previously
   // went to console.warn only, so failed or offline completions vanished.
   const [editorStatus, setEditorStatus] = useState<string | null>(null);
   const [, setTabTick] = useState(0);
-  useEffect(() => {
-    localStorage.setItem('openhub.tab.prefs', JSON.stringify(tabPrefs));
-    setAxiomMonacoOptions({
-      completionEnabled: tabPrefs.enabled,
-      completionDelayMs: tabPrefs.delayMs,
-      singleLine: tabPrefs.singleLine,
-      model: tabPrefs.model || undefined,
-    });
-  }, [tabPrefs]);
+  useEffect(() => { applyTabPrefs(tabPrefs); }, [tabPrefs]);
   // Re-render the Tab status cluster only when stats actually change (was a
   // permanent 2s interval that re-rendered the whole page on a timer).
   useEffect(() => subscribeAxiomTabStats(() => setTabTick((n) => n + 1)), []);
-  // Dismiss the editor-model menu on Escape or a click outside it.
-  const modelMenuRef = React.useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!modelMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setModelMenuOpen(false); };
-    const onDown = (e: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) setModelMenuOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('mousedown', onDown);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('mousedown', onDown);
-    };
-  }, [modelMenuOpen]);
-  const openTabPopover = async () => {
-    setTabOpen((v) => !v);
-    void refreshWarm();
-    if (tabModelDetail !== null) return;
-    try {
-      const res = await fetch('/api/axiom/capabilities', { credentials: 'include', headers: getAuthHeaders() });
-      const json = await res.json();
-      const caps = Array.isArray(json?.data) ? json.data : Array.isArray(json?.capabilities) ? json.capabilities : [];
-      const entry = caps.find((c: { id?: string }) => c?.id === 'editor') as { detail?: string } | undefined;
-      setTabModelDetail(typeof entry?.detail === 'string' ? entry.detail : 'model status unavailable');
-    } catch {
-      setTabModelDetail('model status unavailable');
-    }
-    await refreshEditorModels();
-    await refreshEditorCatalog();
-  };
-  const refreshEditorModels = async () => {
-    try {
-      const res = await axiomEditorModels();
-      setEditorModels(res.data ?? null);
-    } catch {
-      setEditorModels(null);
-    }
-  };
-  const refreshEditorCatalog = async () => {
-    try {
-      const res = await axiomEditorModelCatalog();
-      setEditorCatalog(res.data ?? null);
-    } catch {
-      setEditorCatalog(null);
-    }
-  };
-  const refreshWarm = async () => {
-    try {
-      const w = await axiomEditorWarm();
-      const t = w.data?.target;
-      setTabWarm(t
-        ? `${t.model ?? 'local'} · ${w.data?.keepalive ? 'keepalive on' : 'idle'}`
-        : 'no local model configured');
-    } catch {
-      setTabWarm('warm status unavailable');
-    }
-  };
-  // Pick an editor model: apply it to the next Tab/inline-edit request and
-  // persist it as Axiom's default through the proxy (POST /axiom/editor/model).
-  const chooseEditorModel = async (model: string) => {
-    setTabPrefs((p) => ({ ...p, model }));
-    setModelMenuOpen(false);
-    if (!model) return;
-    setModelSave('saving');
-    try {
-      await axiomEditorSetModel(model);
-      setModelSave('saved');
-    } catch {
-      setModelSave('error');
-    }
-    setTimeout(() => setModelSave(null), 2500);
-  };
-  const editorModelOptions = React.useMemo(
-    () => modelPickerOptions(parseModelCatalog(editorCatalog), {
-      configured: editorModels?.configured ?? null,
-      models: editorModels?.models ?? [],
-    }),
-    [editorCatalog, editorModels],
-  );
   // Diff review (A2)
   const [viewMode, setViewMode] = useState<'edit' | 'diff'>('edit');
   const [diffData, setDiffData] = useState<{ path: string; original: string; modified: string } | null>(null);
@@ -1481,54 +1365,14 @@ export function WorkspacePage() {
                   </span>
                 )}
                 <div className="ml-auto flex items-center gap-1 px-2">
-                  <div className="relative" ref={modelMenuRef}>
-                    <button
-                      onClick={() => { setModelMenuOpen((v) => !v); void refreshEditorCatalog(); }}
-                      aria-haspopup="menu"
-                      aria-expanded={modelMenuOpen}
-                      aria-label="Editor model"
-                      className="flex items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                      title="Editor model — the model Axiom's Tab completion and Ctrl+I inline-edit lanes use"
-                    >
-                      <Cpu className="w-3 h-3" />
-                      <span className="max-w-[120px] truncate">{tabPrefs.model || editorModels?.configured || 'Auto'}</span>
-                      <ChevronDown className="w-3 h-3" />
-                    </button>
-                    {modelSave === 'saving' && <Loader2 className="ml-1 inline w-3 h-3 animate-spin text-[var(--color-text-muted)]" />}
-                    {modelSave === 'saved' && <Check className="ml-1 inline w-3 h-3 text-[var(--color-success)]" />}
-                    {modelMenuOpen && (
-                      <div role="menu" aria-label="Editor model" className="absolute right-0 top-7 z-30 w-64 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-overlay)] p-1.5 shadow-xl shadow-black/40">
-                        <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">Editor model</div>
-                        <button
-                          role="menuitemradio"
-                          aria-checked={!tabPrefs.model}
-                          onClick={() => void chooseEditorModel('')}
-                          className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-                        >
-                          <span className="min-w-0 flex-1 truncate">Auto (configured default)</span>
-                          {!tabPrefs.model && <Check className="w-3 h-3 shrink-0 text-[var(--color-accent-text)]" />}
-                        </button>
-                        {editorModelOptions.length === 0 ? (
-                          <div className="px-1.5 py-2 text-[11px] text-[var(--color-text-muted)]">No models reported. Configure a local tier in Settings.</div>
-                        ) : (
-                          editorModelOptions.map((m) => (
-                            <button
-                              key={m}
-                              role="menuitemradio"
-                              aria-checked={m === tabPrefs.model}
-                              onClick={() => void chooseEditorModel(m)}
-                              className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-                              title={m}
-                            >
-                              <span className="min-w-0 flex-1 truncate">{m}</span>
-                              {m === tabPrefs.model && <Check className="w-3 h-3 shrink-0 text-[var(--color-accent-text)]" />}
-                            </button>
-                          ))
-                        )}
-                        {modelSave === 'error' && <div className="px-1.5 pt-1 text-[10px] text-[var(--color-danger)]">Could not save the default model.</div>}
-                      </div>
-                    )}
-                  </div>
+                  <Link
+                    to="/settings?tab=editor"
+                    className="flex items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                    title="Editor model is configured in Settings → Editor"
+                  >
+                    <Cpu className="w-3 h-3" />
+                    <span className="max-w-[120px] truncate">{tabPrefs.model || 'Auto'}</span>
+                  </Link>
                   {activeTab && gitChanged.set.has(activeTab.path) && (
                     <button
                       onClick={() => viewMode === 'diff' ? setViewMode('edit') : void openDiff(activeTab.path)}
@@ -1777,80 +1621,23 @@ export function WorkspacePage() {
                 ? 'Tab on'
                 : `Tab ${s.lastCached ? 'cache' : `${Math.round(s.lastTotalMs)}ms`}${s.lastLane ? ` · ${s.lastLane}` : ''}`;
             return (
-              <button
-                onClick={() => void openTabPopover()}
-                title="Axiom Tab completion status — enable, delay, single-line, model"
+              <Link
+                to="/settings?tab=editor"
+                title="Axiom Tab completion status — configure in Settings → Editor"
                 className="rounded px-1.5 py-0.5 font-mono hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
               >
                 {label}
-              </button>
+              </Link>
             );
           })()}
-          {tabOpen && (
-            <div className="absolute bottom-6 right-0 z-30 w-64 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-overlay)] p-3 shadow-xl shadow-black/40">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">Axiom Tab</div>
-              <label className="flex cursor-pointer items-center justify-between gap-2 py-1 text-xs text-[var(--color-text-secondary)]">
-                <span>Enable completions</span>
-                <input
-                  type="checkbox"
-                  checked={tabPrefs.enabled}
-                  onChange={(e) => setTabPrefs((p) => ({ ...p, enabled: e.target.checked }))}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2 py-1 text-xs text-[var(--color-text-secondary)]">
-                <span title="Pause after typing before requesting (VS Code minShowDelay)">Show delay</span>
-                <select
-                  value={tabPrefs.delayMs}
-                  onChange={(e) => setTabPrefs((p) => ({ ...p, delayMs: Number(e.target.value) }))}
-                  className="rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1 py-0.5 font-mono text-[11px]"
-                >
-                  <option value={0}>instant</option>
-                  <option value={150}>150ms</option>
-                  <option value={500}>500ms</option>
-                </select>
-              </label>
-              <label className="flex cursor-pointer items-center justify-between gap-2 py-1 text-xs text-[var(--color-text-secondary)]">
-                <span title="Truncate ghost text at the first newline">Single-line mode</span>
-                <input
-                  type="checkbox"
-                  checked={tabPrefs.singleLine}
-                  onChange={(e) => setTabPrefs((p) => ({ ...p, singleLine: e.target.checked }))}
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2 py-1 text-xs text-[var(--color-text-secondary)]">
-                <span title="Per-request local model override for Tab completion and Ctrl+I inline edit">Model</span>
-                <select
-                  value={tabPrefs.model}
-                  onChange={(e) => setTabPrefs((p) => ({ ...p, model: e.target.value }))}
-                  className="max-w-[10rem] rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1 py-0.5 font-mono text-[11px]"
-                >
-                  <option value="">Auto (env default)</option>
-                  {(editorModels?.models ?? []).map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="mt-2 border-t border-[var(--color-border-muted)] pt-2 font-mono text-[10px] text-[var(--color-text-muted)]">
-                {tabModelDetail ?? 'reading model status…'}
-              </div>
-              <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-[var(--color-text-muted)]">
-                <span className="min-w-0 flex-1 truncate" title={tabWarm ?? undefined}>warm: {tabWarm ?? 'checking…'}</span>
-                <button
-                  type="button"
-                  onClick={() => { void axiomEditorWarmStart().then(() => refreshWarm()).catch(() => setTabWarm('warm start failed')); }}
-                  className="shrink-0 rounded border border-[var(--color-border-muted)] px-1.5 py-0.5 font-semibold hover:text-[var(--color-text-primary)]"
-                >
-                  Warm now
-                </button>
-              </div>
-              <div className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
-                {(() => {
-                  const s = getAxiomTabStats();
-                  return `shown ${s.shown} · partial ${s.partialAccepts} · Ctrl+I edit · Alt+J jump`;
-                })()}
-              </div>
-            </div>
-          )}
+          {(() => {
+            const s = getAxiomTabStats();
+            return (
+              <span className="hidden lg:inline font-mono text-[10px] text-[var(--color-text-muted)]">
+                shown {s.shown} · partial {s.partialAccepts} · Ctrl+I edit · Alt+J jump
+              </span>
+            );
+          })()}
           <span className="font-mono">{activeTab?.language ?? 'plain text'}</span>
           <span>UTF-8</span>
           <span className="flex items-center gap-1">
