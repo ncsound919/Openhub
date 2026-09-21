@@ -5,7 +5,7 @@ import {
   Files, Search, GitBranch, Package, Settings, Terminal as TerminalIcon,
   X, Play, Save, ChevronRight, RefreshCw, GitCommitHorizontal, Upload,
   Cpu, Loader2, CircleDot, Github, Check, Zap, Wrench, Square, Bot, Orbit, Activity, Plus,
-  Server, FileDiff, GitBranchPlus, ChevronDown, CornerDownRight, AlertTriangle, ListTree, Wand2, FilePlus2, Layers, Rocket, ShieldCheck, MoreHorizontal,
+  Server, FileDiff, GitBranchPlus, ChevronDown, CornerDownRight, AlertTriangle, ListTree, Wand2, FilePlus2, Layers, Rocket, ShieldCheck,
 } from 'lucide-react';
 import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react';
 import { useStore } from '../store';
@@ -98,7 +98,7 @@ export function WorkspacePage() {
   // One pipeline controller for the whole workspace: the command bar and the
   // empty-editor actions start the same job, and only one poller exists.
   const pipeline = usePipelineContext();
-  const [activePanel, setActivePanel] = useState<'explorer' | 'search' | 'git' | 'agent' | 'extensions' | 'autonomy' | 'services' | 'visualize' | 'problems' | 'outline' | 'composer' | 'review' | 'threads'>('explorer');
+  const [activePanel, setActivePanel] = useState<'explorer' | 'search' | 'git' | 'agent' | 'extensions' | 'autonomy' | 'services' | 'visualize' | 'problems' | 'outline' | 'composer' | 'review' | 'threads'>('agent');
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | null>(null);
@@ -937,7 +937,7 @@ export function WorkspacePage() {
     { id: 'extensions' as const, icon: Package, label: 'Extensions' },
   ];
   const allIcons = [...sidebarIcons, ...advancedIcons];
-  const [moreOpen, setMoreOpen] = useState(false);
+  // (allIcons retained for the settings/advanced surface; the rail is gone.)
 
   const startResize = (e: React.MouseEvent, side: 'sidebar' | 'copilot') => {
     e.preventDefault();
@@ -1411,96 +1411,36 @@ export function WorkspacePage() {
 
       {/* Main IDE Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Activity Bar */}
-        <div className="flex w-12 flex-col items-center gap-1 border-r border-[var(--color-border-muted)] bg-[var(--color-surface-base)] py-2">
-          {sidebarIcons.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActivePanel(item.id)}
-              className={cn(
-                'relative flex h-10 w-10 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover)]',
-                activePanel === item.id ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]',
-              )}
-              title={item.label}
-              aria-label={item.label}
-            >
-              <item.icon className="w-5 h-5" />
-            </button>
-          ))}
-          {/* Keep the active advanced panel visible in the rail even though it is
-              selected from the "More" menu. */}
-          {advancedIcons.filter((a) => a.id === activePanel).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActivePanel(item.id)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-md bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]"
-              title={item.label}
-              aria-label={item.label}
-            >
-              <item.icon className="w-5 h-5" />
-            </button>
-          ))}
-          <div className="relative">
-            <button
-              onClick={() => setMoreOpen((v) => !v)}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover)]',
-                moreOpen ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]',
-              )}
-              title="More tools"
-              aria-label="More tools"
-              aria-expanded={moreOpen}
-            >
-              <MoreHorizontal className="w-5 h-5" />
-              {problems.length > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-danger)] px-1 text-[11px] font-bold text-white">
-                  {problems.length > 99 ? '99+' : problems.length}
-                </span>
-              )}
-            </button>
-            {moreOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-                <div className="absolute left-12 top-0 z-50 w-52 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-overlay)] p-1.5 shadow-xl shadow-black/40">
-                  {advancedIcons.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => { setActivePanel(item.id); setMoreOpen(false); }}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] hover:bg-[var(--color-surface-hover)]',
-                        activePanel === item.id ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]',
-                      )}
-                    >
-                      <item.icon className="w-3.5 h-3.5" /> {item.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-          <div className="flex-1" />
-          <button
-            onClick={() => setShowCopilot(!showCopilot)}
-            className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-hover)]',
-              showCopilot ? 'text-[var(--color-accent-text)]' : 'text-[var(--color-text-muted)]',
-            )}
-            title="Ask Axiom — chat & commands"
-            aria-label="Toggle Axiom chat"
-          >
-            <Bot className="w-5 h-5" />
-          </button>
-          <Link to="/settings" aria-label="Settings" title="Settings" className="flex h-10 w-10 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]">
-            <Settings className="w-5 h-5" />
-          </Link>
-        </div>
-
         {/* Sidebar Panel */}
         <div className="flex shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-raised)]" style={{ width: sidebarWidth }}>
-          <div className="flex items-center justify-between border-b border-[var(--color-border-muted)] px-3 py-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-              {allIcons.find((s) => s.id === activePanel)?.label}
-            </span>
+          <div className="flex items-center gap-1.5 border-b border-[var(--color-border-muted)] px-2 py-1.5">
+            <select
+              value={activePanel}
+              onChange={(e) => setActivePanel(e.target.value as typeof activePanel)}
+              aria-label="Workspace panel"
+              className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-1 text-[11px] font-semibold text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)]"
+            >
+              <optgroup label="Axiom">
+                {sidebarIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </optgroup>
+              <optgroup label="Advanced">
+                {advancedIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </optgroup>
+            </select>
+            <button
+              onClick={() => setShowCopilot(!showCopilot)}
+              className={cn(
+                'flex h-7 w-7 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-hover)]',
+                showCopilot ? 'text-[var(--color-accent-text)]' : 'text-[var(--color-text-muted)]',
+              )}
+              title="Ask Axiom — chat & commands"
+              aria-label="Toggle Axiom chat"
+            >
+              <Bot className="w-4 h-4" />
+            </button>
+            <Link to="/settings" aria-label="Settings" title="Settings & configuration" className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]">
+              <Settings className="w-4 h-4" />
+            </Link>
           </div>
           <div className="min-h-0 flex-1">{panelContent()}</div>
         </div>

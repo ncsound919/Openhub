@@ -218,6 +218,12 @@ export interface AuditReport {
   unavailableScorers: string[];
   /** Required scorers that were in the plan but unavailable (fail-closed gap). */
   requiredUnavailableScorers: string[];
+  /** WHY the verdict is what it is — so "fail" is never ambiguous between real
+   *  findings and an audit that could not verify (missing scanners). Optional so
+   *  report fixtures/consumers built before this field stay valid. */
+  verdictReason?: 'ok' | 'below-threshold' | 'critical-findings' | 'required-scanners-unavailable' | 'unscored';
+  /** Human-readable one-liner for `verdictReason`. */
+  verdictDetail?: string;
   /** Whether this audit was diff-scoped or full-tree, and the guard notes. */
   scope: AuditScope;
   /** Change vs the previous audit for the same target (null when no baseline). */
@@ -1418,7 +1424,9 @@ export async function runCmakeScorer(targetDir?: string): Promise<ScorerResult> 
 // mypy/pyright (Python), normalized into build_ci/correctness findings.
 // ---------------------------------------------------------------------------
 
-const TYPECHECK_TIMEOUT_MS = Number(process.env.TYPECHECK_TIMEOUT_MS ?? 180_000);
+const TYPECHECK_TIMEOUT_MS = Number(
+  process.env.TYPECHECK_TIMEOUT_MS ?? process.env.OPENHUB_TYPECHECK_TIMEOUT_MS ?? 300_000,
+);
 
 const TSC_ERROR_RE = /^(.+?)\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.*)$/gm;
 
@@ -2301,6 +2309,19 @@ export async function executeAuditSuite(params: AuditRunParams): Promise<AuditRe
       ? 'fail'
       : overallScore === null ? 'fail' : overallScore >= 80 ? 'pass' : overallScore >= 60 ? 'warn' : 'fail';
 
+  // Name the reason so a "fail" is never confused with "could not verify".
+  const verdictReason: AuditReport['verdictReason'] =
+    criticalFindings > 0 ? 'critical-findings'
+      : requiredUnavailableScorers.length > 0 ? 'required-scanners-unavailable'
+        : overallScore === null ? 'unscored'
+          : overallScore >= 80 ? 'ok' : 'below-threshold';
+  const verdictDetail =
+    verdictReason === 'critical-findings' ? `${criticalFindings} critical finding${criticalFindings === 1 ? '' : 's'}`
+      : verdictReason === 'required-scanners-unavailable' ? `could not verify — required scanner(s) unavailable: ${requiredUnavailableScorers.join(', ')}`
+        : verdictReason === 'unscored' ? 'no scorer produced a score'
+          : verdictReason === 'ok' ? `score ${overallScore}`
+            : `score ${overallScore} is below the 80 pass bar`;
+
   const dimensionScores: Partial<Record<Dimension, number | null>> = {};
   for (const d of reconciliation.dimensions) dimensionScores[d.dimension] = d.score;
   const coverage = buildCoverageFromResults(results, dimensionScores);
@@ -2333,6 +2354,8 @@ export async function executeAuditSuite(params: AuditRunParams): Promise<AuditRe
     scorersTotal: results.length,
     unavailableScorers,
     requiredUnavailableScorers,
+    verdictReason,
+    verdictDetail,
     scope,
     delta: null,
     ...(plan.stage ? { stage: plan.stage } : {}),

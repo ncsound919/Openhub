@@ -117,7 +117,7 @@ export function Dashboard() {
         {[
           { id: 'status', label: 'Status', icon: LayoutDashboard, to: '/' },
           { id: 'assurance', label: 'Assurance', icon: ShieldCheck, to: '/?tab=assurance' },
-          { id: 'repositories', label: `Repositories · ${repoCount}`, icon: Github, to: '/?tab=repositories' },
+          { id: 'repositories', label: `Projects · ${repoCount}`, icon: Github, to: '/?tab=repositories' },
         ].map((t) => (
           <Link key={t.id} to={t.to} className={cn('repo-tab', tab === t.id && 'active')}>
             <t.icon className="w-3.5 h-3.5" />
@@ -273,7 +273,7 @@ export function Dashboard() {
               </div>
             )}
             <Link to={activeProject ? '/workspace' : '/?tab=repositories'} className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200">
-              {activeProject ? 'Workspace' : 'Repositories'} <ArrowUpRight className="w-3.5 h-3.5" />
+              {activeProject ? 'Workspace' : 'Projects'} <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </section>
 

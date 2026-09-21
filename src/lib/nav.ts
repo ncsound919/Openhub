@@ -1,9 +1,7 @@
 import {
   FolderCode,
-  Github,
   LayoutDashboard,
   Newspaper,
-  Radar,
   Settings,
   Terminal,
 } from 'lucide-react';
@@ -34,22 +32,15 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Build',
     items: [
-      { to: '/', label: 'Command', icon: LayoutDashboard, end: true, keywords: ['status', 'home', 'dashboard', 'control', 'console', 'run'] },
-      { to: '/workspace', label: 'Workspace', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'agent', 'files'] },
-      { to: '/projects', label: 'Projects', icon: Github, keywords: ['repositories', 'repos', 'import', 'github', 'local folder'] },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { to: '/fleet', label: 'Fleet', icon: Radar, keywords: ['agents', 'services', 'ecosystem', 'tools', 'registry', 'start', 'stop', 'dispatch'] },
-      { to: '/reporter', label: 'Reporter', icon: Newspaper, keywords: ['insights', 'activity', 'recourse', 'trends', 'self-report', 'findings', 'discoveries', 'tips'] },
+      { to: '/', label: 'Command', icon: LayoutDashboard, end: true, keywords: ['status', 'home', 'dashboard', 'control', 'console', 'run', 'projects', 'repositories'] },
+      { to: '/workspace', label: 'Workspace', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'agent', 'files', 'axiom'] },
     ],
   },
   {
     label: 'System',
     items: [
-      { to: '/settings', label: 'Settings', icon: Settings, keywords: ['preferences', 'account', 'integrations', 'keys', 'advanced', 'labs'] },
+      { to: '/reporter', label: 'Reporter', icon: Newspaper, keywords: ['insights', 'activity', 'recourse', 'trends', 'self-report', 'findings', 'discoveries', 'tips'] },
+      { to: '/settings', label: 'Settings', icon: Settings, keywords: ['preferences', 'account', 'integrations', 'keys', 'advanced', 'labs', 'fleet', 'models'] },
     ],
   },
 ];
@@ -59,11 +50,11 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 export const BREADCRUMBS: Record<string, string> = {
   '/': 'Command',
   '/workspace': 'Workspace',
-  '/projects': 'Projects',
-  '/fleet': 'Fleet',
   '/reporter': 'Reporter',
   '/settings': 'Settings',
   // Retained for deep links into the surfaces that no longer sit in the rail.
+  '/projects': 'Projects',
+  '/fleet': 'Fleet',
   '/assurance': 'Assurance',
   '/axiom': 'Loops',
   '/insights': 'Insights',

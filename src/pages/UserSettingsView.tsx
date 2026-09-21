@@ -12,6 +12,8 @@ const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications'
 /** Surfaces deliberately kept out of the main rail. They still exist for
  *  power users and deep links, but they are not part of the daily flow. */
 const ADVANCED_LINKS: Array<{ to: string; label: string; note: string }> = [
+  { to: '/fleet', label: 'Fleet', note: 'Agents, services, ecosystem, tools, registry (telemetry + controls)' },
+  { to: '/projects', label: 'Projects & GitHub', note: 'Repositories, Actions/CI, Issues, Pulls, webhooks' },
   { to: '/assurance', label: 'Assurance', note: 'Audit reports, pipelines, repair history, readiness' },
   { to: '/axiom', label: 'Loops', note: 'Manual Axiom loop control and loop history' },
   { to: '/antagonist', label: 'Adversary', note: 'Mutation testing and opportunity prospecting' },

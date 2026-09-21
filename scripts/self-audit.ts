@@ -22,6 +22,7 @@ const report = await executeAuditSuite({ targetDir, preset });
 console.log(`=== SELF-AUDIT (${preset}) ===`);
 console.log(`target:  ${targetDir}`);
 console.log(`overall: ${report.overallStatus}  score=${report.overallScore}  grade=${report.grade}  critical=${report.criticalFindings}`);
+console.log(`verdict: ${report.verdictReason ?? 'n/a'} — ${report.verdictDetail ?? ''}`);
 console.log(`coverage: ${report.coveragePercent}%  findings=${report.findings.length}`);
 console.log('--- scorers ---');
 for (const r of report.results) {
