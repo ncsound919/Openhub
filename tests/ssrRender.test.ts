@@ -139,7 +139,6 @@ const PAGES: Array<[string, Loader]> = [
   ['WikiView', () => import('../src/pages/WikiView').then((m) => m.WikiView)],
   ['CommitsView', () => import('../src/pages/CommitsView').then((m) => m.CommitsView)],
   ['ExtensionsView', () => import('../src/pages/ExtensionsView').then((m) => m.ExtensionsView)],
-  ['WorkspaceIntelligence', () => import('../src/pages/WorkspaceIntelligence').then((m) => m.WorkspaceIntelligence)],
   ['ToolkitRegistry', () => import('../src/pages/ToolkitRegistry').then((m) => m.ToolkitRegistry)],
   ['LoginPage', () => import('../src/auth/LoginPage').then((m) => m.LoginPage)],
   ['ServicesLifecycleView', () => import('../src/pages/ServicesLifecycleView').then((m) => m.ServicesLifecycleView)],

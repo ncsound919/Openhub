@@ -18,6 +18,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "a11y": "playwright test tests/e2e/a11y.spec.ts",
+    "audit:self": "tsx scripts/self-audit.ts",
+    "audit:endpoints": "node scripts/audit-endpoints.mjs",
     "verify": "npm run lint && npm run test"
   },
   "dependencies": {

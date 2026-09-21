@@ -663,6 +663,37 @@ const SECRET_PATTERNS: Array<{ category: string; re: RegExp; severity: string }>
   { category: 'secret-generic', re: /\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*['"][^'"]{12,}['"]/i, severity: 'medium' },
 ];
 
+/** Paths whose "secrets" are almost always fixtures, not leaks. The heuristic
+ *  scan skips these; the authoritative gitleaks scan still covers them. */
+const TEST_PATH_RE = /(^|\/)(tests?|__tests__|__mocks__|fixtures?|e2e|spec)(\/|$)|[._-](test|spec)\.[cm]?[jt]sx?$/i;
+/** Values that are obviously placeholders, not credentials. */
+const PLACEHOLDER_RE = /(example|dummy|fake|sample|placeholder|changeme|redacted|your[_-]|xxxx|not[_-]?a[_-]?real|(?:sk|pk|rk)_test_|test[_-]?key|test[_-]?token)/i;
+
+/**
+ * Heuristic secret scan for one file's content. Pure, so it is unit-testable:
+ * test/fixture paths and obvious placeholder values are skipped, and only the
+ * first match per pattern is reported (a file with one leak is not counted 5×).
+ */
+export function scanSecretContent(content: string, file: string): Finding[] {
+  if (TEST_PATH_RE.test(file)) return [];
+  const findings: Finding[] = [];
+  for (const pattern of SECRET_PATTERNS) {
+    const match = pattern.re.exec(content);
+    if (!match) continue;
+    if (PLACEHOLDER_RE.test(match[0])) continue;
+    const line = content.slice(0, match.index).split('\n').length;
+    findings.push(makeFinding({
+      source: 'git_history', dimension: 'security', category: pattern.category,
+      severity: pattern.severity as Finding['severity'], confidence: 0.6, determinism: 'static',
+      location: { file: file.replace(/\\/g, '/'), line },
+      evidence: `potential secret committed at ${file}:${line}`,
+      remediation: 'Rotate the secret and purge it from history (git filter-repo / BFG).',
+    }));
+    break;
+  }
+  return findings;
+}
+
 export async function runGitHistoryScorer(
   targetDir?: string,
   ctx?: ExtraScorerContext,
@@ -712,19 +743,7 @@ export async function runGitHistoryScorer(
     const content = readText(path.join(targetDir, file), 200_000);
     if (content == null) continue;
     scanned += 1;
-    for (const pattern of SECRET_PATTERNS) {
-      const match = pattern.re.exec(content);
-      if (!match) continue;
-      const line = content.slice(0, match.index).split('\n').length;
-      findings.push(makeFinding({
-        source: 'git_history', dimension: 'security', category: pattern.category,
-        severity: pattern.severity, confidence: 0.6, determinism: 'static',
-        location: { file: file.replace(/\\/g, '/'), line },
-        evidence: `potential secret committed at ${file}:${line}`,
-        remediation: 'Rotate the secret and purge it from history (git filter-repo / BFG).',
-      }));
-      break;
-    }
+    findings.push(...scanSecretContent(content, file));
   }
   if (scanned === 0) notes.push('no tracked text files scanned');
 

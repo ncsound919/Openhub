@@ -36,7 +36,6 @@ const COMPONENTS: Array<[string, () => Promise<any>]> = [
   ['WikiView', () => import('../src/pages/WikiView').then((m) => m.WikiView)],
   ['CommitsView', () => import('../src/pages/CommitsView').then((m) => m.CommitsView)],
   ['ExtensionsView', () => import('../src/pages/ExtensionsView').then((m) => m.ExtensionsView)],
-  ['WorkspaceIntelligence', () => import('../src/pages/WorkspaceIntelligence').then((m) => m.WorkspaceIntelligence)],
   ['ToolkitRegistry', () => import('../src/pages/ToolkitRegistry').then((m) => m.ToolkitRegistry)],
   ['ServicesLifecycleView', () => import('../src/pages/ServicesLifecycleView').then((m) => m.ServicesLifecycleView)],
   ['EcosystemView', () => import('../src/pages/EcosystemView').then((m) => m.EcosystemView)],

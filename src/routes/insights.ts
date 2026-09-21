@@ -1,6 +1,7 @@
 import express from 'express';
 import { listEvents, summarizeEvents } from '../services/telemetry.js';
 import { buildInsights } from '../services/insights.js';
+import { buildInsightFeed } from '../services/insightFeed.js';
 import { normalizeSynergyMap, recourseSynergyMap } from '../services/recourseClient.js';
 import { dispatchRecourseRepair, recourseContextForGoal, recordRecourseOutcome } from '../services/recourseBridge.js';
 
@@ -54,6 +55,16 @@ export function createInsightsRouter(deps: { authMiddleware: express.RequestHand
   router.get('/insights', async (req, res) => {
     try {
       res.json({ ok: true, report: await buildInsights({ windowMs: asNumber(req.query.windowMs) }) });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // The composed feed: discoveries, trends, tips, reviews and alerts drawn from
+  // Recourse, self-learning, audit deltas, incidents and pipeline history.
+  router.get('/insights/feed', async (req, res) => {
+    try {
+      res.json({ ok: true, feed: await buildInsightFeed({ windowMs: asNumber(req.query.windowMs) }) });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err.message });
     }

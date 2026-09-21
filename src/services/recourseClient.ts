@@ -25,10 +25,11 @@ export interface RecourseResult<T = any> {
 
 async function recourseFetch<T = any>(
   path: string,
-  opts: { method?: string; body?: unknown; guarded?: boolean } = {},
+  opts: { method?: string; body?: unknown; guarded?: boolean; timeoutMs?: number } = {},
 ): Promise<RecourseResult<T>> {
+  const timeoutMs = opts.timeoutMs ?? 12_000;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12_000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const base = recourseBaseUrl();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -48,7 +49,15 @@ async function recourseFetch<T = any>(
     const data = (await res.json().catch(() => null)) as T;
     return { available: res.ok, status: res.status, data };
   } catch (err) {
-    return { available: false, error: err instanceof Error ? err.message : String(err) };
+    // An AbortError's default message ("This operation was aborted") tells the
+    // operator nothing. Say what actually happened and how to change it.
+    const aborted = err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message));
+    return {
+      available: false,
+      error: aborted
+        ? `timed out after ${Math.round(timeoutMs / 1000)}s — Recourse did not answer (set RECOURSE_LLM_TIMEOUT_MS to allow longer model calls)`
+        : err instanceof Error ? err.message : String(err),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -299,9 +308,15 @@ export async function recourseReporterArticle(fingerprint: string): Promise<Reco
   return recourseFetch(`/api/recourse/reporter/article/${encodeURIComponent(fingerprint)}`);
 }
 
+/** Model-backed calls are slow; give them room before aborting. */
+function llmTimeoutMs(): number {
+  const n = Number(process.env.RECOURSE_LLM_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : 120_000;
+}
+
 /** Ask Recourse to compose a fresh dispatch. Guarded write. */
 export async function recourseReporterGenerate(payload: Record<string, unknown> = {}): Promise<RecourseResult> {
-  return recourseFetch('/api/recourse/reporter/generate', { method: 'POST', body: payload, guarded: true });
+  return recourseFetch('/api/recourse/reporter/generate', { method: 'POST', body: payload, guarded: true, timeoutMs: llmTimeoutMs() });
 }
 
 /** Attach a non-canonical model narration to the latest dispatch. Guarded. */
@@ -310,6 +325,7 @@ export async function recourseReporterNarrate(fingerprint?: string): Promise<Rec
     method: 'POST',
     body: fingerprint ? { fingerprint } : {},
     guarded: true,
+    timeoutMs: llmTimeoutMs(),
   });
 }
 

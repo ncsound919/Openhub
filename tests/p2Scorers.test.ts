@@ -219,7 +219,9 @@ describe('static scorers produce real evidence', () => {
   it('git_history finds large files, vague commits and committed secrets', async () => {
     const dir = tmpProject({
       'big.bin': Buffer.alloc(1_100_000),
-      'config.ts': 'export const KEY = "AKIAIOSFODNN7EXAMPLE";\n',
+      // A real-looking key, NOT the AWS documented example (which is a
+      // placeholder the scanner now deliberately ignores).
+      'config.ts': 'export const KEY = "AKIAZ3XQ7PLMN4VW2RTY";\n',
     });
     git(dir, ['init', '-q']);
     commit(dir, 'wip');

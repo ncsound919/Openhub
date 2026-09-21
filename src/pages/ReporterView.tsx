@@ -4,6 +4,7 @@ import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { MarkdownProse } from '../components/MarkdownProse';
 import { InsightsView } from './InsightsView';
 import { ActivityView } from './ActivityView';
+import { InsightFeedPanel } from '../components/InsightFeedPanel';
 
 type ReporterTab = 'report' | 'insights' | 'activity';
 
@@ -255,7 +256,21 @@ export function ReporterView() {
     return (
       <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col gap-5 px-4 py-6">
         <ReporterTabs tab={tab} setTab={setTab} />
-        {tab === 'insights' ? <InsightsView /> : <ActivityView />}
+        {tab === 'insights' ? (
+          <>
+            <InsightFeedPanel />
+            <details className="industrial-card p-4">
+              <summary className="cursor-pointer text-xs font-bold text-gray-400 hover:text-[var(--color-text-primary)]">
+                Detailed trends, synergy and autonomy detail
+              </summary>
+              <div className="mt-3">
+                <InsightsView />
+              </div>
+            </details>
+          </>
+        ) : (
+          <ActivityView />
+        )}
       </div>
     );
   }

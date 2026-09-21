@@ -165,7 +165,8 @@ export function createAuditRouter(deps: { authMiddleware: express.RequestHandler
         let report: AuditReport | null = null;
         try { report = JSON.parse(row.report_json) as AuditReport; } catch { report = null; }
         if (!report) continue;
-        for (const r of report.results) {
+        // Persisted reports can predate a schema change; never assume `results`.
+        for (const r of report.results ?? []) {
           const stat = perScorer.get(r.scorer) ?? { runs: 0, scores: [], fails: 0, last: null };
           stat.runs += 1;
           if (typeof r.score === 'number') stat.scores.push(r.score);
