@@ -167,6 +167,12 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
   const [lastPipelineRun, setLastPipelineRun] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputElRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const h = () => inputElRef.current?.focus();
+    window.addEventListener('openhub:focus-ask', h);
+    return () => window.removeEventListener('openhub:focus-ask', h);
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
     if (el && typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight });
@@ -1463,6 +1469,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
             </div>
             <div className="p-4 bg-surface-raised border-t border-white/10 flex items-center space-x-2">
               <input
+                ref={inputElRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -1487,6 +1494,48 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
   if (embedded) {
     return (
       <div className="flex h-full w-full min-h-0 flex-col bg-surface-base">
+        {/* Single Axiom surface: chat is the one input; these chips are
+            shortcuts into the same pipeline, not separate tools. */}
+        <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+          <Bot className="w-4 h-4 text-orange-400" />
+          <span className="text-sm font-bold text-[var(--color-text-primary)]">Axiom</span>
+          <span className="hidden xl:inline text-[10px] text-gray-500">chat · loops · audit · compose</span>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void handleSend('/audit')}
+              disabled={busy}
+              className="rounded border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-gray-400 hover:text-[var(--color-text-primary)] disabled:opacity-40"
+              title="Run the audit team on the active project"
+            >
+              Audit
+            </button>
+            <button
+              type="button"
+              onClick={() => { setInput('/loop '); inputElRef.current?.focus(); }}
+              className="rounded border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-gray-400 hover:text-[var(--color-text-primary)]"
+              title="Run an autonomous loop for a goal"
+            >
+              Loop
+            </button>
+            <button
+              type="button"
+              onClick={() => { setInput('/generate '); inputElRef.current?.focus(); }}
+              className="rounded border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-gray-400 hover:text-[var(--color-text-primary)]"
+              title="Compose a file: /generate <path> :: <description>"
+            >
+              Compose
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSend('/help')}
+              disabled={busy}
+              className="rounded border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-gray-400 hover:text-[var(--color-text-primary)] disabled:opacity-40"
+            >
+              Help
+            </button>
+          </div>
+        </div>
         {panel}
       </div>
     );

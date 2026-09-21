@@ -801,14 +801,16 @@ export function WorkspacePage() {
   const activeTab = tabs.find((t) => t.path === activePath) ?? null;
   const dirtyCount = tabs.filter((t) => t.dirty).length;
 
-  const sidebarIcons = [
+  // Logical panel structure: Axiom (the agent's run surface) → Editor tooling →
+  // Advanced (everything else, out of the daily path).
+  const axiomIcons = [
+    { id: 'agent' as const, icon: Activity, label: 'Run status' },
+  ];
+  const editorIcons = [
     { id: 'explorer' as const, icon: Files, label: 'Files' },
     { id: 'search' as const, icon: Search, label: 'Search' },
     { id: 'git' as const, icon: GitBranch, label: 'Source Control' },
-    { id: 'agent' as const, icon: Activity, label: 'Axiom Agent' },
   ];
-  // Everything else lives behind "More" so the rail stays readable. The
-  // complexity is still there, just not competing for attention.
   const advancedIcons = [
     { id: 'composer' as const, icon: Wand2, label: 'Composer' },
     { id: 'outline' as const, icon: ListTree, label: 'Outline' },
@@ -820,8 +822,7 @@ export function WorkspacePage() {
     { id: 'visualize' as const, icon: Orbit, label: 'Visualize' },
     { id: 'extensions' as const, icon: Package, label: 'Extensions' },
   ];
-  const allIcons = [...sidebarIcons, ...advancedIcons];
-  // (allIcons retained for the settings/advanced surface; the rail is gone.)
+  const allIcons = [...axiomIcons, ...editorIcons, ...advancedIcons];
 
   const startResize = (e: React.MouseEvent, side: 'sidebar' | 'copilot') => {
     e.preventDefault();
@@ -1282,14 +1283,13 @@ export function WorkspacePage() {
         </button>
       </div>
 
-      {/* Axiom command bar: one obvious place to direct the agent, plus the
-          headline actions and live state lights. */}
+      {/* Axiom control surface: status + primary actions + live progress. The
+          single conversational input is the Axiom chat panel on the right. */}
       <AxiomBar
         projectName={activeProject?.repositoryName}
         hasProject={!!activeProject}
         axiomOnline={axiomOnline}
         onRequestChat={() => setShowCopilot(true)}
-        onOpenPanel={(panel) => setActivePanel(panel)}
         pipeline={pipeline}
       />
 
@@ -1305,7 +1305,10 @@ export function WorkspacePage() {
               className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-1 text-[11px] font-semibold text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)]"
             >
               <optgroup label="Axiom">
-                {sidebarIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {axiomIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </optgroup>
+              <optgroup label="Editor">
+                {editorIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </optgroup>
               <optgroup label="Advanced">
                 {advancedIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}

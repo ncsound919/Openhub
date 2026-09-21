@@ -1,78 +1,48 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, ShieldCheck, Loader2, Sparkles, Wand2, Play, CornerDownLeft, Rocket, XCircle, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { ShieldCheck, Loader2, Rocket, XCircle, ArrowRight, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { StatusLight, type LightState } from '../components/StatusLight';
 import { stageLight, type PipelineController } from './usePipeline';
 import { cn } from '../lib/utils';
 
-type PanelId = 'autonomy' | 'composer' | 'agent' | 'threads' | 'review';
-
-const SUGGESTIONS: Array<{ label: string; prompt: string }> = [
-  { label: 'Explain this project', prompt: 'Explain this project: what it does, its architecture, and its riskiest areas.' },
-  { label: 'Find bugs', prompt: 'Audit this codebase for correctness bugs and security issues, and tell me the highest-impact ones first.' },
-  { label: 'Write tests', prompt: 'Identify the least-tested critical paths in this project and write focused tests for them.' },
-];
-
 /**
- * AxiomBar — the single, always-visible place to direct Axiom in the workspace.
+ * AxiomBar — the workspace control surface.
  *
- * Autopilot runs the whole project pipeline (typecheck → audit → repair → agent
- * loop → verify) as a background job; Audit runs the audit/repair half. Both are
- * polled through the shared pipeline controller, so the bar shows a real
- * progress bar and a light per stage.
+ * It is deliberately NOT a second chat box. There is one conversational input
+ * (the Axiom chat panel); this bar is status + the primary actions + the live
+ * progress stream. That removes the "which box do I type in?" confusion: the
+ * only place to type is the chat, and this bar can focus it.
  */
 export function AxiomBar({
   projectName,
   hasProject,
   axiomOnline,
   onRequestChat,
-  onOpenPanel,
   pipeline,
 }: {
   projectName?: string;
   hasProject: boolean;
   axiomOnline: boolean | null;
   onRequestChat: () => void;
-  onOpenPanel: (panel: PanelId) => void;
   pipeline: PipelineController;
 }) {
-  const [text, setText] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { job, starting, running, error } = pipeline;
+  const { job, starting, running } = pipeline;
+  const chatRef = useRef<HTMLButtonElement>(null);
 
-  const ask = useCallback(
-    (prompt: string) => {
-      const trimmed = prompt.trim();
-      if (!trimmed || !hasProject) return;
-      window.dispatchEvent(new CustomEvent('openhub:ask', { detail: { text: trimmed } }));
-      onRequestChat();
-    },
-    [hasProject, onRequestChat],
-  );
-
-  const submit = () => {
-    if (!text.trim()) return;
-    ask(text);
-    setText('');
-  };
-
-  const run = (mode: 'autopilot' | 'audit') => {
-    const goal = text.trim();
-    if (goal) setText('');
-    void pipeline.start(mode, goal);
-  };
-
-  // ⌘K / Ctrl+K focuses the command bar.
+  // ⌘K / Ctrl+K focuses the Axiom chat input (the single input).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        inputRef.current?.focus();
+        onRequestChat();
+        window.dispatchEvent(new CustomEvent('openhub:focus-ask'));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [onRequestChat]);
+
+  const run = (mode: 'autopilot' | 'audit') => { void pipeline.start(mode); };
 
   const pct = job ? Math.round((job.progress ?? 0) * 100) : 0;
   const resultLight: LightState = !job
@@ -100,7 +70,7 @@ export function AxiomBar({
         <StatusLight
           state={axiomOnline === null ? 'idle' : axiomOnline ? 'ok' : 'offline'}
           label={axiomOnline === null ? 'Axiom…' : axiomOnline ? 'Axiom' : 'Axiom offline'}
-          title={axiomOnline ? 'Axiom backend online' : 'Axiom backend unreachable — loops and Tab completion are unavailable'}
+          title={axiomOnline ? 'Axiom backend online' : 'Axiom backend unreachable'}
         />
         <span className="h-4 w-px bg-[var(--color-border-muted)]" />
         <StatusLight
@@ -110,48 +80,56 @@ export function AxiomBar({
         />
       </div>
 
-      <div className="relative flex min-w-[16rem] flex-1 items-center">
-        <Sparkles className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-[var(--color-accent-text)]" />
-        <input
-          ref={inputRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          disabled={!hasProject}
-          aria-label="Ask Axiom"
-          placeholder={
-            hasProject
-              ? `Ask Axiom to build, fix, audit, or explain${projectName ? ` ${projectName}` : ''}…  (⌘K)`
-              : 'Load a project to start working with Axiom…'
-          }
-          className="w-full rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] py-1.5 pl-8 pr-[4.5rem] text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] focus:shadow-[0_0_0_1px_var(--color-accent)] disabled:opacity-50"
-        />
+      {/* Progress stream, or a prompt to open the chat. */}
+      {job ? (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <div className="flex min-w-[8rem] flex-1 items-center gap-2">
+            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
+              <div
+                className={cn('h-full rounded-full transition-[width] duration-500', running ? 'bg-[var(--color-accent)]' : job.status === 'complete' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')}
+                style={{ width: `${pct}%`, boxShadow: running ? '0 0 8px var(--color-accent)' : undefined }}
+              />
+            </div>
+            <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{pct}%</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {job.stages.map((s) => (
+              <StatusLight key={s.id} state={stageLight(s)} label={s.label} title={`${s.label}: ${s.detail || s.status}`} />
+            ))}
+          </div>
+          <StatusLight state={resultLight} label={resultLabel} className="max-w-[22rem]" title={resultLabel} />
+          {running && (
+            <button
+              type="button"
+              onClick={() => void pipeline.cancel()}
+              className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-danger)]"
+            >
+              <XCircle className="h-3 w-3" /> Cancel
+            </button>
+          )}
+        </div>
+      ) : (
         <button
+          ref={chatRef}
           type="button"
-          onClick={submit}
-          disabled={!hasProject || !text.trim()}
-          className="absolute right-1 flex items-center gap-1 rounded bg-[var(--color-accent)] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-30"
-          title="Send to Axiom"
+          onClick={onRequestChat}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-1.5 text-left text-xs text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
+          title="Open the Axiom chat (⌘K)"
         >
-          <Send className="h-3 w-3" />
-          Ask
-          <CornerDownLeft className="h-3 w-3 opacity-70" />
+          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[var(--color-accent-text)]" />
+          <span className="min-w-0 flex-1 truncate">Ask Axiom, run a loop, audit, or compose — open the chat (⌘K)</span>
+          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
         </button>
-      </div>
+      )}
 
       <div className="flex shrink-0 items-center gap-1.5">
         <button
           type="button"
           onClick={() => run('autopilot')}
           disabled={!hasProject || running || starting}
-          className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[10px] font-bold text-white hover:brightness-110 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2.5 py-1 text-[10px] font-bold text-white hover:brightness-110 disabled:opacity-50"
           style={running ? { boxShadow: '0 0 10px var(--color-accent)' } : undefined}
-          title="Autopilot: typecheck → audit → repair → agent loop → verify (uses the input as the goal, if any)"
+          title="Autopilot: typecheck → adversary → audit → repair → loop → verify"
         >
           {starting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Rocket className="h-3 w-3" />}
           Autopilot
@@ -165,79 +143,13 @@ export function AxiomBar({
         >
           <ShieldCheck className="h-3 w-3" /> Audit
         </button>
-        <button
-          type="button"
-          onClick={() => onOpenPanel('autonomy')}
-          disabled={!hasProject}
-          className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
-          title="Run the autonomous loop against this project"
+        <Link
+          to="/assurance"
+          className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          title="Full reports"
         >
-          <Play className="h-3 w-3" /> Loop
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenPanel('composer')}
-          disabled={!hasProject}
-          className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
-          title="Multi-file composer"
-        >
-          <Wand2 className="h-3 w-3" /> Compose
-        </button>
-      </div>
-
-      {/* Pipeline progress / result, or one-click starting prompts. */}
-      <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1.5">
-        {job ? (
-          <>
-            <div className="flex min-w-[10rem] flex-1 items-center gap-2">
-              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className={cn('h-full rounded-full transition-[width] duration-500', running ? 'bg-[var(--color-accent)]' : job.status === 'complete' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')}
-                  style={{ width: `${pct}%`, boxShadow: running ? '0 0 8px var(--color-accent)' : undefined }}
-                />
-              </div>
-              <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{pct}%</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              {job.stages.map((s) => (
-                <StatusLight key={s.id} state={stageLight(s)} label={s.label} title={`${s.label}: ${s.detail || s.status}`} />
-              ))}
-            </div>
-            <StatusLight state={resultLight} label={resultLabel} className="max-w-[24rem]" title={resultLabel} />
-            {running ? (
-              <button
-                type="button"
-                onClick={() => void pipeline.cancel()}
-                className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-danger)]"
-              >
-                <XCircle className="h-3 w-3" /> Cancel
-              </button>
-            ) : (
-              <Link to="/assurance" className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
-                Full report <ArrowRight className="h-3 w-3" />
-              </Link>
-            )}
-          </>
-        ) : error ? (
-          <StatusLight state="error" label={error} className="max-w-[44rem]" title={error} />
-        ) : (
-          hasProject && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">Try</span>
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  onClick={() => ask(s.prompt)}
-                  className="rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
-                  title={s.prompt}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )
-        )}
+          Reports <ArrowRight className="h-3 w-3" />
+        </Link>
       </div>
     </div>
   );
