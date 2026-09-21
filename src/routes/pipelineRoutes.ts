@@ -1,5 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 import { getActiveProject } from '../services/projectContext.js';
+import { getAutoConfig, setAutoConfig, runAutoTick } from '../services/pipelineAuto.js';
+import { getDispatchPrefs } from '../services/incidentBus.js';
 import {
   startPipeline,
   getPipeline,
@@ -59,6 +61,26 @@ export function createPipelineRouter(deps: { authMiddleware: RequestHandler; pip
 
   router.get('/pipeline', (_req, res) => {
     res.json({ ok: true, jobs: listPipelines(25).map((j) => ({ ...j, progress: overallProgress(j) })) });
+  });
+
+  // Unattended Autopilot (Auto autonomy mode). Declared BEFORE `/pipeline/:id`
+  // so "auto" is not captured as a job id. Respects the fleet kill switch.
+  router.get('/pipeline/auto', (_req, res) => {
+    res.json({ ok: true, auto: getAutoConfig(), killSwitch: getDispatchPrefs().killSwitch });
+  });
+
+  router.put('/pipeline/auto', (req, res) => {
+    const body = (req.body ?? {}) as { enabled?: unknown; intervalMs?: unknown; mode?: unknown };
+    const auto = setAutoConfig({
+      ...(typeof body.enabled === 'boolean' ? { enabled: body.enabled } : {}),
+      ...(Number.isFinite(Number(body.intervalMs)) ? { intervalMs: Number(body.intervalMs) } : {}),
+      ...(body.mode === 'audit' || body.mode === 'autopilot' ? { mode: body.mode } : {}),
+    });
+    res.json({ ok: true, auto });
+  });
+
+  router.post('/pipeline/auto/tick', (_req, res) => {
+    res.json({ ok: true, result: runAutoTick() });
   });
 
   router.get('/pipeline/:id', (req, res) => {

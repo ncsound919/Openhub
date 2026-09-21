@@ -1560,7 +1560,19 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
               <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Autonomy</span>
               <select
                 value={autonomy}
-                onChange={(e) => { const m = e.target.value as AutonomyMode; setAutonomy(m); setAutonomyMode(m); }}
+                onChange={(e) => {
+                  const m = e.target.value as AutonomyMode;
+                  setAutonomy(m);
+                  setAutonomyMode(m);
+                  // Auto mode runs the pipeline unattended on the server (interval
+                  // based, kill-switch aware). Manual/Plan turn that off.
+                  void fetch('/api/pipeline/auto', {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+                    body: JSON.stringify({ enabled: m === 'auto' }),
+                  }).catch(() => { /* server sync is best-effort */ });
+                }}
                 className="rounded border border-white/10 bg-[var(--color-surface-base)] px-1.5 py-0.5 text-[10px] font-bold text-gray-300 outline-none focus:border-orange-500"
               >
                 {AUTONOMY_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}

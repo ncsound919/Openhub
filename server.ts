@@ -69,7 +69,8 @@ import { createClosedLoopRouter } from './src/routes/closedLoopRoutes.js';
 import { createAuditRouter } from './src/routes/auditRoutes.js';
 import { createAuditCoreRouter } from './src/routes/auditCoreRoutes.js';
 import { createRepairRouter } from './src/routes/repairRoutes.js';
-import { createPipelineRouter } from './src/routes/pipelineRoutes.js';import { createEcosystemKnowledgeRouter } from './src/routes/ecosystemKnowledgeRoutes.js';
+import { createPipelineRouter } from './src/routes/pipelineRoutes.js';
+import { startPipelineAutoScheduler } from './src/services/pipelineAuto.js';import { createEcosystemKnowledgeRouter } from './src/routes/ecosystemKnowledgeRoutes.js';
 import { createEcosystemRegistryRouter } from './src/routes/ecosystemRegistryRoutes.js';
 import { createProjectContextRouter } from './src/routes/projectContext.js';
 import { createWorkspaceToolsRouter } from './src/routes/workspaceTools.js';
@@ -1595,6 +1596,9 @@ async function startServer() {
   app.use('/api', createAuditCoreRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createRepairRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createPipelineRouter({ authMiddleware: auth.middleware() }));
+  // Unattended Autopilot scheduler (Auto autonomy mode). Cheap when disabled;
+  // fail-closed on the fleet kill switch. See services/pipelineAuto.ts.
+  startPipelineAutoScheduler();
   app.use('/api', createEcosystemKnowledgeRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createEcosystemRegistryRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createProjectContextRouter({ authMiddleware: auth.middleware() }));
