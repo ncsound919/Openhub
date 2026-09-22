@@ -822,7 +822,6 @@ export function WorkspacePage() {
     { id: 'visualize' as const, icon: Orbit, label: 'Visualize' },
     { id: 'extensions' as const, icon: Package, label: 'Extensions' },
   ];
-  const allIcons = [...axiomIcons, ...editorIcons, ...advancedIcons];
 
   const startResize = (e: React.MouseEvent, side: 'sidebar' | 'copilot') => {
     e.preventDefault();
@@ -1261,48 +1260,51 @@ export function WorkspacePage() {
 
   return (
     <div className="flex flex-col h-full bg-[var(--color-bg-base)]">
-      {/* Menu Bar + Breadcrumb */}
-      <div className="flex items-center gap-3 border-b border-[var(--color-border-muted)] px-4 py-2 text-xs">
-        <Link to="/" className="font-semibold tracking-tight text-sm text-[var(--color-text-primary)]">Workspace</Link>
-        {activeProject && <ChevronRight className="w-3 h-3 text-[var(--color-text-muted)]" />}
-        {activeProject && <span className="truncate font-semibold text-[var(--color-text-secondary)]">{activeProject.repositoryName}</span>}
-        {activeProject?.defaultBranch && <span className="count-pill hidden sm:inline-block">{activeProject.defaultBranch}</span>}
-        <div className="flex-1" />
-        <button
-          onClick={() => void handleSave()}
-          disabled={!activeTab || !activeTab.dirty}
-          className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-30"
-        >
-          <Save className="w-3 h-3" /> Save
-        </button>
-        <button
-          onClick={() => setShowTerminal(!showTerminal)}
-          className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 py-1 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-        >
-          <TerminalIcon className="w-3 h-3" /> Terminal
-        </button>
-      </div>
-
-      {/* Axiom control surface: status + primary actions + live progress. The
-          single conversational input is the Axiom chat panel on the right. */}
+      {/* One unified top bar: identity + agent status/actions + file actions.
+          The breadcrumb and Save/Terminal used to be a separate row. */}
       <AxiomBar
         projectName={activeProject?.repositoryName}
         hasProject={!!activeProject}
         axiomOnline={axiomOnline}
         onRequestChat={() => setShowCopilot(true)}
         pipeline={pipeline}
+        leading={
+          <div className="flex min-w-0 shrink items-center gap-1.5">
+            <Link to="/" className="shrink-0 text-xs font-semibold tracking-tight text-[var(--color-text-primary)]">Workspace</Link>
+            {activeProject && <ChevronRight className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" />}
+            {activeProject && <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-secondary)]">{activeProject.repositoryName}</span>}
+            {activeProject?.defaultBranch && <span className="count-pill hidden lg:inline-block">{activeProject.defaultBranch}</span>}
+          </div>
+        }
+        trailing={
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => void handleSave()}
+              disabled={!activeTab || !activeTab.dirty}
+              className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-30"
+            >
+              <Save className="w-3 h-3" /> Save
+            </button>
+            <button
+              onClick={() => setShowTerminal(!showTerminal)}
+              className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              <TerminalIcon className="w-3 h-3" /> Terminal
+            </button>
+          </div>
+        }
       />
 
       {/* Main IDE Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Panel */}
         <div className="flex shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-raised)]" style={{ width: sidebarWidth }}>
-          <div className="flex items-center gap-1.5 border-b border-[var(--color-border-muted)] px-2 py-1.5">
+          <div className="flex items-center gap-1 border-b border-[var(--color-border-muted)] px-1.5 py-1">
             <select
               value={activePanel}
               onChange={(e) => setActivePanel(e.target.value as typeof activePanel)}
               aria-label="Workspace panel"
-              className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-1 text-[11px] font-semibold text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)]"
+              className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)]"
             >
               <optgroup label="Axiom">
                 {axiomIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}

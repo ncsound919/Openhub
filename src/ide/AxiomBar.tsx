@@ -20,12 +20,18 @@ export function AxiomBar({
   axiomOnline,
   onRequestChat,
   pipeline,
+  leading,
+  trailing,
 }: {
   projectName?: string;
   hasProject: boolean;
   axiomOnline: boolean | null;
   onRequestChat: () => void;
   pipeline: PipelineController;
+  /** Breadcrumb / project identity, rendered at the far left of the one bar. */
+  leading?: React.ReactNode;
+  /** File actions (Save/Terminal), rendered at the far right of the one bar. */
+  trailing?: React.ReactNode;
 }) {
   const { job, starting, running } = pipeline;
   const awaiting = job?.status === 'awaiting-approval';
@@ -77,8 +83,9 @@ export function AxiomBar({
           : job.error || 'Pipeline failed';
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2">
-      <div className="flex shrink-0 items-center gap-2.5">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1.5">
+      {leading}
+      <div className="flex shrink-0 items-center gap-2">
         <StatusLight
           state={axiomOnline === null ? 'idle' : axiomOnline ? 'ok' : 'offline'}
           label={axiomOnline === null ? 'Axiom…' : axiomOnline ? 'Axiom' : 'Axiom offline'}
@@ -196,6 +203,7 @@ export function AxiomBar({
           Reports <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
+      {trailing}
     </div>
   );
 }

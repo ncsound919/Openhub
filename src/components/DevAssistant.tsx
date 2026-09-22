@@ -1556,7 +1556,7 @@ export function DevAssistant({ embedded = false }: { embedded?: boolean } = {}) 
       <div className="flex h-full w-full min-h-0 flex-col bg-surface-base">
         {/* Single Axiom surface: chat is the one input; these chips are
             shortcuts into the same pipeline, not separate tools. */}
-        <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-1.5">
           <Bot className="w-4 h-4 text-orange-400" />
           <span className="text-sm font-bold text-[var(--color-text-primary)]">Axiom</span>
           <span className="hidden xl:inline text-[10px] text-gray-500">chat · loops · audit · compose</span>
