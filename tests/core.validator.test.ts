@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { createFinding, type Finding } from '../src/services/findings';
 import { validateFinding, validateFindings, type ValidationContext } from '../src/core/validator';
+import { runAuditCore } from '../src/services/auditCore';
 
 function f(over: Record<string, unknown> = {}): Finding {
   return createFinding({
@@ -114,12 +118,56 @@ describe('validateFinding — dependency reachability', () => {
   // this split, a README that merely NAMES a vulnerable symbol would confirm
   // the CVE -- a false-positive amplifier, the opposite of this module's purpose.
   it('confirms a doc-located finding on existence alone, not on prose', () => {
-    const v = validateFinding(
-      f({ category: 'docs', location: { file: 'README.md', line: 3 } }),
-      ctx({ 'README.md': '# Title\n\nsome prose\n' }),
-    );
-    expect(v.verdict).not.toBe('stale');
-    expect(v.evidence.some((e) => e.kind === 'file-exists')).toBe(true);
+    // Exercises runAuditCore, not a hand-built map: the previous version of this
+    // test supplied a `files` map that already contained README.md and no
+    // codeFiles, so it passed with the entire commit reverted.
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'openhub-validator-'));
+    try {
+      fs.writeFileSync(path.join(d, 'README.md'), '# Title\n\nprose\n');
+      const core = runAuditCore({
+        rootDir: d,
+        findings: [createFinding({
+          source: 'deep', dimension: 'docs', category: 'docs-shape', severity: 'info',
+          confidence: 0.5, determinism: 'static',
+          location: { file: 'README.md', line: 3 }, evidence: 'probe',
+        })],
+        persist: false,
+      });
+      expect(core.validation.stale).toBe(0);
+      expect(core.validation.droppedStale).toBe(0);
+      expect(core.validation.confirmed).toBe(1);
+    } finally {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it('runAuditCore keeps markdown out of codeFiles', () => {
+    // The load-bearing invariant of the codeFiles split, previously untested: if
+    // `codeFiles:` were deleted from runAuditCore, every other test here would
+    // still pass and prose would silently become load-bearing evidence again.
+    //
+    // Uses the INJECTION path deliberately. runAuditCore takes no packageSymbols
+    // param, so a CVE-symbol finding routed through it would never reach the
+    // symbol check at all -- an earlier version of this test did exactly that and
+    // asserted a vacuous truth. The injection heuristic needs no injected context,
+    // and a doc containing both a sink and a tainted source confirms if and only
+    // if markdown reached codeFiles.
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'openhub-validator-'));
+    try {
+      fs.writeFileSync(path.join(d, 'README.md'), '# X\n\n```js\neval(req.body.x)\n```\n');
+      const core = runAuditCore({
+        rootDir: d,
+        findings: [createFinding({
+          source: 'deep', dimension: 'security', category: 'injection:sqli', severity: 'high',
+          confidence: 0.5, determinism: 'static',
+          location: { file: 'README.md', line: 4 }, evidence: 'eval(req.body.x)',
+        })],
+        persist: false,
+      });
+      expect(core.validation.items[0]?.verdict).not.toBe('confirmed');
+    } finally {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
   });
 
   it('does NOT confirm a CVE from a symbol that appears only in documentation', () => {

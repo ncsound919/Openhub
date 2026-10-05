@@ -927,12 +927,6 @@ export function ocrScorerResult(rep?: OssReviewReport, error?: string): ScorerRe
   const reviewable = ocr.preview?.reviewable_count ?? 0;
   const llmConfigured = rep?.llmReview?.configured === true;
   const findings = countFindings(rep?.llmReview?.findings);
-  // Zero-evidence guard. With reviewable === 0 and no findings, line 934 computed
-  // perFile = 0 and returned a perfect 100 -- a clean LLM review of a file set
-  // that did not exist. Same defect class as git_history and codegang.
-  if (reviewable === 0 && findings === 0) {
-    return honest('ocr', 'no reviewable files and no findings — nothing was reviewed');
-  }
   // Normalize by review surface: a raw count saturates any non-trivial change set
   // at 0 (e.g. 66 findings -> 0). Findings per reviewed file stays informative:
   // ~1 finding/file => 80, 5+/file => 0.
@@ -1162,6 +1156,13 @@ export async function runCodeGangScorer(targetDir?: string): Promise<ScorerResul
   }
   const complexities = files.map((f) => (typeof f.complexity === 'number' ? f.complexity : 0));
   const avg = complexities.length ? complexities.reduce((a, b) => a + b, 0) / complexities.length : 0;
+  // A file entry with no numeric complexity is coerced to 0 above, so a map of
+  // such entries averages to 0 and scores a perfect 100 -- perfect architecture
+  // health from having measured nothing. `files.length` is not a sufficient
+  // guard: the condition is that no complexity was MEASURED.
+  if (!files.some((f) => typeof f.complexity === 'number')) {
+    return honest('codegang', 'CodeGang returned no numeric complexity for any file');
+  }
   const score = Math.max(0, Math.round(100 - Math.max(0, avg - 10) * 5));
 
   const findings: Finding[] = [];

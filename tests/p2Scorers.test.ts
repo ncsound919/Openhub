@@ -266,8 +266,14 @@ describe('static scorers produce real evidence', () => {
     commit(dir, 'add documentation for the project');
 
     const r = await runGitHistoryScorer(dir, { preflight: preflight([{ name: 'gitleaks', available: true }]) });
-    // Whatever the score, it must not be the "examined nothing" refusal.
+    // A real report means the authoritative scanner ran, so the zero-evidence
+    // guard must not fire and a score must be produced. The previous version
+    // asserted only on an error substring, which cannot distinguish a successful
+    // scan from a failed one -- and `gitleaksRan` used to be set BEFORE the run.
     expect(r.error ?? '').not.toContain('no tracked text files matched');
+    expect(typeof r.score).toBe('number');
+    const details = r.details as { notes?: string[] } | undefined;
+    expect((details?.notes ?? []).join(' ')).toContain('gitleaks history scan');
   }, 60_000);
 
   it('api_contract detects a removed operation vs HEAD', async () => {

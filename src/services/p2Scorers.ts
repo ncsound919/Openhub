@@ -758,12 +758,21 @@ export async function runGitHistoryScorer(
   // guard below has to know whether the authoritative scanner actually ran.
   let gitleaksRan = false;
   if (ctx?.preflight && toolReady(ctx.preflight, 'gitleaks')) {
-    gitleaksRan = true;
     const reportPath = path.join(os.tmpdir(), `openhub-gitleaks-${process.pid}-${Date.now()}.json`);
     const configPath = path.join(targetDir, '.gitleaks.toml');
     const args = ['detect', '--no-banner', '--report-format', 'json', '--report-path', reportPath];
     if (fs.existsSync(configPath)) args.push('--config', configPath);
-    await runLocalCommand('gitleaks', args, { cwd: targetDir, timeoutMs: 180_000 });
+    const run = await runLocalCommand('gitleaks', args, { cwd: targetDir, timeoutMs: 180_000 });
+    // gitleaksRan must mean "the authoritative scanner produced a report", not
+    // "preflight said the binary exists". runLocalCommand never throws -- it
+    // resolves {ok:false} on non-zero exit, ENOENT or timeout -- so setting this
+    // before the run made the zero-evidence guard bypassable by exactly the
+    // failure it exists to catch: a failed scan left no file, parsed stayed
+    // null, and penaltyScore(0,70) returned a clean 100.
+    gitleaksRan = run.ok && fs.existsSync(reportPath);
+    if (!gitleaksRan) {
+      notes.push(`gitleaks did not produce a report (ok=${run.ok}, timedOut=${run.timedOut ?? false})`);
+    }
     const parsed = parseJson<Array<{ RuleID?: string; Description?: string; File?: string; StartLine?: number; Secret?: string }>>(readText(reportPath, 4_000_000));
     try { fs.rmSync(reportPath, { force: true }); } catch { /* best-effort */ }
     if (Array.isArray(parsed)) {
