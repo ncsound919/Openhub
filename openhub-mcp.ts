@@ -280,6 +280,60 @@ function summarizeReport(report: AuditReport): Record<string, unknown> {
     scope: { mode: report.scope.mode, changedFiles: report.scope.changedFiles?.length ?? 0 },
     stage: report.stage ?? null,
     gate: report.gate ?? null,
+    // ── Coverage honesty ────────────────────────────────────────────────────
+    // These were all already on the report and were simply not returned, so a
+    // caller could read `status: "pass"` with no way to see that the audit was
+    // mostly blind. `coveragePercent` alone was unread: nothing consumed it.
+    // A score earned from 1 of 12 dimensions looked identical to a clean bill of
+    // health, because uncovered weight never entered the score denominator
+    // (auditSuite.ts:441-445).
+    scorersRun: report.scorersRun,
+    scorersTotal: report.scorersTotal,
+    unavailableScorers: report.unavailableScorers,
+    requiredUnavailableScorers: report.requiredUnavailableScorers,
+    verdictReason: report.verdictReason ?? null,
+    verdictDetail: report.verdictDetail ?? null,
+    coverage: report.coverage
+      ? {
+          covered: report.coverage.covered,
+          partial: report.coverage.partial,
+          uncovered: report.coverage.uncovered,
+          total: report.coverage.total,
+          // Name what was not fully examined. A count alone does not tell a
+          // caller which toolchain is missing, which is the actionable part.
+          notFullyExamined: report.coverage.dimensions
+            .filter((d) => d.status !== "covered")
+            .map((d) => ({
+              dimension: d.dimension,
+              status: d.status,
+              ...(d.reason ? { reason: d.reason.slice(0, 200) } : {}),
+            })),
+        }
+      : null,
+    // promote-gate requests `core: true` (promote-gate-mcp.ts:247), which runs
+    // the audit core and computes its own PR/release gate -- but this function
+    // never returned report.core, so the entire core run was computed and then
+    // discarded before it reached the promotion decision. Summarised rather than
+    // dumped: `records` carries one entry per finding.
+    core: report.core
+      ? {
+          validation: {
+            confirmed: report.core.validation.confirmed,
+            unconfirmed: report.core.validation.unconfirmed,
+            stale: report.core.validation.stale,
+            notApplicable: report.core.validation.notApplicable,
+            droppedStale: report.core.validation.droppedStale,
+          },
+          lifecycle: {
+            created: report.core.lifecycle.created,
+            persisting: report.core.lifecycle.persisting,
+            reopened: report.core.lifecycle.reopened,
+            resolvedNow: report.core.lifecycle.resolvedNow,
+            suppressed: report.core.lifecycle.suppressed,
+          },
+          gate: report.core.gate,
+        }
+      : null,
     counts: {
       total: report.findings.length,
       returned: findings.length,
