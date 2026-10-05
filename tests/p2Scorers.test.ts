@@ -240,6 +240,36 @@ describe('static scorers produce real evidence', () => {
     expect(r.error).toContain('git');
   });
 
+  it('git_history reports unavailable when it examined nothing', async () => {
+    // Regression test for a false-clean signal. The extension filter at
+    // p2Scorers.ts:747 excludes .md, so a docs-only repo scanned zero files. The
+    // empty scan was recorded only as a note and the scorer still returned
+    // penaltyScore(0, 70) === 100. Measured consequence: that single 100 was the
+    // whole basis for a grade-A verdict at 8% coverage on a markdown-only repo.
+    const dir = tmpProject({ 'README.md': '# hi\n', 'docs/guide.md': '# guide\n' });
+    git(dir, ['init', '-q']);
+    // A descriptive message, so commit-hygiene contributes no finding either.
+    commit(dir, 'add documentation for the project');
+
+    const r = await runGitHistoryScorer(dir, preflight([{ name: 'gitleaks', available: false }]));
+    expect(r.score).toBeNull();
+    expect(r.status).toBe('unavailable');
+    expect(r.error).toContain('no tracked text files matched the scan set');
+    expect(r.summary).toContain('nothing examined');
+  }, 60_000);
+
+  it('git_history still scores when gitleaks swept the history over zero text files', async () => {
+    // The zero-evidence guard must NOT fire when the authoritative history scan
+    // actually ran: that is real evidence, so the scorer reports a score.
+    const dir = tmpProject({ 'README.md': '# hi\n' });
+    git(dir, ['init', '-q']);
+    commit(dir, 'add documentation for the project');
+
+    const r = await runGitHistoryScorer(dir, preflight([{ name: 'gitleaks', available: true }]));
+    // Whatever the score, it must not be the "examined nothing" refusal.
+    expect(r.error ?? '').not.toContain('nothing examined');
+  }, 60_000);
+
   it('api_contract detects a removed operation vs HEAD', async () => {
     const dir = tmpProject({
       'openapi.yaml': 'openapi: 3.0.0\npaths:\n  /a:\n    get:\n      summary: a\n  /b:\n    get:\n      summary: b\n',

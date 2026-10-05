@@ -927,6 +927,12 @@ export function ocrScorerResult(rep?: OssReviewReport, error?: string): ScorerRe
   const reviewable = ocr.preview?.reviewable_count ?? 0;
   const llmConfigured = rep?.llmReview?.configured === true;
   const findings = countFindings(rep?.llmReview?.findings);
+  // Zero-evidence guard. With reviewable === 0 and no findings, line 934 computed
+  // perFile = 0 and returned a perfect 100 -- a clean LLM review of a file set
+  // that did not exist. Same defect class as git_history and codegang.
+  if (reviewable === 0 && findings === 0) {
+    return honest('ocr', 'no reviewable files and no findings — nothing was reviewed');
+  }
   // Normalize by review surface: a raw count saturates any non-trivial change set
   // at 0 (e.g. 66 findings -> 0). Findings per reviewed file stays informative:
   // ~1 finding/file => 80, 5+/file => 0.
@@ -1148,6 +1154,12 @@ export async function runCodeGangScorer(targetDir?: string): Promise<ScorerResul
 
   const files = Array.isArray(body.repoMap.files) ? body.repoMap.files : [];
   const deps = Array.isArray(body.repoMap.dependencies) ? body.repoMap.dependencies.length : 0;
+  // Zero-evidence guard. An empty repo map made `avg` 0, which made the score 100
+  // at line 1153 -- a perfect architecture score derived from having measured
+  // nothing. Same defect class as git_history in p2Scorers.ts.
+  if (files.length === 0) {
+    return honest('codegang', 'CodeGang returned a repo map with no files');
+  }
   const complexities = files.map((f) => (typeof f.complexity === 'number' ? f.complexity : 0));
   const avg = complexities.length ? complexities.reduce((a, b) => a + b, 0) / complexities.length : 0;
   const score = Math.max(0, Math.round(100 - Math.max(0, avg - 10) * 5));

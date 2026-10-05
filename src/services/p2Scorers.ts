@@ -753,7 +753,12 @@ export async function runGitHistoryScorer(
   if (scanned === 0) notes.push('no tracked text files scanned');
 
   // 4. gitleaks history scan when available (authoritative).
+  // Tracked because `scanned === 0` does NOT mean this scorer did nothing: the
+  // history scan and the commit-hygiene pass both run regardless. The zero-evidence
+  // guard below has to know whether the authoritative scanner actually ran.
+  let gitleaksRan = false;
   if (ctx?.preflight && toolReady(ctx.preflight, 'gitleaks')) {
+    gitleaksRan = true;
     const reportPath = path.join(os.tmpdir(), `openhub-gitleaks-${process.pid}-${Date.now()}.json`);
     const configPath = path.join(targetDir, '.gitleaks.toml');
     const args = ['detect', '--no-banner', '--report-format', 'json', '--report-path', reportPath];
@@ -784,6 +789,24 @@ export async function runGitHistoryScorer(
 
   const secrets = findings.filter((f) => f.category.startsWith('secret')).length;
   const large = findings.filter((f) => f.category === 'large-file').length;
+  // Zero-evidence guard. Without this, penaltyScore(0, 70) returned 100 for a
+  // scorer that had read NOTHING: the extension filter at line 747 excludes .md,
+  // so on a docs-only repo `scanned` was 0, the empty scan was recorded only as a
+  // note (line 753), and the run still reported a perfect security score. That
+  // single 100 was the entire basis for a grade-A verdict at 8% coverage.
+  //
+  // The condition is deliberately narrower than `scanned === 0`: findings may
+  // already exist from the large-file or commit-hygiene passes, and gitleaks may
+  // have run and swept the history. Any of those is real evidence, so the scorer
+  // scores. It reports unavailable only when it genuinely examined nothing --
+  // matching the idiom already used by `a11y` at line 456.
+  if (scanned === 0 && findings.length === 0 && !gitleaksRan) {
+    return honest(
+      'git_history',
+      'no tracked text files matched the scan set and no history scanner ran',
+      'git history: nothing examined',
+    );
+  }
   return attach({
     scorer: 'git_history',
     score: penaltyScore(secrets * 8 + large * 2 + (vague.length ? 2 : 0), 70),
