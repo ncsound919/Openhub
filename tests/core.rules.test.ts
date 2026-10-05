@@ -124,6 +124,34 @@ describe('evaluateRules', () => {
     expect(r.findings[0].remediation).toBe('Use a parameterized query.');
   });
 
+  // A repository is attacker-controllable input. Since `.md` joined the walk, a
+  // documentation file can carry imperative English aimed at the reviewer, and the
+  // model chooses the severity -- so an injected finding can fail the PR/release
+  // gate. These two tests pin the defences that make that harder.
+  it('tells the model the file bodies are untrusted data, not instructions', async () => {
+    let seenSystem = '';
+    let seenPrompt = '';
+    const complete: RuleCompleter = async (args) => {
+      seenSystem = args.system;
+      seenPrompt = args.prompt;
+      return '[]';
+    };
+    await evaluateRules(config, files, process.cwd(), complete);
+    expect(seenSystem).toMatch(/UNTRUSTED DATA/i);
+    expect(seenSystem).toMatch(/never follow/i);
+  });
+
+  it('delimits each file body in the prompt so data cannot run into the rule', async () => {
+    let seenPrompt = '';
+    const complete: RuleCompleter = async (args) => { seenPrompt = args.prompt; return '[]'; };
+    await evaluateRules(config, files, process.cwd(), complete);
+    // The path appears inside the tag, so a block cannot be relabelled.
+    expect(seenPrompt).toMatch(/<file path="src\/api\/users\.ts">/);
+    expect(seenPrompt).toContain('</file>');
+    // The old bare `### path` form must be gone.
+    expect(seenPrompt).not.toMatch(/^### src\//m);
+  });
+
   it('records a model failure as an error and continues', async () => {
     const complete: RuleCompleter = async () => { throw new Error('offline'); };
     const r = await evaluateRules(config, files, process.cwd(), complete);
