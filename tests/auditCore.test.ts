@@ -11,6 +11,7 @@ import {
   saveLifecycle,
   runRulesForRepo,
   makeTextCompleter,
+  isDocFile,
 } from '../src/services/auditCore';
 
 const dirs: string[] = [];
@@ -56,6 +57,33 @@ describe('collectCoreFiles / readManifestDependencies', () => {
     // runAuditCore keeps it OUT of ValidationContext.codeFiles, so prose still
     // cannot satisfy a semantic check.
     expect(files).toEqual(['README.md', 'src/a.ts']);
+  });
+
+  it('collects the config files the secret scanner actually scans', () => {
+    // Regression test for silently-deleted security findings. git_history reads 20
+    // extensions; eight of them were absent here, so scanSecretContent emitted a
+    // finding with location {file,line} and runAuditCore then reported it `stale`
+    // and dropped it. The suite's only real secret-finder had its best findings
+    // deleted by the core.
+    const d = tmpDir();
+    for (const f of ['.env', 'config.json', 'settings.yaml', 'deploy.sh', 'notes.txt']) {
+      write(d, f, 'x');
+    }
+    const files = collectCoreFiles(d).map((f) => f.file).sort();
+    expect(files).toEqual(['.env', 'config.json', 'deploy.sh', 'notes.txt', 'settings.yaml']);
+  });
+
+  it('does not collect markdown as a secret-scannable source, but does locate it', () => {
+    // The asymmetry is deliberate and is the whole safety property: a doc path must
+    // resolve (so a finding may cite it) while prose must never become
+    // load-bearing evidence. isDocFile is the single source of truth for that rule.
+    const d = tmpDir();
+    write(d, 'README.md', '# hi');
+    write(d, 'app.ts', 'export const x = 1;\n');
+    const files = collectCoreFiles(d).map((f) => f.file).sort();
+    expect(files).toContain('README.md');
+    expect(isDocFile('README.md')).toBe(true);
+    expect(isDocFile('app.ts')).toBe(false);
   });
 
   it('collects the extensions the LANGUAGES registry supports', () => {

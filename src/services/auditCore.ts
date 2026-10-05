@@ -16,6 +16,27 @@ import { reconcileLifecycle, gateDecision, type FindingTransition, type GateResu
 import { validateFinding, type Reachability, type ValidationContext, type ValidationVerdict } from '../core/validator.js';
 import type { Finding } from './findings.js';
 
+/**
+ * Files that legitimately carry secrets and are therefore worth collecting even
+ * though they are not source code.
+ *
+ * Measured gap: git_history's secret scan (p2Scorers.ts) reads 20 extensions,
+ * eight of which CORE_EXTENSIONS did not collect -- .env, .ini, .json, .toml,
+ * .yaml, .sh, .txt, .properties. scanSecretContent emits findings carrying
+ * location {file,line}, runAuditCore then looked those paths up in the walk's
+ * map, did not find them, and reported them `stale` before `droppedStale`
+ * discarded them. So the only tool in the suite that finds real secrets had its
+ * best findings silently deleted by the core -- the same defect class as the .md
+ * exclusion, one character class over.
+ *
+ * Deliberately NOT added: `.md`. A credential-shaped string in documentation is
+ * usually an example, and runRulesForRepo feeds these files to an LLM; prose must
+ * never become load-bearing evidence. See the codeFiles split in validator.ts.
+ */
+const CORE_EXTRA_EXTENSIONS = [
+  '.env', '.ini', '.json', '.toml', '.yaml', '.yml', '.sh', '.txt', '.properties',
+];
+
 const CORE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.java', '.rb',
   '.php', '.cs', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cc', '.sol', '.vue', '.svelte',
@@ -34,6 +55,9 @@ const CORE_EXTENSIONS = new Set([
   // Consequence to be aware of: runRulesForRepo (line 276) shares this walker, so
   // plain-English rules without a restrictive `include` glob will now see prose.
   '.md',
+  // Config and secret-bearing files git_history actually scans. Without these,
+  // its findings were emitted with a location and then dropped as stale.
+  ...CORE_EXTRA_EXTENSIONS,
 ]);
 const CORE_SKIP_DIRS = new Set([
   'node_modules', 'dist', 'build', '.git', 'coverage', '.next', '.turbo', 'vendor',
@@ -41,6 +65,11 @@ const CORE_SKIP_DIRS = new Set([
 ]);
 const CORE_MAX_FILES = 800;
 const CORE_MAX_FILE_BYTES = 512 * 1024;
+
+/** Is this path a documentation file? Single source of truth for the codeFiles split. */
+export function isDocFile(file: string): boolean {
+  return file.toLowerCase().endsWith('.md');
+}
 
 /** Walk a repo and return source files (repo-relative path → content), bounded. */
 export function collectCoreFiles(rootDir: string, opts: { maxFiles?: number; maxFileBytes?: number } = {}): RuleEvalFile[] {
@@ -57,12 +86,22 @@ export function collectCoreFiles(rootDir: string, opts: { maxFiles?: number; max
     }
     for (const entry of entries) {
       if (out.length >= maxFiles) return;
+      // Dot-DIRECTORIES are skipped (.git, .next), but dot-FILES must not be:
+      // `.env` is the single most likely place for a committed secret, and the
+      // scan set includes it. Skipping dot-files here is what made this test fail
+      // and is the same "filtered on a rule I did not mean" shape as the .md bug.
       if (entry.name.startsWith('.') && entry.isDirectory()) continue;
       if (entry.isDirectory()) {
         if (CORE_SKIP_DIRS.has(entry.name)) continue;
         walk(path.join(dir, entry.name), depth + 1);
       } else if (entry.isFile()) {
-        if (!CORE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
+        // `path.extname('.env')` is '' -- the whole name IS the extension. Without this
+        // case a committed .env, the single most likely place for a secret, was
+        // skipped even though '.env' is in the scan set. Caught by a test that
+        // asserted on a real .env, not by reading the code.
+        const ext = path.extname(entry.name).toLowerCase();
+        const bareExt = ext === '' && entry.name.toLowerCase();
+        if (!CORE_EXTENSIONS.has(ext) && !(bareExt && CORE_EXTENSIONS.has(bareExt))) continue;
         const abs = path.join(dir, entry.name);
         try {
           if (fs.statSync(abs).size > maxFileBytes) continue;
@@ -207,7 +246,10 @@ export function runAuditCore(params: AuditCoreRunParams): AuditCoreResult {
     // documentation path, but every semantic check (CVE symbol presence, import
     // detection, injection sink/source) must read this subset -- otherwise a
     // sentence in a README confirms a vulnerability.
-    codeFiles: new Map(files.filter((f) => !f.file.toLowerCase().endsWith('.md')).map((f) => [f.file, f.content])),
+    // isDocFile, not an inline endsWith('.md'): the doc-file rule is now encoded in
+    // two places (the extension set and this filter) and a third inline copy is
+    // how they drift. Verified by a test asserting markdown is absent here.
+    codeFiles: new Map(files.filter((f) => !isDocFile(f.file)).map((f) => [f.file, f.content])),
     directDependencies: readManifestDependencies(params.rootDir),
   };
 
