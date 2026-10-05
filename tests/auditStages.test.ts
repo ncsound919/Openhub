@@ -63,6 +63,81 @@ describe('resolveAuditPlan', () => {
   });
 });
 
+// These existed as config keys with doc comments describing behaviour that no
+// code implemented: `git grep config.tools` returned only the declaration and
+// the parse site. Every case below failed before the toggles were wired into
+// resolveAuditPlan.
+describe('resolveAuditPlan tools toggles', () => {
+  it('removes a disabled scorer from a preset that contains it', () => {
+    // 'deep' is in the standard preset; before the fix it ran regardless.
+    const plan = resolveAuditPlan({ preset: 'standard', tools: { disabled: ['deep'] } });
+    expect(plan.scorers).not.toContain('deep');
+    expect(plan.scorers).toContain('sca');
+  });
+
+  it('lets disabled win over enabled when a name is in both', () => {
+    const plan = resolveAuditPlan({
+      preset: 'standard',
+      tools: { enabled: ['sca', 'deep'], disabled: ['deep'] },
+    });
+    expect(plan.scorers).toEqual(['sca']);
+  });
+
+  it('restricts the run to the enabled list', () => {
+    const plan = resolveAuditPlan({ preset: 'standard', tools: { enabled: ['lint', 'typecheck'] } });
+    // Preset order is preserved, not the order written in the toggle: the toggle
+    // filters an existing list rather than defining one.
+    expect(plan.scorers).toEqual(['typecheck', 'lint']);
+  });
+
+  it('cannot ADD a scorer the preset does not contain', () => {
+    // enabled is a filter, not a union: a repo must not be able to silently
+    // escalate a quick commit gate into the full suite.
+    const plan = resolveAuditPlan({ preset: 'quick', tools: { enabled: ['deep', 'perf'] } });
+    expect(plan.scorers).toEqual([]);
+  });
+
+  it('still filters an explicit scorers array', () => {
+    const plan = resolveAuditPlan({ scorers: ['lint', 'deep'], tools: { disabled: ['deep'] } });
+    expect(plan.scorers).toEqual(['lint']);
+  });
+
+  it('leaves the plan untouched when no toggles are supplied', () => {
+    expect(resolveAuditPlan({ preset: 'quick' }).scorers)
+      .toEqual(resolveAuditPlan({ preset: 'quick', tools: { enabled: [], disabled: [] } }).scorers);
+  });
+
+  it('warns rather than silently ignoring a typo in a toggle', () => {
+    const warnings: string[] = [];
+    const onWarn = process.emitWarning;
+    process.emitWarning = ((msg: string) => { warnings.push(String(msg)); }) as typeof process.emitWarning;
+    try {
+      resolveAuditPlan({ preset: 'quick', tools: { disabled: ['typo_scorer'] } });
+    } finally {
+      process.emitWarning = onWarn;
+    }
+    expect(warnings.some((w) => w.includes('typo_scorer'))).toBe(true);
+    // A real scorer name must NOT warn, or the warning becomes noise.
+  });
+
+  it('distinguishes a tool toggle from a typo', () => {
+    // `reviewdog` is a genuine MCP tool (openhub_reviewdog_rdjson) that is not
+    // a scorer. Calling it an "unknown scorer" tells the reader their config is
+    // wrong when what is actually true is that the toggle cannot affect this
+    // lane. Those warrant different responses.
+    const warnings: string[] = [];
+    const onWarn = process.emitWarning;
+    process.emitWarning = ((msg: string) => { warnings.push(String(msg)); }) as typeof process.emitWarning;
+    try {
+      resolveAuditPlan({ preset: 'quick', tools: { disabled: ['reviewdog'] } });
+    } finally {
+      process.emitWarning = onWarn;
+    }
+    expect(warnings.some((w) => w.includes('reviewdog'))).toBe(true);
+    expect(warnings.every((w) => !w.includes('unknown scorer: reviewdog'))).toBe(true);
+  });
+});
+
 describe('evaluateAuditGate', () => {
   it('returns null without a stage (ad-hoc runs have no gate)', () => {
     expect(evaluateAuditGate(95, null)).toBeNull();

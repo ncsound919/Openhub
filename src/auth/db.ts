@@ -19,6 +19,12 @@ export function getDb(): Database.Database {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     db = new Database(pathToDb);
     db.pragma('journal_mode = WAL');
+    // Without this, any second process holding the same file -- the repo status
+    // ledger, which runs on a cron -- makes writes fail immediately with
+    // "database is locked" instead of waiting. That surfaced as an unhandled
+    // rejection that killed the server, which looks like a crash in the sampler
+    // but is the opposite: the sampler was fine and the server was the victim.
+    db.pragma('busy_timeout = 10000');
     db.pragma('foreign_keys = ON');
   }
   return db;
@@ -224,6 +230,40 @@ export function initializeDatabase() {
       last_analyzed_at TEXT,
       FOREIGN KEY (repo_id) REFERENCES repositories(id) ON DELETE CASCADE
     );
+
+    -- Observed state of each repo at a point in time. One row per repo, overwritten
+    -- in place, so it always answers "what is it right now". history lives in
+    -- repo_status_events below. health is derived by the observer, never asserted by
+    -- the caller, and health_reason is stored alongside it so a row can never say
+    -- "at-risk" without carrying the count that made it at-risk.
+    CREATE TABLE IF NOT EXISTS repo_status (
+      repo_id TEXT PRIMARY KEY,
+      branch TEXT,
+      head_sha TEXT,
+      dirty_count INTEGER,
+      has_remote INTEGER NOT NULL DEFAULT 0,
+      remote_url TEXT,
+      last_commit_at TEXT,
+      subject TEXT,
+      health TEXT NOT NULL DEFAULT 'unobserved',
+      health_reason TEXT NOT NULL DEFAULT 'never observed',
+      observed_at TEXT NOT NULL,
+      FOREIGN KEY (repo_id) REFERENCES repositories(id) ON DELETE CASCADE
+    );
+
+    -- Append-only. A row is written only when a WATCHED field actually changed, so an
+    -- unchanged tree appends nothing and the table stays a real change log rather
+    -- than a heartbeat that records every run as a diff.
+    CREATE TABLE IF NOT EXISTS repo_status_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo_id TEXT NOT NULL,
+      observed_at TEXT NOT NULL,
+      field TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      note TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (repo_id) REFERENCES repositories(id) ON DELETE CASCADE
+    );
   `);
 
   // Every hot lookup below was a full table scan.
@@ -235,11 +275,67 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_user    ON audit_logs(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_synced_repos_user  ON github_synced_repos(user_id);
     CREATE INDEX IF NOT EXISTS idx_webhooks_user      ON webhooks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_repo_status_health ON repo_status(health);
+    CREATE INDEX IF NOT EXISTS idx_repo_events_repo   ON repo_status_events(repo_id, id DESC);
   `);
 
   migrateUsersTable(db);
+  migrateRepoStatusTables(db);
 
   console.log('[DB] Database initialized at', dbPath());
+}
+
+/** The status ledger was first created by repo-status-ledger.mjs, which picked
+ *  its own column names. `CREATE TABLE IF NOT EXISTS` is then a no-op against
+ *  that legacy shape, so the canonical columns have to be added by hand or the
+ *  read routes fail with "no such column" on any database that already has the
+ *  ledger. Legacy duplicates (full_path/name, last_commit_subj, at) are kept:
+ *  dropping them would discard the only rows the ledger has.
+ *
+ *  This is the whole class of bug in one function -- a schema created outside
+ *  the migration file means the migration file's version of it is never
+ *  exercised, so nothing notices the two disagree. */
+function migrateRepoStatusTables(db: Database.Database): void {
+  const cols = (t: string) => db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string }>;
+  const has = (t: string, name: string) => cols(t).some((c) => c.name === name);
+  const add = (t: string, name: string, decl: string) => {
+    if (!has(t, name)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${name} ${decl}`);
+  };
+
+  add('repo_status', 'branch', 'TEXT');
+  add('repo_status', 'head_sha', 'TEXT');
+  add('repo_status', 'dirty_count', 'INTEGER');
+  add('repo_status', 'has_remote', 'INTEGER NOT NULL DEFAULT 0');
+  add('repo_status', 'remote_url', 'TEXT');
+  add('repo_status', 'last_commit_at', 'TEXT');
+  add('repo_status', 'subject', 'TEXT');
+  add('repo_status', 'health', "TEXT NOT NULL DEFAULT 'unobserved'");
+  add('repo_status', 'health_reason', "TEXT NOT NULL DEFAULT 'never observed'");
+  add('repo_status', 'observed_at', 'TEXT');
+  // Backfill from the legacy columns so a migrated row keeps its measurement
+  // instead of reporting "unobserved" until the next sample. Guarded on the
+  // legacy column, not on the new one: `subject` was just added above, so
+  // testing it here is always true and the backfill never runs.
+  if (has('repo_status', 'last_commit_subj')) {
+    db.exec('UPDATE repo_status SET subject = last_commit_subj WHERE subject IS NULL');
+  }
+  db.exec("UPDATE repo_status SET observed_at = datetime('now') WHERE observed_at IS NULL");
+
+  add('repo_status_events', 'observed_at', 'TEXT');
+  add('repo_status_events', 'field', "TEXT NOT NULL DEFAULT ''");
+  add('repo_status_events', 'old_value', 'TEXT');
+  add('repo_status_events', 'new_value', 'TEXT');
+  add('repo_status_events', 'note', "TEXT NOT NULL DEFAULT ''");
+  if (has('repo_status_events', 'at')) {
+    db.exec('UPDATE repo_status_events SET observed_at = at WHERE observed_at IS NULL');
+  }
+  db.exec("UPDATE repo_status_events SET observed_at = datetime('now') WHERE observed_at IS NULL");
+
+  // health NOT NULL DEFAULT keeps a row readable; a null health would break the
+  // UI's bucketing, which treats anything not in {ok,dirty,at-risk,unbacked-up,
+  // unreadable} as unobserved.
+  db.exec("UPDATE repo_status SET health = 'unobserved' WHERE health IS NULL OR health = ''");
+  db.exec("UPDATE repo_status SET health_reason = 'never observed' WHERE health_reason IS NULL OR health_reason = ''");
 }
 
 /** Additive, idempotent column migrations (SQLite has no ADD COLUMN IF NOT

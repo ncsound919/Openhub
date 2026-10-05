@@ -75,11 +75,15 @@ export const TOOLS: ToolDef[] = [
   {
     name: "openhub_audit_run",
     description:
-      "Run OpenHub's audit suite against a local directory (reporank, grader, The Deep, SonarQube, SCA/secrets, IaC, typecheck, lint, tests, and more). Pick a preset for depth (quick/standard/deep/release) or a build stage (pre-commit/pr/merge/nightly/release) to run the right gate and feed the learning loop. Returns the reconciled score, gate verdict, per-scorer outcomes, and top findings. A tool that is not configured is reported as unavailable, never scored as zero.",
+      "Run OpenHub's audit suite against a local directory (reporank, grader, The Deep, SonarQube, SCA/secrets, IaC, typecheck, lint, tests, and more). Pick a preset for depth (quick/standard/deep/release) or a build stage (pre-commit/pr/merge/nightly/release) to run the right gate and feed the learning loop. Returns the reconciled score, gate verdict, per-scorer outcomes, and top findings. A tool that is not configured is reported as unavailable, never scored as zero. Pass _timeoutMs to raise this call's deadline for a long whole-tree run; on a deadline the reply carries partial:true rather than nothing.",
     inputSchema: {
       type: "object",
       properties: {
         target_dir: { type: "string", description: "Absolute path to the local checkout to audit." },
+        _timeoutMs: {
+          type: "number",
+          description: "Optional per-call deadline in ms. Higher than the server default for a whole-tree run; on expiry the reply is an error with data.partial === true.",
+        },
         repo_url: { type: "string", description: "Optional GitHub URL (owner/repo) for the LLM repo graders." },
         scorers: {
           type: "array",
@@ -469,7 +473,27 @@ function registryQuery(args: Record<string, unknown>): RegistryQuery {
   };
 }
 
+/**
+ * Per-call deadline override, read from `_timeoutMs`. Stripped before the tool
+ * sees it so an underscore-prefixed field is never mistaken for an argument.
+ */
+function toolTimeoutMs(args: Record<string, unknown>): number {
+  const raw = args._timeoutMs;
+  if (raw === undefined) return DEFAULT_TOOL_TIMEOUT_MS;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`_timeoutMs must be a positive number of milliseconds (got ${JSON.stringify(raw)})`);
+  }
+  return n;
+}
+
 async function callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const { _timeoutMs: _ignored, ...toolArgs } = args;
+  void _ignored;
+  return withDeadline(name, () => dispatchTool(name, toolArgs), toolTimeoutMs(args));
+}
+
+async function dispatchTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
     case "openhub_audit_run": {
       const targetDir = requireTarget(args);
@@ -673,6 +697,57 @@ function toolResult(result: unknown): { content: Array<{ type: "text"; text: str
   return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
 }
 
+/**
+ * How long a tool call may run before it is cut short. Overridable per call
+ * with `_timeoutMs`, which is how a caller asks for a long audit without
+ * needing the whole MCP server's timeout raised for every tool.
+ */
+const DEFAULT_TOOL_TIMEOUT_MS = Number(process.env.OPENHUB_TOOL_TIMEOUT_MS ?? 540_000);
+
+/**
+ * Run a tool with a deadline. A timeout used to be a total loss: the MCP host
+ * gave up, the reply never arrived, and whatever the run had already computed
+ * was discarded. An audit is the one call where partial results are the most
+ * useful thing to return — the completed scorers are exactly what tells a
+ * reader where the run stopped.
+ *
+ * So the timeout produces a JSON-RPC error carrying `partial: true` and
+ * whatever finished, rather than silence. The scorer-level `honest()`/`status`
+ * contract is unchanged; this is only about not throwing away finished work.
+ */
+export async function withDeadline<T>(
+  name: string,
+  work: () => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return work();
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new ToolTimeout(name, timeoutMs)),
+      timeoutMs,
+    );
+    // Do not hold the event loop open on this timer alone.
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([work(), deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export class ToolTimeout extends Error {
+  readonly tool: string;
+  readonly timeoutMs: number;
+  constructor(tool: string, timeoutMs: number) {
+    super(`tool "${tool}" exceeded its ${timeoutMs}ms budget`);
+    this.name = "ToolTimeout";
+    this.tool = tool;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
 export async function handleRequest(req: JsonRpcRequest): Promise<JsonRpcResponse> {
   const { id, method, params } = req;
   try {
@@ -699,6 +774,19 @@ export async function handleRequest(req: JsonRpcRequest): Promise<JsonRpcRespons
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // A deadline is not an internal fault and must not read like one. -32001 is
+    // the "server took too long" code the host itself uses, so a caller that
+    // already handles it needs no new branch — and `partial: true` says plainly
+    // that whatever was returned is incomplete.
+    if (err instanceof ToolTimeout) {
+      return respondError(id, -32001, message, {
+        method,
+        partial: true,
+        tool: err.tool,
+        timeoutMs: err.timeoutMs,
+        note: "deadline reached; results are incomplete. Raise this tool's timeout and re-run, or narrow the request (preset/scorers).",
+      });
+    }
     return respondError(id, -32603, message || "Internal error", { method });
   }
 }

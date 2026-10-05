@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { handleRequest } from '../openhub-mcp';
+import { handleRequest, withDeadline, ToolTimeout } from '../openhub-mcp';
 import { runSonarQubeScorer } from '../src/services/auditSuite';
+import * as auditModule from '../src/services/auditSuite';
 
 type ToolCallResult = { content: Array<{ type: string; text: string }> };
 
@@ -68,6 +69,128 @@ describe('openhub-mcp', () => {
     });
     expect(res.error?.message).toContain('unknown tool');
   });
+});
+
+describe('tool deadlines', () => {
+  // The defect: a run that exceeded the host's cap replied with nothing at all.
+  // MCP -32001 with no payload — not even the scorers that had already
+  // finished, which are precisely what says where the run got to. For the one
+  // call whose whole job is to report on many tools, discarding completed work
+  // is the worst available failure mode.
+  //
+  // These use openhub_core_config rather than openhub_audit_run: it reads the
+  // repo's config from disk, so it does real work on a real path and can be
+  // made to exceed a tiny budget, without depending on which external scorers
+  // happen to be up.
+  const repo = (() => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'oh-deadline-'));
+    fs.writeFileSync(path.join(d, 'openhub.yaml'), 'version: 1\nsensitivity: high\n');
+    return d;
+  })();
+
+  // `requireTarget` rejects any path outside the configured repo roots, so the
+  // fixture has to be inside one. Restoring the previous value matters: this
+  // env var is read on every call in the rest of the file too.
+  const prevRoots = process.env.OPENHUB_MCP_TARGET_ROOTS;
+  process.env.OPENHUB_MCP_TARGET_ROOTS = os.tmpdir();
+  afterAll(() => {
+    if (prevRoots === undefined) delete process.env.OPENHUB_MCP_TARGET_ROOTS;
+    else process.env.OPENHUB_MCP_TARGET_ROOTS = prevRoots;
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+
+  const call = (args: Record<string, unknown>) => handleRequest({
+    jsonrpc: '2.0',
+    id: 90,
+    method: 'tools/call',
+    params: { name: 'openhub_core_config', arguments: args },
+  });
+
+  it('rejects a non-positive _timeoutMs rather than silently ignoring it', async () => {
+    const res = await call({ target_dir: repo, _timeoutMs: 0 });
+    expect(res.error?.message).toContain('_timeoutMs must be a positive number');
+  });
+
+  it('rejects a non-numeric _timeoutMs', async () => {
+    const res = await call({ target_dir: repo, _timeoutMs: 'soon' });
+    expect(res.error?.message).toContain('_timeoutMs must be a positive number');
+  });
+
+  it('completes normally when the deadline is generous', async () => {
+    const res = await call({ target_dir: repo, _timeoutMs: 60_000 });
+    // No deadline error, and the call really did run.
+    expect(res.error).toBeUndefined();
+    expect((res.result as ToolCallResult).content[0].text).toContain('config');
+  });
+
+  it('rejects with ToolTimeout when the budget is exceeded', async () => {
+    // The mechanism, directly. Driven through withDeadline rather than a real
+    // tool call because a 1ms budget against a config load is a race, and a
+    // test that depends on winning a race is a test that will flake.
+    await expect(withDeadline('demo', () => new Promise(() => {}), 20)).rejects.toBeInstanceOf(ToolTimeout);
+  }, 10_000);
+
+  it('lets work that finishes in time win the race', async () => {
+    await expect(withDeadline('demo', async () => 'done', 5_000)).resolves.toBe('done');
+  });
+
+  it('names the tool and the budget in the timeout error', async () => {
+    // "took too long" without naming which tool and how long is not actionable.
+    const err = await withDeadline('openhub_audit_run', () => new Promise(() => {}), 15)
+      .then(() => null, (e: unknown) => e as ToolTimeout);
+    expect(err).toBeInstanceOf(ToolTimeout);
+    expect(err?.tool).toBe('openhub_audit_run');
+    expect(err?.timeoutMs).toBe(15);
+    expect(err?.message).toContain('openhub_audit_run');
+    expect(err?.message).toContain('15ms');
+  }, 10_000);
+
+  it('does not leave the timer holding the event loop open', async () => {
+    // A per-call timer that is not unref'd keeps a short-lived process alive
+    // after its work is done — the kind of thing that makes a stdio server look
+    // hung when it has actually finished.
+    const settled = await withDeadline('demo', async () => 'ok', 60_000);
+    expect(settled).toBe('ok');
+    // If the timer were live this handle would still be pending.
+    expect((process as unknown as { _getActiveHandles: () => unknown[] })._getActiveHandles()
+      .filter((h) => String((h as { constructor?: { name?: string } })?.constructor?.name) === 'Timeout')).toHaveLength(0);
+  }, 10_000);
+
+  it('reports a deadline through handleRequest as -32001 with partial:true', async () => {
+    // The wire shape. Built through handleRequest so the -32603 catch arm is
+    // exercised: an unrecognised error type would be reported as an internal
+    // fault, telling the caller the server broke.
+    const slow = vi.spyOn(auditModule, 'executeAuditSuite').mockImplementation(
+      () => new Promise(() => {}) as never,
+    );
+    try {
+      const res = await handleRequest({
+        jsonrpc: '2.0',
+        id: 91,
+        method: 'tools/call',
+        params: { name: 'openhub_audit_run', arguments: { target_dir: repo, preset: 'quick', _timeoutMs: 25 } },
+      });
+      expect(res.error).toBeDefined();
+      expect(res.error?.code).toBe(-32001);
+      const data = res.error?.data as Record<string, unknown>;
+      expect(data.partial).toBe(true);
+      expect(data.tool).toBe('openhub_audit_run');
+      expect(data.timeoutMs).toBe(25);
+      // And it says what to do about it.
+      expect(String(data.note)).toMatch(/timeout|narrow/i);
+    } finally {
+      slow.mockRestore();
+    }
+  }, 30_000);
+
+  it('strips _timeoutMs before the tool sees it', async () => {
+    // Otherwise an underscore-prefixed control field could be mistaken for a
+    // real argument, and `additionalProperties: false` schemas would reject it.
+    const withOpt = await call({ target_dir: repo, _timeoutMs: 60_000 });
+    const without = await call({ target_dir: repo });
+    expect((withOpt.result as ToolCallResult).content[0].text)
+      .toBe((without.result as ToolCallResult).content[0].text);
+  }, 30_000);
 });
 
 describe('sonarqube scorer', () => {

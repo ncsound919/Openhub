@@ -105,8 +105,39 @@ export function browseRoots(
   const raw = String(env.OPENHUB_BROWSE_ROOTS ?? '').trim();
   const roots = raw
     ? raw.split(path.delimiter).map((s) => s.trim()).filter(Boolean)
-    : [homeDir];
-  return roots.map((r) => path.resolve(r));
+    // No OPENHUB_BROWSE_ROOTS: fall back to OPENHUB_REPOS_ROOT before the home
+    // directory.
+    //
+    // The previous fallback was `[homeDir]`, which meant the repo picker listed
+    // the user's ENTIRE home directory: `.android`, `.gnupg`, `.aws`, every dotfile
+    // and every unrelated project. That is exactly the exposure the route comment
+    // above claims to prevent -- "it handed every account a map of the machine" --
+    // and it was still happening, just silently, because the default looked like a
+    // deliberate confinement rather than an accident.
+    //
+    // The home directory remains the last resort so a fresh clone still has a
+    // working picker, but it now logs, because a browse root that is the whole
+    // home directory is a finding and must never be silent.
+    : [String(env.OPENHUB_REPOS_ROOT ?? '').trim() || homeDir];
+
+  const resolved = roots.map((r) => path.resolve(r));
+  if (!raw) {
+    const widened = resolved.some((r) => {
+      try {
+        return path.resolve(homeDir) === r || path.resolve(homeDir).startsWith(`${r}${path.sep}`);
+      } catch {
+        return false;
+      }
+    });
+    console.warn(
+      widened
+        ? `[Security] OPENHUB_BROWSE_ROOTS is unset, so the repo picker is browsing ${resolved.join(', ')}. `
+          + `That directory contains credentials and unrelated projects. Set OPENHUB_BROWSE_ROOTS to the `
+          + `roots the picker should actually expose.`
+        : `[Security] OPENHUB_BROWSE_ROOTS is unset; browsing ${resolved.join(', ')}.`,
+    );
+  }
+  return resolved;
 }
 
 /**

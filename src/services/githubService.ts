@@ -348,6 +348,11 @@ export async function importGitHubRepo(
   // carry characters outside SAFE_NAME_RE (e.g. '+'), so only separators and
   // dot segments are refused here; containment is asserted below.
   if (typeof openhubUsername !== 'string' || openhubUsername === '' || openhubUsername === '.' || openhubUsername === '..'
+    // \u0000 is what is being rejected: the username becomes a path segment and a
+    // NUL truncates the name in every C-level syscall on Windows. The control
+    // character cannot be expressed in a regex without being present, so the
+    // rule is disabled rather than the check.
+    // eslint-disable-next-line no-control-regex
     || /[\\/\u0000]/.test(openhubUsername)) {
     throw new Error('Invalid username for the repository directory');
   }

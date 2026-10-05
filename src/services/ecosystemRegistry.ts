@@ -1,4 +1,5 @@
 import { getDb } from '../auth/db.js';
+import fs from 'fs';
 import path from 'path';
 import {
   probeFleetCapabilities,
@@ -635,34 +636,55 @@ const SEED: EcosystemEntity[] = [
  * owner/repo); `auditDir` feeds The Deep (absolute, or relative to UPLIFT_ROOT).
  * Only entities listed here can be live-scored — everything else keeps its
  * seeded provenance rather than being sent to a scorer that cannot read it.
+ *
+ * ── Every `auditDir` below was resolved against the disk on 2026-10-05 ──
+ *
+ * 15 of the 22 entries pointed at paths that no longer existed. The fleet moved
+ * out of `Uplift/Deepseek Harness/…` and `Uplift/Draymond-Orchestrator/agents/…`
+ * into a flat `C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/` layout, and the
+ * Axiom family into `Uplift/06_Resources/`. Nothing failed loudly: the scorers
+ * were called against a path that was not there, returned `unavailable`, and the
+ * registry reported a live audit that never examined anything.
+ *
+ * That rot is why `auditEntityLive` now skips a scorer whose target is missing
+ * and records the path, rather than calling it. A dead entry here is now visible
+ * in the outcome instead of being indistinguishable from an absent config.
+ *
+ * The five entries with no folder ANYWHERE on this machine (global-lens,
+ * middleman, uplift-health, uplift-wealth, uplift-justice) have had `auditDir`
+ * REMOVED rather than repointed. A configured path that does not exist is a
+ * promise the registry cannot keep; leaving it out makes the entity honestly
+ * GitHub-scoreable-only, which is what `refresh` already reports as
+ * "no live audit target".
  */
 const AUDIT_TARGETS: Record<string, { auditRepo?: string; auditDir?: string }> = {
-  axiom: { auditDir: 'Deepseek Harness/Axiom Agent' },
-  openhub: { auditDir: 'Deepseek Harness/Axiom Agent/openhub' },
+  axiom: { auditDir: '06_Resources/Axiom Agent' },
+  openhub: { auditDir: '06_Resources/Axiom Agent/openhub' },
   draymond: { auditDir: 'Draymond-Orchestrator' },
-  'dev-brain': { auditDir: 'Dev-Brain' },
+  'dev-brain': { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Dev-Brain' },
   'deterministic-brain': { auditRepo: 'ncsound919/deterministic-brain' },
-  'the-deep': { auditDir: 'The Deep' },
+  'the-deep': { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/The Deep' },
   // Recourse — canonical repo lives at Downloads/recourse (absolute path).
   recourse: { auditDir: 'C:/Users/User/Downloads/recourse', auditRepo: 'ncsound919/recourse' },
-  'open-chat': { auditDir: 'Open-Chat', auditRepo: 'ncsound919/Open-Chat' },
-  'global-lens': { auditDir: 'Overlay-Global-Lens', auditRepo: 'ncsound919/Overlay-Global-Lens' },
+  'open-chat': { auditDir: '05_Apps/Open-Chat', auditRepo: 'ncsound919/Open-Chat' },
+  // No local folder on this machine — GitHub-scored only.
+  'global-lens': { auditRepo: 'ncsound919/Overlay-Global-Lens' },
   soundlab: { auditDir: 'soundlab', auditRepo: 'ncsound919/soundlab' },
   // Agent folders under Draymond-Orchestrator/agents (verified on disk).
   agentbrowser: { auditDir: 'Draymond-Orchestrator/agents/AgentBrowser-main', auditRepo: 'tap919/AgentBrowser' },
-  'claw-protect': { auditDir: 'Draymond-Orchestrator/agents/Claw-Protect-main', auditRepo: 'ncsound919/Claw-Protect-main' },
-  codenexus: { auditDir: 'Draymond-Orchestrator/agents/CodeNexus-main', auditRepo: 'ncsound919/CodeNexus-main' },
-  reporank: { auditDir: 'Draymond-Orchestrator/agents/reporank', auditRepo: 'ncsound919/reporank' },
-  grader: { auditDir: 'Draymond-Orchestrator/agents/Grader-main', auditRepo: 'ncsound919/Grader-main' },
-  omniresearch: { auditDir: 'Draymond-Orchestrator/agents/omniresearch 2' },
+  'claw-protect': { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Claw-Protect-main', auditRepo: 'ncsound919/Claw-Protect-main' },
+  codenexus: { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/CodeNexus-main', auditRepo: 'ncsound919/CodeNexus-main' },
+  reporank: { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/reporank', auditRepo: 'ncsound919/reporank' },
+  grader: { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Grader-main', auditRepo: 'ncsound919/Grader-main' },
+  omniresearch: { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/omniresearch 2' },
   // Mutly has no verified local folder on this machine — GitHub-scored only.
   mutly: { auditRepo: 'tap919/Mutly-Daemon-Agent' },
-  // Finance / revenue-facing tools.
-  middleman: { auditDir: '04_Integrations/integrations/tap919-middleman', auditRepo: 'tap919/middleman' },
+  // Finance / revenue-facing tools. middleman has no folder anywhere — repo only.
+  middleman: { auditRepo: 'tap919/middleman' },
   'owl-token': { auditRepo: 'ncsound919/Overlay365-AI-Safety' },
-  'uplift-health': { auditDir: 'Uplift Health' },
-  'uplift-wealth': { auditDir: 'Uplift Wealth' },
-  'uplift-justice': { auditDir: 'Uplift Justice' },
+  'uplift-health': {},
+  'uplift-wealth': {},
+  'uplift-justice': {},
 };
 
 export const SEED_ENTITIES: EcosystemEntity[] = SEED.map((e) => {
@@ -745,6 +767,32 @@ export function resolveAuditDir(entityItem: EcosystemEntity, env: NodeJS.Process
   return root ? path.join(root.replace(/[/\\]+$/, ''), dir) : null;
 }
 
+/**
+ * Does this audit target actually exist? Never throws — an unreadable path is
+ * treated as absent, which is the safe direction: skipping a scorer costs a
+ * coverage gap the report names, while probing a missing path costs a request
+ * and returns an "unavailable" indistinguishable from a real scanner failure.
+ */
+export function directoryExists(dir: string): boolean {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** An outcome for a scorer that was skipped because its target is gone. */
+function missingTarget(scorer: AuditScorerName, dir: string): AuditScorerOutcome {
+  return {
+    scorer,
+    status: 'unavailable',
+    score: null,
+    grade: null,
+    summary: `skipped: configured audit target does not exist (${dir})`,
+    error: `path rot: ${dir} is not on disk. The registry's auditDir for this entity is stale — repoint it or remove it.`,
+  };
+}
+
 function outcomeOf(scorer: AuditScorerName, result: ScorerResult): AuditScorerOutcome {
   const score = typeof result.score === 'number' ? result.score : null;
   return {
@@ -784,7 +832,20 @@ export async function auditEntityLive(
   }
   const dir = resolveAuditDir(entityItem);
   if (dir && resolved.deep) {
-    tasks.push(Promise.resolve(resolved.deep(dir)).then((r) => outcomeOf('deep', r)).catch((e) => unavailable('deep', e)));
+    // A configured auditDir that is not on disk is PATH ROT: the registry is
+    // promising a local audit of a directory that has moved or been deleted.
+    // It used to call the scorer anyway, which returned `unavailable`, and the
+    // entity's auditSource still read `live:deep` — so a live audit that examined
+    // nothing was recorded as a live audit. 15 of 22 entries were in this state
+    // on 2026-10-05.
+    //
+    // Skipped, not called, and the reason names the path so the rot is fixable
+    // from the report alone. `unavailable` is correct: nothing was examined.
+    tasks.push(
+      directoryExists(dir)
+        ? Promise.resolve(resolved.deep(dir)).then((r) => outcomeOf('deep', r)).catch((e) => unavailable('deep', e))
+        : Promise.resolve(missingTarget('deep', dir)),
+    );
   }
 
   const outcomes = await Promise.all(tasks);

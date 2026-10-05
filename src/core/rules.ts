@@ -212,7 +212,15 @@ export async function evaluateRules(
   let promptChars = 0;
 
   for (const rule of config.rules) {
-    if (!rule.enabled) continue;
+    // A disabled rule is recorded, not skipped in silence. The cap in
+    // normalizeAuditConfig disables the overflow, and this `continue` was the
+    // other half of that silence: the rule vanished from the result entirely,
+    // so a caller counting `rulesEvaluated` could not tell that a rule they
+    // wrote was never run.
+    if (!rule.enabled) {
+      rulesSkipped.push({ rule: rule.name, reason: 'rule is disabled in config' });
+      continue;
+    }
     const applicable = selectRuleFiles(rule, files, config);
     if (applicable.length === 0) {
       rulesSkipped.push({ rule: rule.name, reason: 'no files match the rule scope' });

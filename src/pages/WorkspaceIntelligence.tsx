@@ -1,18 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  GitBranch, GitCommit, Search, RefreshCw, Terminal, CheckCircle2, AlertCircle, Bot, Zap, Package, Server, ShieldCheck
+import {
+  GitBranch, RefreshCw, Terminal, CheckCircle2, AlertCircle, Bot, Package, Server, ShieldCheck
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export function WorkspaceIntelligence() {
   const [gitStatus, setGitStatus] = useState<string[]>([]);
   const [gitHistory, setGitHistory] = useState<any[]>([]);
   const [outdatedDeps, setOutdatedDeps] = useState<Record<string, any>>({});
   const [hygiene, setHygiene] = useState<any>(null);
-  
+
+  // Per-panel availability. Each backend route answers 503 with a reason when it
+  // could not look, and 200 with an empty result when there was genuinely
+  // nothing. Without a flag per panel those two are the same thing on screen:
+  // "Working tree clean" and "this is not a git repo" both render as a list with
+  // nothing in it, and the reader concludes everything is fine.
+  const [gitError, setGitError] = useState<string | null>(null);
+  const [depsError, setDepsError] = useState<string | null>(null);
+  const [hygieneError, setHygieneError] = useState<string | null>(null);
+
   const [ollamaPrompt, setOllamaPrompt] = useState('');
   const [ollamaResponse, setOllamaResponse] = useState('');
   const [isOllamaLoading, setIsOllamaLoading] = useState(false);
+
+  const errorOf = async (res: Response): Promise<string | null> => {
+    try {
+      const data = await res.json();
+      return typeof data?.error === 'string' ? data.error : `HTTP ${res.status}`;
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+  };
 
   const fetchGitData = async () => {
     try {
@@ -20,6 +37,9 @@ export function WorkspaceIntelligence() {
         fetch('/api/workspace/git/status'),
         fetch('/api/workspace/git/history')
       ]);
+      setGitError(
+        statusRes.ok ? null : await errorOf(statusRes),
+      );
       if (statusRes.ok) {
         const data = await statusRes.json();
         setGitStatus(Array.isArray(data.status) ? data.status : []);
@@ -29,31 +49,37 @@ export function WorkspaceIntelligence() {
         setGitHistory(Array.isArray(data.history) ? data.history : []);
       }
     } catch (e) {
-      console.error(e);
+      setGitError(e instanceof Error ? e.message : String(e));
     }
   };
 
   const fetchDeps = async () => {
     try {
       const res = await fetch('/api/workspace/deps/outdated');
+      setDepsError(res.ok ? null : await errorOf(res));
       if (res.ok) {
         const data = await res.json();
         setOutdatedDeps(data.outdated || {});
       }
     } catch (e) {
-      console.error(e);
+      setDepsError(e instanceof Error ? e.message : String(e));
     }
   };
 
   const fetchHygiene = async () => {
     try {
-      const res = await fetch('/api/workspace/hygiene');
+      // `/api/workspace/deploy-readiness`, NOT a `/hygiene` route. It already
+      // returns `{ score, checks[] }` from getDeployReadiness(); adding a second
+      // endpoint serving the same numbers would be two routes to keep in step,
+      // and the audit's endpoint-coverage check exists to stop exactly that.
+      const res = await fetch('/api/workspace/deploy-readiness');
+      setHygieneError(res.ok ? null : await errorOf(res));
       if (res.ok) {
         const data = await res.json();
         setHygiene(data);
       }
     } catch (e) {
-      console.error(e);
+      setHygieneError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -120,12 +146,16 @@ export function WorkspaceIntelligence() {
             <div className="flex-1 overflow-y-auto font-mono text-xs pr-2 space-y-6">
               <div>
                 <div className="text-gray-400 uppercase tracking-widest mb-3 text-[10px]">Uncommitted Changes ({gitStatus.length})</div>
-                {gitStatus.length === 0 ? (
+                {gitError ? (
+                  // "Could not look" must never render as "clean". This is the
+                  // difference the whole panel exists to show.
+                  <div className="text-yellow-500 flex items-start text-[11px]"><AlertCircle className="w-3 h-3 mr-2 mt-0.5 shrink-0"/> <span>{gitError}</span></div>
+                ) : gitStatus.length === 0 ? (
                   <div className="text-green-500 flex items-center"><CheckCircle2 className="w-3 h-3 mr-2"/> Working tree clean</div>
                 ) : (
                   <ul className="space-y-1">
                     {gitStatus.map((s, i) => (
-                      <li key={i} className="text-orange-500">{s}</li>
+                      <li key={i} className="text-orange-500 break-all">{s}</li>
                     ))}
                   </ul>
                 )}
@@ -133,20 +163,24 @@ export function WorkspaceIntelligence() {
 
               <div>
                 <div className="text-gray-400 uppercase tracking-widest mb-3 text-[10px]">Recent Commits</div>
-                <div className="space-y-3">
-                  {gitHistory.map((c, i) => (
-                    <div key={i} className="bg-text-secondary/30 p-2 rounded-sm border border-border-muted">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[var(--color-text-primary)]">{c.message}</span>
-                        <span className="text-orange-500 text-[10px]">{c.hash}</span>
+                {gitHistory.length === 0 ? (
+                  <div className="text-gray-500 text-[11px]">{gitError ? 'unavailable' : 'no commits yet'}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {gitHistory.map((c, i) => (
+                      <div key={i} className="bg-text-secondary/30 p-2 rounded-sm border border-border-muted">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-[var(--color-text-primary)] break-all">{c.message}</span>
+                          <span className="text-orange-500 text-[10px] shrink-0">{c.hash}</span>
+                        </div>
+                        <div className="text-gray-400 text-[10px] mt-1 flex justify-between">
+                          <span>{c.author}</span>
+                          <span>{c.time}</span>
+                        </div>
                       </div>
-                      <div className="text-gray-400 text-[10px] mt-1 flex justify-between">
-                        <span>{c.author}</span>
-                        <span>{c.time}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
          </div>
@@ -164,32 +198,37 @@ export function WorkspaceIntelligence() {
                    <RefreshCw className="w-4 h-4" />
                  </button>
               </div>
-              <div className="flex-1 flex flex-col justify-center">
-                {hygiene ? (
-                  <>
-                    <div className="flex items-center justify-center mb-6">
-                      <div className={`text-4xl font-industrial ${hygiene.score === 100 ? 'text-green-500' : 'text-orange-500'}`}>
-                        {hygiene.score}%
-                      </div>
-                      <div className="ml-4 text-[10px] text-gray-400 font-mono uppercase">Overall Score</div>
-                    </div>
-                    <div className="space-y-2">
-                      {(Array.isArray(hygiene.checks) ? hygiene.checks : []).map((c: any, i: number) => (
-                        <div key={i} className="flex justify-between items-center text-xs font-mono">
-                          <span className="text-gray-400">{c.name}</span>
-                          {c.passed ? (
-                            <span className="text-green-500">PASS</span>
-                          ) : (
-                            <span className="text-red-500">FAIL</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center text-gray-400 text-xs font-mono">Running deterministic checks...</div>
-                )}
-              </div>
+               <div className="flex-1 flex flex-col justify-center">
+                 {hygieneError ? (
+                   <div className="text-yellow-500 text-xs font-mono flex items-start gap-2">
+                     <AlertCircle className="w-3 h-3 mt-0.5 shrink-0"/>
+                     <span>{hygieneError}</span>
+                   </div>
+                 ) : hygiene ? (
+                   <>
+                     <div className="flex items-center justify-center mb-6">
+                       <div className={`text-4xl font-industrial ${hygiene.score === 100 ? 'text-green-500' : 'text-orange-500'}`}>
+                         {hygiene.score}%
+                       </div>
+                       <div className="ml-4 text-[10px] text-gray-400 font-mono uppercase">Overall Score</div>
+                     </div>
+                     <div className="space-y-2 overflow-y-auto">
+                       {(Array.isArray(hygiene.checks) ? hygiene.checks : []).map((c: any, i: number) => (
+                         <div key={i} className="flex justify-between items-center text-xs font-mono gap-2">
+                           <span className="text-gray-400 truncate">{c.name ?? c.label ?? 'check'}</span>
+                           {c.passed ?? c.ok ? (
+                             <span className="text-green-500">PASS</span>
+                           ) : (
+                             <span className="text-red-500">FAIL</span>
+                           )}
+                         </div>
+                       ))}
+                     </div>
+                   </>
+                 ) : (
+                   <div className="text-center text-gray-400 text-xs font-mono">Running deterministic checks...</div>
+                 )}
+               </div>
             </div>
 
             {/* Dependency Updater */}
@@ -202,12 +241,17 @@ export function WorkspaceIntelligence() {
                    <RefreshCw className="w-4 h-4" />
                  </button>
               </div>
-              <div className="flex-1 overflow-y-auto pr-2">
-                {Object.keys(outdatedDeps).length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-green-500 text-xs font-mono">
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> All dependencies up to date
-                  </div>
-                ) : (
+               <div className="flex-1 overflow-y-auto pr-2">
+                 {depsError ? (
+                   <div className="text-yellow-500 text-xs font-mono flex items-start gap-2">
+                     <AlertCircle className="w-3 h-3 mt-0.5 shrink-0"/>
+                     <span>{depsError}</span>
+                   </div>
+                 ) : Object.keys(outdatedDeps).length === 0 ? (
+                   <div className="flex items-center justify-center h-full text-green-500 text-xs font-mono">
+                     <CheckCircle2 className="w-4 h-4 mr-2" /> All dependencies up to date
+                   </div>
+                 ) : (
                   <div className="space-y-2">
                     {Object.entries(outdatedDeps).map(([pkg, info]: [string, any]) => (
                       <div key={pkg} className="flex justify-between items-center text-xs font-mono bg-text-secondary/30 p-2 border border-border-muted">

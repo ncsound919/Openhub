@@ -21,8 +21,12 @@ import {
   runDeepScorer,
   runGraderScorer,
   runLocalQaScorer,
+  runLintScorer,
   runRepoRankScorer,
+  runTypecheckScorer,
+  discoverProjects,
 } from '../src/services/auditSuite';
+import { loadGitIgnore } from '../src/core/gitignore';
 import { fetchOssReview, type OssReviewReport } from '../src/services/ossReview';
 
 const tmpDirs: string[] = [];
@@ -414,6 +418,223 @@ describe('runLocalQaScorer branches', () => {
     expect(j.scorer).toBe('local_qa');
     expect(j.summary).toMatch(/local QA (passed|failed)/);
   }, 60_000);
+
+  it('runs a configured test command instead of discovering runners', async () => {
+    // The defect: local_qa had exactly one mode — discover everything and run
+    // it all — with a fixed 120s cap and no override. On a repo with a ~700s
+    // C++ suite that cannot return inside an MCP timeout, and there was no way
+    // to scope it.
+    const dir = tmpProject({
+      // A decoy: discovery would find this and run it. The configured command
+      // must win, and details.commandSource must say so.
+      'package.json': JSON.stringify({ name: 'decoy', scripts: { test: 'vitest' } }),
+    });
+    const r = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'process.stdout.write("")'], label: 'scoped lane' }],
+    });
+    expect((r.details as Record<string, unknown>).commandSource).toBe('config');
+    expect(r.summary).toContain('scoped lane');
+  }, 60_000);
+
+  it('runs a configured command in its configured cwd', async () => {
+    const dir = tmpProject({
+      'webui/marker.txt': 'x',
+      'package.json': JSON.stringify({ name: 'decoy', scripts: { test: 'vitest' } }),
+    });
+    const r = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'process.stdout.write(require("fs").readFileSync("marker.txt","utf8"))'], cwd: 'webui', label: 'webui lane' }],
+    });
+    expect((r.details as Record<string, unknown>).commandSource).toBe('config');
+    // The command read webui/marker.txt, so it ran in webui. A wrong cwd would
+    // have thrown ENOENT and reported a failure instead.
+    expect(r.status).not.toBe('failed');
+  }, 60_000);
+
+  it('reports discovery as the source when nothing is configured', async () => {
+    const dir = tmpProject({ 'package.json': JSON.stringify({ name: 'v', scripts: { test: 'vitest' } }) });
+    const r = await runLocalQaScorer(dir);
+    expect((r.details as Record<string, unknown>).commandSource).toBe('discovered');
+  }, 60_000);
+
+  it('names a configured cwd that does not exist instead of running in the wrong tree', async () => {
+    // Running the command at the repo root when the config said `webui` would
+    // produce a plausible result about the wrong directory. Refused.
+    const dir = tmpProject({ 'package.json': JSON.stringify({ name: 'x', scripts: { test: 'vitest' } }) });
+    await expect(runLocalQaScorer(dir, {
+      commands: [{ command: 'npm', args: [], cwd: 'does-not-exist', label: 'bad lane' }],
+    })).rejects.toThrow(/does not exist/);
+  }, 30_000);
+
+  it('reports a timeout as a timeout, with the cap, not as a test failure', async () => {
+    const dir = tmpProject({ 'package.json': JSON.stringify({ name: 'x', scripts: { test: 'vitest' } }) });
+    const r = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'setTimeout(()=>{},60000)'], label: 'slow lane' }],
+      timeoutMs: 1_000,
+    });
+    const details = r.details as Record<string, unknown>;
+    expect(details.timedOut).toEqual(['slow lane']);
+    expect(details.timeoutMs).toBe(1_000);
+    // The error must name the timeout, or the reader hunts for a failing test
+    // that does not exist.
+    expect(r.error).toContain('timed out');
+    expect(r.error).toContain('1000ms');
+    expect(r.summary).toContain('timed out');
+  }, 60_000);
+
+  it('never reports a timed-out or failed run as status ok', async () => {
+    // Measured on the real repo before this was fixed: a run killed at its cap
+    // came back `status: ok, score: 0` — the failure branch never set a status,
+    // so attach's default 'ok' stood. `ok` must mean the suites passed.
+    const dir = tmpProject({ 'package.json': JSON.stringify({ name: 'x', scripts: { test: 'vitest' } }) });
+    const timedOut = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'setTimeout(()=>{},60000)'], label: 'slow lane' }],
+      timeoutMs: 1_000,
+    });
+    expect(timedOut.status).not.toBe('ok');
+    // Nothing ran at all, so it is `unavailable` rather than a partial.
+    expect(timedOut.status).toBe('unavailable');
+
+    const failed = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'process.exit(3)'], label: 'failing lane' }],
+      timeoutMs: 30_000,
+    });
+    expect(failed.status).not.toBe('ok');
+  }, 90_000);
+
+  it('reports a passing run as ok', async () => {
+    // The counterpart to the above: the fix must not make every run look broken.
+    const dir = tmpProject({ 'package.json': JSON.stringify({ name: 'x', scripts: { test: 'vitest' } }) });
+    const r = await runLocalQaScorer(dir, {
+      commands: [{ command: 'node', args: ['-e', 'process.stdout.write("1 passed\\n")'], label: 'good lane' }],
+      timeoutMs: 30_000,
+    });
+    expect(r.status).toBe('ok');
+  }, 60_000);
+});
+
+describe('transport errors name the endpoint', () => {
+  // The defect: every unreachable service reported undici's bare
+  // "fetch failed", so "RepoRank and Grader are both down" and "one answered"
+  // were indistinguishable in scorer output. An error that cannot be acted on.
+  const PREV = process.env.REPORANK_API_KEY;
+
+  afterEach(() => {
+    if (PREV === undefined) delete process.env.REPORANK_API_KEY;
+    else process.env.REPORANK_API_KEY = PREV;
+  });
+
+  it('names the host it failed to reach for a local-dir scan', async () => {
+    // 127.0.0.1:3200 is the RepoRank default and refuses connections in this
+    // environment, which is exactly the condition that produced the bare error.
+    process.env.REPORANK_API_KEY = 'gr_test_dummy';
+    const r = await runRepoRankScorer({ targetDir: process.cwd() });
+    expect(r.error).toContain('fetch failed');
+    // The endpoint, so a reader knows WHICH service is down.
+    expect(r.error).toContain('127.0.0.1:3200');
+  }, 60_000);
+
+  it('does not leak a query string (API keys live in URLs)', async () => {
+    process.env.REPORANK_API_KEY = 'gr_secret_value_do_not_log';
+    const r = await runRepoRankScorer({ targetDir: process.cwd() });
+    expect(r.error).not.toContain('gr_secret_value_do_not_log');
+  }, 60_000);
+});
+
+describe('discoverProjects', () => {
+  it('finds toolchain configs in subdirectories, not just at the root', () => {
+    // This is the whole defect: typecheck/lint probed the repo root only, so a
+    // monorepo reported `unavailable` — "no tsconfig detected" — while four
+    // tsconfigs sat in subdirectories.
+    const dir = tmpProject({
+      'webui/tsconfig.json': '{}',
+      'webui/eslint.config.js': 'export default [];',
+      'packages/automix/tsconfig.json': '{}',
+      'console-ui/tsconfig.json': '{}',
+      'src/main.cpp': 'int main(){}',
+    });
+    const found = discoverProjects(dir);
+    const rels = found.map((p) => p.rel).sort();
+    expect(rels).toEqual(['console-ui', 'packages/automix', 'webui']);
+    expect(found.find((p) => p.rel === 'webui')?.markers).toContain('eslint.config.js');
+  });
+
+  it('includes the root when it carries a config', () => {
+    const dir = tmpProject({ 'tsconfig.json': '{}' });
+    expect(discoverProjects(dir).map((p) => p.rel)).toEqual(['']);
+  });
+
+  it('returns nothing for a tree with no toolchain config at all', () => {
+    const dir = tmpProject({ 'src/main.cpp': 'int main(){}' });
+    expect(discoverProjects(dir)).toEqual([]);
+  });
+
+  it('does not descend into node_modules or dot directories', () => {
+    const dir = tmpProject({
+      'node_modules/left-pad/tsconfig.json': '{}',
+      '.hidden/tsconfig.json': '{}',
+      'webui/tsconfig.json': '{}',
+    });
+    expect(discoverProjects(dir).map((p) => p.rel)).toEqual(['webui']);
+  });
+
+  it('honours .gitignore, so a build dir is not mistaken for a project', () => {
+    // ChordStudio's build dirs are gitignored and contain a generated
+    // package.json/tsconfig. Without this the audit would typecheck its own
+    // build output.
+    const dir = tmpProject({
+      '.gitignore': 'build-dbg/\n',
+      'build-dbg/tsconfig.json': '{}',
+      'webui/tsconfig.json': '{}',
+    });
+    const found = discoverProjects(dir, { gitIgnore: loadGitIgnore(dir) });
+    expect(found.map((p) => p.rel)).toEqual(['webui']);
+  });
+
+  it('caps the number of projects so a pathological tree cannot run 200 tscs', () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) files[`p${i}/tsconfig.json`] = '{}';
+    const dir = tmpProject(files);
+    expect(discoverProjects(dir, { maxProjects: 5 })).toHaveLength(5);
+  });
+});
+
+describe('typecheck and lint across multiple projects', () => {
+  it('typecheck reports the project list rather than "no tsconfig detected"', async () => {
+    // Before: `unavailable` + "no tsconfig.json ... detected", which reads as
+    // "this repo has no typechecker" — the opposite of the truth.
+    const dir = tmpProject({ 'webui/tsconfig.json': '{}', 'console-ui/tsconfig.json': '{}' });
+    const r = await runTypecheckScorer(dir);
+    expect(r.scorer).toBe('typecheck');
+    // tsc will not actually run (no node_modules), so this is unavailable —
+    // but for the RIGHT reason, and the projects it found are named.
+    const details = r.details as Record<string, unknown>;
+    expect(details.projectsFound).toBe(2);
+    expect(r.error).not.toContain('no tsconfig.json');
+  }, 60_000);
+
+  it('still reports unavailable when the tree genuinely has no typechecker config', async () => {
+    const dir = tmpProject({ 'src/main.cpp': 'int main(){}' });
+    const r = await runTypecheckScorer(dir);
+    expect(r.status).toBe('unavailable');
+    expect(r.error).toContain('no tsconfig.json');
+  }, 30_000);
+
+  it('lint finds a config in a subdirectory instead of reporting none detected', async () => {
+    const dir = tmpProject({ 'webui/eslint.config.js': 'export default [];' });
+    const r = await runLintScorer(dir);
+    expect(r.scorer).toBe('lint');
+    // eslint will not run (no node_modules), so unavailable — but the project
+    // it found must be named, and it must NOT be "no config detected".
+    expect((r.details as Record<string, unknown>).projectsFound).toBe(1);
+    expect(r.error).not.toContain('no eslint, ruff or flake8 config detected');
+  }, 60_000);
+
+  it('lint reports unavailable for a tree with no linter config', async () => {
+    const dir = tmpProject({ 'src/main.cpp': 'int main(){}' });
+    const r = await runLintScorer(dir);
+    expect(r.status).toBe('unavailable');
+    expect(r.error).toContain('no eslint, ruff or flake8 config detected');
+  }, 30_000);
 });
 
 describe('codegraphScorerResult missing report', () => {

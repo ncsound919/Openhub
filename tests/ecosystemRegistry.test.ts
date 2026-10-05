@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { initializeDatabase } from '../src/auth/db.js';
 import {
@@ -182,23 +184,37 @@ describe('ecosystemRegistry — live refresh', () => {
 });
 
 describe('ecosystemRegistry — live audit scoring', () => {
-  beforeEach(() => {
-    initializeDatabase();
-    clearRegistry();
+  // A REAL directory, created once for the block.
+  //
+  // The fixture used to be `auditDir: 'C:/tmp/proj'`, which does not exist. That
+  // let the block assert "runs RepoRank, Grader and The Deep" while The Deep was
+  // being handed a path with nothing behind it — a test that passed by asserting
+  // a scorer was called on a fiction. It is the same shape as the registry's own
+  // path rot: a configured target that was never real.
+  const REAL_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'oh-registry-'));
+
+  beforeAll(() => {
+    fs.mkdirSync(REAL_DIR, { recursive: true });
   });
 
   afterAll(() => {
+    clearRegistry();
+    fs.rmSync(REAL_DIR, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    initializeDatabase();
     clearRegistry();
   });
 
   const scorer = (name: string, score: number | null, extra: Partial<ScorerResult> = {}): ScorerResult =>
     ({ scorer: name, score, summary: extra.summary ?? `${name} ran`, ...extra } as ScorerResult);
 
-  function synthetic(): EcosystemEntity {
+  function synthetic(auditDir: string = REAL_DIR): EcosystemEntity {
     return {
       id: 'synthetic', name: 'Synthetic', kind: 'tool', pillar: 'test', stack: [], purpose: 'test entity',
       repo: null, port: null, url: null, bridge: null, tags: [], auditScore: null, auditGrade: null,
-      auditSource: 'not-yet-ranked', auditAt: null, auditRepo: 'owner/repo', auditDir: 'C:/tmp/proj',
+      auditSource: 'not-yet-ranked', auditAt: null, auditRepo: 'owner/repo', auditDir,
       factors: deployabilityBase(), blockers: [], evidence: [],
     };
   }
@@ -267,29 +283,81 @@ describe('ecosystemRegistry — live audit scoring', () => {
   });
 
   it('refresh(audit:true) keeps health and adds live audit scores', async () => {
+    // Health comes from `fakeSnapshot`, which only knows the slugs 'axiom' and
+    // 'reporank' — so those two are asserted for health. The exact audit SCORES
+    // are asserted on `deterministic-brain` and `mutly`, which have an
+    // `auditRepo` and NO `auditDir`, so only the repo scorers run.
+    //
+    // The previous version asserted 95 for axiom and 75 for reporank. Both
+    // numbers depended on the real fleet layout: axiom's auditDir is relative
+    // and reporank's is absolute, so whether The Deep ran — and therefore
+    // whether reporank averaged 75 or (75+95)/2 = 85 — depended on which
+    // directories happened to exist on the machine running the test. That is a
+    // test asserting a fiction, which is how it came to disagree with the code.
     const prevRoot = process.env.UPLIFT_ROOT;
-    process.env.UPLIFT_ROOT = 'C:/root';
+    // A root that does not exist, so no relative auditDir can resolve.
+    process.env.UPLIFT_ROOT = path.join(REAL_DIR, 'no-such-root');
     try {
       const snapshot = await refreshRegistry({
         probe: async () => fakeSnapshot,
         audit: true,
-        auditIds: ['axiom', 'reporank'],
+        auditIds: ['axiom', 'reporank', 'deterministic-brain', 'mutly'],
         auditDeps: {
           reporank: async () => scorer('reporank', 75),
           deep: async () => scorer('deep', 95),
         },
       });
-      const axiom = snapshot.entries.find((e) => e.id === 'axiom')!;
-      expect(axiom.health).toBe('online');
-      expect(axiom.auditScore).toBe(95); // deep only (no grader/reporank target for axiom)
-      expect(axiom.auditSource).toBe('live:deep');
-      const reporank = snapshot.entries.find((e) => e.id === 'reporank')!;
-      expect(reporank.health).toBe('offline');
-      expect(reporank.auditScore).toBe(75);
+      const byId = (id: string) => snapshot.entries.find((e) => e.id === id)!;
+
+      // Health is preserved from the probe, unchanged by auditing.
+      expect(byId('axiom').health).toBe('online');
+      expect(byId('reporank').health).toBe('offline');
+
+      // Repo-only entities: RepoRank answered 75, so that is the live score.
+      expect(byId('deterministic-brain').auditScore).toBe(75);
+      expect(byId('deterministic-brain').auditSource).toBe('live:reporank');
+      expect(byId('mutly').auditScore).toBe(75);
+
+      // axiom's local target cannot resolve under a root that is not there, so
+      // The Deep is skipped rather than called against a missing path — and the
+      // seeded score stands instead of a fabricated live one.
+      expect(byId('axiom').auditSource).not.toMatch(/^live:/);
     } finally {
       if (prevRoot === undefined) delete process.env.UPLIFT_ROOT;
       else process.env.UPLIFT_ROOT = prevRoot;
     }
+  });
+
+  it('skips The Deep and records the path when a configured auditDir is gone', async () => {
+    // The rot case. It used to call the scorer against a missing directory,
+    // which returned `unavailable` while `auditSource` still read `live:deep` —
+    // a live audit that examined nothing. 15 of 22 registry entries were in
+    // this state on 2026-10-05.
+    let called = false;
+    const live = await auditEntityLive(synthetic(path.join(REAL_DIR, 'gone')), {
+      reporank: async () => scorer('reporank', 80),
+      deep: async () => { called = true; return scorer('deep', 100); },
+    });
+    expect(called).toBe(false);
+    expect(live.sources).toEqual(['reporank']);
+    const deep = live.outcomes.find((o) => o.scorer === 'deep')!;
+    expect(deep.status).toBe('unavailable');
+    expect(deep.score).toBeNull();
+    // The reason has to name the path, or it is not fixable from the report.
+    expect(deep.error).toContain('path rot');
+    expect(deep.error).toContain('gone');
+  });
+
+  it('still calls The Deep when the configured auditDir exists', async () => {
+    // The counterpart: the skip must not fire on a good path.
+    let calledWith: string | null = null;
+    const live = await auditEntityLive(synthetic(REAL_DIR), {
+      reporank: async () => scorer('reporank', 80),
+      deep: async (dir) => { calledWith = dir; return scorer('deep', 100); },
+    });
+    expect(calledWith).toBe(REAL_DIR);
+    expect(live.sources).toContain('deep');
+    expect(live.score).toBe(90);
   });
 });
 

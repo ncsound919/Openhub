@@ -234,6 +234,69 @@ describe('static scorers produce real evidence', () => {
     expect(categories).toContain('secret-aws-key');
   }, 60_000);
 
+  it('git_history keeps the exemption note even when it reports unavailable', async () => {
+    // Every large file exempted and no text files at all means the scorer
+    // correctly refuses to claim a perfect score. It must still say WHY: a
+    // blank `unavailable` here is indistinguishable from an empty repository,
+    // and the person who exempted the file loses the record that they did.
+    const dir = tmpProject({ 'models/small.onnx': Buffer.alloc(1_100_000) });
+    git(dir, ['init', '-q']);
+    commit(dir, 'add model');
+
+    const r = await runGitHistoryScorer(dir, {
+      allowLargeFiles: [{ path: 'models/small.onnx', reason: 'runtime asset, cannot be generated' }],
+    });
+    expect(r.status).toBe('unavailable');
+    expect(r.score).toBeNull();
+    const notes = (r.details as { notes?: string[] })?.notes ?? [];
+    expect(notes.some((n) => n.includes('models/small.onnx') && n.includes('runtime asset'))).toBe(true);
+  }, 60_000);
+
+  it('git_history drops an exempted large file and records why', async () => {
+    // A repo may declare a large file intentional. The exemption has to appear
+    // in the notes, not just disappear: "this was allowed, and here is the
+    // reason" is the difference between a recorded decision and a silenced rule.
+    const dir = tmpProject({ 'models/small.onnx': Buffer.alloc(1_100_000) });
+    git(dir, ['init', '-q']);
+    commit(dir, 'add model');
+
+    const r = await runGitHistoryScorer(dir, {
+      allowLargeFiles: [{ path: 'models/small.onnx', reason: 'runtime asset, cannot be generated' }],
+    });
+    expect(r.findings!.map((f) => f.category)).not.toContain('large-file');
+    const notes = (r.details as { notes?: string[] })?.notes ?? [];
+    expect(notes.some((n) => n.includes('models/small.onnx') && n.includes('runtime asset'))).toBe(true);
+  }, 60_000);
+
+  it('git_history still flags a large file that is NOT exempted', async () => {
+    // The counterpart: an exemption for one path must not silence the rule for
+    // every other file, which is what "just turn the check off" would do.
+    const dir = tmpProject({
+      'models/small.onnx': Buffer.alloc(1_100_000),
+      'oops/dump.bin': Buffer.alloc(1_100_000),
+    });
+    git(dir, ['init', '-q']);
+    commit(dir, 'add blobs');
+
+    const r = await runGitHistoryScorer(dir, {
+      allowLargeFiles: [{ path: 'models/small.onnx', reason: 'runtime asset' }],
+    });
+    const large = r.findings!.filter((f) => f.category === 'large-file');
+    expect(large).toHaveLength(1);
+    expect(large[0].location?.file).toBe('oops/dump.bin');
+  }, 60_000);
+
+  it('git_history accepts a glob exemption', async () => {
+    const dir = tmpProject({ 'assets/big1.bin': Buffer.alloc(1_100_000), 'assets/big2.bin': Buffer.alloc(1_100_000) });
+    git(dir, ['init', '-q']);
+    commit(dir, 'add assets');
+
+    const r = await runGitHistoryScorer(dir, {
+      allowLargeFiles: [{ path: 'assets/**', reason: 'generated fixtures' }],
+    });
+    expect(r.findings!.map((f) => f.category)).not.toContain('large-file');
+  }, 60_000);
+
   it('git_history skips outside a git worktree', async () => {
     const r = await runGitHistoryScorer(tmpProject({ 'a.ts': 'x' }));
     expect(r.score).toBeNull();

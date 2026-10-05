@@ -67,6 +67,11 @@ export const BREADCRUMBS: Record<string, string> = {
   '/activity': 'Activity',
   '/antagonist': 'Adversary',
   '/api-studio': 'API Studio',
+  // Workspace Intelligence was written and never mounted, so it had no route and
+  // no entry here — and its five backing endpoints did not exist. It is a
+  // deep-linkable surface, not a rail item: the rail stays small on purpose
+  // (see the NAV_GROUPS note above), so this is reachable by URL and ⌘K.
+  '/workspace-intelligence': 'Workspace Intelligence',
   '/crm': 'CRM',
 };
 

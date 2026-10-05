@@ -54,6 +54,9 @@ import {
   type AuditModelConfig,
 } from './auditRuntime.js';
 import { runLocalCommand as runProcessCommand } from './processRunner.js';
+import { loadAuditConfig } from '../core/config.js';
+import type { GitIgnoreMatcher } from '../core/gitignore.js';
+import type { AuditTestCommand } from '../core/config.js';
 import { anchorHead, listReceipts, runWithReceipts } from './receipts.js';
 import {
   auditFeedbackEnabled,
@@ -504,6 +507,29 @@ function normalizeRepoUrl(repoUrl?: string): string | null {
   return null;
 }
 
+/**
+ * Wrap a fetch failure with the URL it was for.
+ *
+ * Without this, every unreachable service reported the same bare
+ * `fetch failed` — undici's message — so "RepoRank and Grader are both down"
+ * and "one of them is down and the other answered" were indistinguishable in
+ * the scorer output. A transport error with no endpoint is an error that cannot
+ * be acted on. The scheme and host are named; any query string is dropped
+ * because these URLs carry API keys.
+ */
+function transportError(url: string, err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  let endpoint: string;
+  try {
+    const u = new URL(url);
+    endpoint = `${u.protocol}//${u.host}`;
+  } catch {
+    endpoint = url.split('?')[0];
+  }
+  const cause = err instanceof Error && err.cause instanceof Error ? ` (${err.cause.message})` : '';
+  return `${raw} — ${endpoint}${cause}`;
+}
+
 async function postJson(
   url: string,
   body: unknown,
@@ -519,7 +545,7 @@ async function postJson(
     });
     return { ok: res.ok, status: res.status, json: await res.json().catch(() => null) };
   } catch (err: any) {
-    return { ok: false, status: 0, json: null, error: err.message };
+    return { ok: false, status: 0, json: null, error: transportError(url, err) };
   }
 }
 
@@ -532,7 +558,7 @@ async function getJson(
     const res = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(timeoutMs) });
     return { ok: res.ok, status: res.status, json: await res.json().catch(() => null) };
   } catch (err: any) {
-    return { ok: false, status: 0, json: null, error: err.message };
+    return { ok: false, status: 0, json: null, error: transportError(url, err) };
   }
 }
 
@@ -568,8 +594,19 @@ function attach(result: ScorerResult, extras: EvidenceExtras = {}): ScorerResult
   };
 }
 
-function honest(scorer: string, error: string, summary = ''): ScorerResult {
-  return attach({ scorer, score: null, summary: summary || error, error }, { status: 'unavailable' });
+/**
+ * An honest no-op: `unavailable` with a reason, never a zero.
+ *
+ * `details` is optional but matters. An unavailable result that FOUND things —
+ * "2 projects have a tsconfig but tsc is not installed" — is actionable, and
+ * dropping the detail reduces it to the same sentence a repo with no toolchain
+ * produces: "no tsconfig detected". Same status, opposite meanings.
+ */
+function honest(scorer: string, error: string, summary = '', details?: Record<string, unknown>): ScorerResult {
+  return attach(
+    { scorer, score: null, summary: summary || error, error, ...(details ? { details } : {}) },
+    { status: 'unavailable' },
+  );
 }
 
 /** Build a normalized, fingerprinted finding (shared model in findings.ts). */
@@ -761,12 +798,37 @@ const CLAW_SECRET_PATTERNS: RegExp[] = [
 ];
 
 /**
+ * Should a walker descend into this directory?
+ *
+ * Every walker in the audit had its own inline `skipDirs.has(e.name)` check
+ * written in the tool author's vocabulary. That vocabulary does not match a real
+ * repo: ChordStudio has eight `build-*` directories (21.26 GB, 9,997 files) and
+ * none of them is named `build`, so nothing was skipped and the walk exhausted
+ * the MCP timeout. The repo's `.gitignore` already names its own generated
+ * trees, so honour it — and keep the hard-coded set as the floor, since a repo
+ * with no .gitignore must still not walk node_modules.
+ */
+function shouldSkipDir(
+  name: string,
+  absDir: string,
+  rootDir: string,
+  hardcoded: ReadonlySet<string>,
+  gitIgnore?: GitIgnoreMatcher,
+): boolean {
+  if (hardcoded.has(name)) return true;
+  if (!gitIgnore) return false;
+  const rel = path.relative(rootDir, absDir).replace(/\\/g, '/');
+  if (!rel || rel.startsWith('..')) return false;
+  return gitIgnore.isIgnored(rel, true);
+}
+
+/**
  * Collect secret-bearing files for a local dir. Walks a bounded depth/count,
  * skipping vendored/build dirs, so nested projects (e.g. a `ui-v2/` frontend
  * inside a Python backend) are still scanned. Deterministic and honest: an
  * unreadable or oversized file is skipped, never invented.
  */
-function collectScannableFiles(targetDir: string): Array<{ path: string; content: string }> {
+function collectScannableFiles(targetDir: string, gitIgnore?: GitIgnoreMatcher): Array<{ path: string; content: string }> {
   const out: Array<{ path: string; content: string }> = [];
   const skipDirs = new Set([
     'node_modules', '.git', 'dist', '.next', 'build', '__pycache__',
@@ -780,7 +842,7 @@ function collectScannableFiles(targetDir: string): Array<{ path: string; content
       if (out.length >= CLAW_MAX_FILES) return;
       const p = path.join(dir, e.name);
       if (e.isDirectory()) {
-        if (!skipDirs.has(e.name)) walk(p, depth + 1);
+        if (!shouldSkipDir(e.name, p, targetDir, skipDirs, gitIgnore)) walk(p, depth + 1);
       } else if (e.isFile()) {
         if (!CLAW_SECRET_PATTERNS.some((re) => re.test(e.name))) continue;
         try {
@@ -795,7 +857,9 @@ function collectScannableFiles(targetDir: string): Array<{ path: string; content
   return out;
 }
 
-export async function runClawProtectScorer(params: { repoUrl?: string; targetDir?: string }): Promise<ScorerResult> {
+export async function runClawProtectScorer(
+  params: { repoUrl?: string; targetDir?: string; gitIgnore?: GitIgnoreMatcher },
+): Promise<ScorerResult> {
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
   if (!apiKey) return honest('claw-protect', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — SCA scan skipped');
 
@@ -805,7 +869,7 @@ export async function runClawProtectScorer(params: { repoUrl?: string; targetDir
   const findings: Finding[] = [];
 
   if (params.targetDir && fs.existsSync(params.targetDir)) {
-    const files = collectScannableFiles(params.targetDir);
+    const files = collectScannableFiles(params.targetDir, params.gitIgnore);
     for (const f of files) {
       const res = await postJson(
         `${CLAW_URL.replace(/\/+$/, '')}/api/v1/scan/secrets`,
@@ -1353,7 +1417,7 @@ function hasPythonTests(dir: string): boolean {
  * package gets both — the old first-match logic ran only one and reported a
  * misleading 100/0.
  */
-export function discoverTestRunners(targetDir: string): TestRunnerSpec[] {
+export function discoverTestRunners(targetDir: string, gitIgnore?: GitIgnoreMatcher): TestRunnerSpec[] {
   const specs: TestRunnerSpec[] = [];
   const walk = (dir: string, depth: number): void => {
     const pkgPath = path.join(dir, 'package.json');
@@ -1380,8 +1444,10 @@ export function discoverTestRunners(targetDir: string): TestRunnerSpec[] {
       return;
     }
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.') || QA_SKIP_DIRS.has(entry.name)) continue;
-      walk(path.join(dir, entry.name), depth + 1);
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const abs = path.join(dir, entry.name);
+      if (shouldSkipDir(entry.name, abs, targetDir, QA_SKIP_DIRS, gitIgnore)) continue;
+      walk(abs, depth + 1);
     }
   };
   walk(targetDir, 0);
@@ -1398,14 +1464,18 @@ interface QaRunnerOutcome {
   coveragePct: number | null;
 }
 
-async function runOneTestRunner(spec: TestRunnerSpec, index: number): Promise<QaRunnerOutcome> {
+async function runOneTestRunner(
+  spec: TestRunnerSpec,
+  index: number,
+  timeoutMs: number = LOCAL_QA_TIMEOUT_MS,
+): Promise<QaRunnerOutcome> {
   let args = spec.args;
   let junitPath: string | null = null;
   if (spec.runner === 'pytest') {
     junitPath = path.join(os.tmpdir(), `openhub-qa-${process.pid}-${Date.now()}-${index}.xml`);
     args = [...args, `--junitxml=${junitPath}`];
   }
-  const run = await runLocalCommand(spec.cmd, args, spec.cwd, LOCAL_QA_TIMEOUT_MS);
+  const run = await runLocalCommand(spec.cmd, args, spec.cwd, timeoutMs);
   let output = run.output;
   if (junitPath) {
     try {
@@ -1427,12 +1497,64 @@ async function runOneTestRunner(spec: TestRunnerSpec, index: number): Promise<Qa
   };
 }
 
-export async function runLocalQaScorer(targetDir?: string): Promise<ScorerResult> {
+export interface LocalQaOptions {
+  /** Commands from `tests:` in openhub.yaml. When non-empty these REPLACE
+   *  discovery entirely — the repo has said which lane it wants. */
+  commands?: readonly AuditTestCommand[];
+  /** Per-command cap, from `tests.timeoutMs`. */
+  timeoutMs?: number;
+  gitIgnore?: GitIgnoreMatcher;
+}
+
+/**
+ * Run the repo's test suites.
+ *
+ * `local_qa` used to have exactly one mode: discover every runner under the
+ * target and run all of them, sequentially, with a fixed 120s cap per runner
+ * and no way to override either. On a project with a ~700s C++ suite plus three
+ * vitest lanes that cannot return inside an MCP request timeout, and there was
+ * no knob to scope it — so the only honest options were to disable the scorer
+ * or accept a timeout. `tests:` in openhub.yaml is that knob.
+ *
+ * Configured commands and discovered runners are reported differently in
+ * `details.source`, so a reader can tell "the repo scoped this to one lane"
+ * from "one lane happened to be the only one found".
+ */
+export async function runLocalQaScorer(targetDir?: string, opts: LocalQaOptions = {}): Promise<ScorerResult> {
   if (!targetDir || !fs.existsSync(targetDir)) {
     return honest('local_qa', 'local QA needs an existing targetDir (Benchmark Olympics QA gate)');
   }
 
-  const specs = discoverTestRunners(targetDir);
+  const configured = opts.commands ?? [];
+  const timeoutMs = opts.timeoutMs ?? LOCAL_QA_TIMEOUT_MS;
+
+  let specs: TestRunnerSpec[];
+  let sourceLabel: 'config' | 'discovered';
+  if (configured.length > 0) {
+    sourceLabel = 'config';
+    specs = configured.map((c, i) => {
+      const cwd = c.cwd ? path.join(targetDir, c.cwd) : targetDir;
+      if (!fs.existsSync(cwd)) {
+        // Do not silently drop it: a `cwd` that does not exist is a config
+        // error, and running the command in the wrong directory would produce
+        // a plausible-looking result about the wrong tree.
+        throw new Error(
+          `tests[${i}] (${c.label}): cwd "${c.cwd}" does not exist under the target dir`,
+        );
+      }
+      return {
+        runner: /pytest/i.test(c.command) ? 'pytest' : /jest/i.test(c.command) ? 'jest' : /vitest|npm|pnpm|yarn/i.test(c.command) ? 'vitest' : 'npm',
+        cwd,
+        cmd: c.command,
+        args: c.args,
+        label: c.label,
+      };
+    });
+  } else {
+    sourceLabel = 'discovered';
+    specs = discoverTestRunners(targetDir, opts.gitIgnore);
+  }
+
   if (specs.length === 0) {
     const pkgPath = path.join(targetDir, 'package.json');
     if (fs.existsSync(pkgPath)) return honest('local_qa', 'package.json declares no test script');
@@ -1440,7 +1562,7 @@ export async function runLocalQaScorer(targetDir?: string): Promise<ScorerResult
   }
 
   const outcomes: QaRunnerOutcome[] = [];
-  for (let i = 0; i < specs.length; i++) outcomes.push(await runOneTestRunner(specs[i], i));
+  for (let i = 0; i < specs.length; i++) outcomes.push(await runOneTestRunner(specs[i], i, timeoutMs));
 
   let total = 0, passed = 0, failed = 0, skipped = 0, xfailed = 0, durationMs = 0;
   let coveragePct: number | null = null;
@@ -1477,13 +1599,17 @@ export async function runLocalQaScorer(targetDir?: string): Promise<ScorerResult
     coveragePct,
     failures,
   };
+  const timedOut = outcomes.filter((o) => o.timedOut).map((o) => o.spec.label);
   const allOk = outcomes.every((o) => o.ok);
   const score = scoreTestSummary(combined, { coverageGatePct: LOCAL_QA_COVERAGE_GATE, exitOk: allOk });
 
   const labelStr = specs.map((s) => s.label).join(' + ');
   const covNote = coveragePct != null ? `, ${coveragePct}% cov` : '';
   const failNote = failed > 0 ? `, ${failed} failed` : '';
-  const detail = `${passed}/${total} passed${failNote}${covNote}`;
+  // A timeout is named here rather than left to be read as a test failure: the
+  // suite did not fail, it was killed, and those demand different responses.
+  const timeoutNote = timedOut.length ? `, ${timedOut.length} timed out at ${timeoutMs}ms (${timedOut.join(', ')})` : '';
+  const detail = `${passed}/${total} passed${failNote}${covNote}${timeoutNote}`;
   const firstFailure = failures[0];
 
   const findings = failures.slice(0, 25).map((f) => makeFinding({
@@ -1498,22 +1624,50 @@ export async function runLocalQaScorer(targetDir?: string): Promise<ScorerResult
     remediation: 'Fix the failing test before shipping.',
   }));
 
+  const baseDetails = {
+    // `config` vs `discovered` is the difference between "the repo scoped this
+    // to one lane" and "one lane happened to be the only one found". Without it
+    // a scoped run reads as full coverage of the suite.
+    commandSource: sourceLabel,
+    runners: specs.map((s) => ({ runner: s.runner, cwd: s.cwd, label: s.label })),
+    total, passed, failed, skipped, coveragePct,
+    ...(timedOut.length ? { timedOut, timeoutMs } : {}),
+  };
+
   if (allOk) {
     return attach({
       scorer: 'local_qa',
       score,
       summary: `local QA passed (${labelStr}) — ${detail}`,
-      details: { runners: specs.map((s) => ({ runner: s.runner, cwd: s.cwd, label: s.label })), total, passed, failed, skipped, coveragePct },
+      details: baseDetails,
+      status: 'ok',
     }, { findings, files: specs.length, analyzers: specs.map((s) => s.runner), language: specs.some((s) => s.runner === 'pytest') ? 'python' : 'javascript' });
   }
+
+  // A timeout is not a test failure and not a pass. It is an unknown, so the
+  // status is `partial` when something did complete and `unavailable` when
+  // nothing did — never `ok`. The failure branch previously set no status, so
+  // `attach` defaulted it to 'ok' and a run that failed outright was reported
+  // as `local_qa: ok`, which is the overclaim this scorer exists to avoid.
+  const ranSomething = outcomes.some((o) => o.summary && o.summary.total > 0);
+  const status: ScorerResult['status'] = timedOut.length === outcomes.length && !ranSomething
+    ? 'unavailable'
+    : 'partial';
 
   return attach({
     scorer: 'local_qa',
     score,
     summary: `local QA failed (${labelStr}) — ${detail}`,
-    error: firstFailure ? `${firstFailure.name}${firstFailure.message ? `: ${firstFailure.message}` : ''}` : outputTail(outcomes.map((o) => o.output).join('\n')),
-    details: { runners: specs.map((s) => ({ runner: s.runner, cwd: s.cwd, label: s.label })), total, passed, failed, skipped, coveragePct },
-  }, { findings, files: specs.length, analyzers: specs.map((s) => s.runner), language: specs.some((s) => s.runner === 'pytest') ? 'python' : 'javascript' });
+    // A timeout is reported AS a timeout, with the cap, so the reader can raise
+    // tests.timeoutMs rather than hunt for a test that does not fail.
+    error: timedOut.length
+      ? `${timedOut.length} command(s) timed out at ${timeoutMs}ms: ${timedOut.join(', ')} — the suite did not report a result`
+      : firstFailure
+        ? `${firstFailure.name}${firstFailure.message ? `: ${firstFailure.message}` : ''}`
+        : outputTail(outcomes.map((o) => o.output).join('\n')),
+    details: baseDetails,
+    status,
+  }, { findings, files: specs.length, analyzers: specs.map((s) => s.runner), language: specs.some((s) => s.runner === 'pytest') ? 'python' : 'javascript', status });
 }
 
 // ---------------------------------------------------------------------------
@@ -1657,77 +1811,203 @@ export function scopeFindings(findings: Finding[], includeFiles?: Set<string>): 
   return findings.filter((f) => !f.location?.file || includeFiles.has(f.location.file));
 }
 
+// ---------------------------------------------------------------------------
+// Multi-package project discovery.
+//
+// The typecheck/lint scorers used to probe `path.join(targetDir, 'tsconfig.json')`
+// and nothing else, so on a monorepo they reported `unavailable` — "no tsconfig
+// detected" — while four tsconfigs and an eslint config sat in subdirectories.
+// The repo had real typecheck and lint coverage and the tool could see none of
+// it. That is a reporting gap in the tool, invisible unless you read the scorer
+// list, and the scorer's "unavailable" reads like the repo has no toolchain.
+//
+// So: find the projects, run the real tool in each, and merge the findings with
+// repo-relative paths. Every project is reported in `details.projects`, so
+// "checked 3 of 3" is a claim a reader can check.
+// ---------------------------------------------------------------------------
+
+/** Config markers that make a directory a runnable toolchain root. */
+const PROJECT_MARKERS = [
+  'tsconfig.json', 'jsconfig.json',
+  'eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs',
+  '.eslintrc', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.json', '.eslintrc.yml', '.eslintrc.yaml',
+  'ruff.toml', '.ruff.toml', '.flake8', 'setup.cfg', 'pyproject.toml',
+  'mypy.ini', '.mypy.ini', 'pyrightconfig.json', 'pytest.ini', 'tox.ini',
+];
+
+/** Directories never scanned for projects. */
+const PROJECT_SCAN_SKIP = new Set([
+  'node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.nuxt', '.turbo',
+  'vendor', '__pycache__', '.venv', 'venv', 'target', 'out', '.cache', '.pnpm',
+]);
+
+/** Cap on projects run per scorer, so a pathological tree cannot run 200 tscs. */
+const MAX_PROJECTS = 12;
+/** Cap on depth. `apps/x` and `packages/y` are the realistic cases. */
+const MAX_PROJECT_DEPTH = 4;
+
+export interface DiscoveredProject {
+  /** Absolute directory that owns the config. */
+  dir: string;
+  /** Repo-relative POSIX path; '' for the root. */
+  rel: string;
+  /** Which marker files it has. */
+  markers: string[];
+}
+
+/**
+ * Every directory under `rootDir` carrying a toolchain config, root-first.
+ *
+ * Exported and pure-I/O-only so the discovery itself is unit-testable without
+ * spawning tsc or eslint.
+ */
+export function discoverProjects(
+  rootDir: string,
+  opts: { gitIgnore?: GitIgnoreMatcher; maxDepth?: number; maxProjects?: number } = {},
+): DiscoveredProject[] {
+  const maxDepth = opts.maxDepth ?? MAX_PROJECT_DEPTH;
+  const maxProjects = opts.maxProjects ?? MAX_PROJECTS;
+  const out: DiscoveredProject[] = [];
+  const seen = new Set<string>();
+
+  const visit = (dir: string, rel: string, depth: number): void => {
+    if (out.length >= maxProjects || depth > maxDepth) return;
+    const markers: string[] = [];
+    for (const m of PROJECT_MARKERS) {
+      try {
+        if (fs.existsSync(path.join(dir, m))) markers.push(m);
+      } catch { /* unreadable — treat as absent */ }
+    }
+    if (markers.length > 0 && !seen.has(dir)) {
+      seen.add(dir);
+      out.push({ dir, rel, markers });
+    }
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (out.length >= maxProjects) return;
+      if (!e.isDirectory() || e.name.startsWith('.') || PROJECT_SCAN_SKIP.has(e.name)) continue;
+      const abs = path.join(dir, e.name);
+      if (shouldSkipDir(e.name, abs, rootDir, PROJECT_SCAN_SKIP, opts.gitIgnore)) continue;
+      visit(abs, rel ? `${rel}/${e.name}` : e.name, depth + 1);
+    }
+  };
+  visit(rootDir, '', 0);
+  return out;
+}
+
 export async function runTypecheckScorer(
   targetDir?: string,
-  opts: { includeFiles?: Set<string> } = {},
+  opts: { includeFiles?: Set<string>; gitIgnore?: GitIgnoreMatcher } = {},
 ): Promise<ScorerResult> {
   if (!targetDir || !fs.existsSync(targetDir)) return honest('typecheck', 'typecheck needs a local targetDir');
 
-  const tsconfig = path.join(targetDir, 'tsconfig.json');
-  if (fs.existsSync(tsconfig)) {
-    const run = await runLocalCommand('npx', ['--no-install', 'tsc', '--noEmit', '--pretty', 'false'], targetDir, TYPECHECK_TIMEOUT_MS);
-    const all = parseTscOutput(run.output, targetDir);
-    const findings = scopeFindings(all, opts.includeFiles);
-    const scoped = opts.includeFiles ? ` in changed files (of ${all.length} total)` : '';
-    if (findings.length > 0) {
-      const score = Math.max(0, 100 - Math.min(80, findings.length * 2));
-      return attach(
-        { scorer: 'typecheck', score, summary: `tsc: ${findings.length} type error${findings.length === 1 ? '' : 's'}${scoped}`, details: { runner: 'tsc', errors: findings.length, totalErrors: all.length } },
-        { findings, dimensions: ['build_ci', 'correctness'], analyzers: ['tsc'] },
-      );
-    }
-    if (all.length > 0 && opts.includeFiles) {
-      return attach(
-        { scorer: 'typecheck', score: 100, summary: `tsc: no type errors in changed files (${all.length} elsewhere)`, details: { runner: 'tsc', errors: 0, totalErrors: all.length } },
-        { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: ['tsc'] },
-      );
-    }
-    if (run.timedOut) return honest('typecheck', `tsc timed out after ${TYPECHECK_TIMEOUT_MS}ms`);
-    if (run.ok) {
-      return attach(
-        { scorer: 'typecheck', score: 100, summary: 'tsc --noEmit: no type errors', details: { runner: 'tsc', errors: 0 } },
-        { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: ['tsc'] },
-      );
-    }
-    if (/not recognized|ENOENT|Cannot find module 'typescript'|command failed/i.test(run.output)) {
-      return honest('typecheck', 'tsc is not installed locally (npm i -D typescript)');
-    }
-    return honest('typecheck', outputTail(run.output) || 'tsc produced no parseable output');
+  const projects = discoverProjects(targetDir, { ...(opts.gitIgnore ? { gitIgnore: opts.gitIgnore } : {}) });
+  const tsProjects = projects.filter((p) => p.markers.some((m) => m === 'tsconfig.json' || m === 'jsconfig.json'));
+  const pyProjects = projects.filter((p) => p.markers.some((m) => m === 'mypy.ini' || m === '.mypy.ini' || m === 'pyrightconfig.json'))
+    // A project with no typechecker config but a python test suite is treated as
+    // configured, matching the old root-only `|| hasPythonTests(targetDir)`.
+    .concat(projects.filter((p) => !tsProjects.includes(p) && p.markers.some((m) => m === 'pytest.ini' || m === 'tox.ini')));
+  const pyOnly = pyProjects.filter((p) => !tsProjects.includes(p));
+
+  if (tsProjects.length === 0 && pyOnly.length === 0) {
+    return honest('typecheck', 'no tsconfig.json, mypy.ini or pyrightconfig.json detected');
   }
 
-  const mypyConfigured = ['mypy.ini', '.mypy.ini', 'pyrightconfig.json'].some((f) => fs.existsSync(path.join(targetDir, f)))
-    || hasPythonTests(targetDir);
-  if (mypyConfigured) {
-    const run = await runLocalCommand('mypy', ['.', '--no-error-summary', '--show-column-numbers', '--exclude', MYPY_EXCLUDE], targetDir, TYPECHECK_TIMEOUT_MS);
-    const all = parseMypyOutput(run.output, targetDir);
-    const findings = scopeFindings(all, opts.includeFiles);
-    const scoped = opts.includeFiles ? ` in changed files (of ${all.length} total)` : '';
-    if (findings.length > 0) {
-      const score = Math.max(0, 100 - Math.min(80, findings.length * 2));
-      return attach(
-        { scorer: 'typecheck', score, summary: `mypy: ${findings.length} type error${findings.length === 1 ? '' : 's'}${scoped}`, details: { runner: 'mypy', errors: findings.length, totalErrors: all.length } },
-        { findings, dimensions: ['build_ci', 'correctness'], analyzers: ['mypy'] },
-      );
-    }
-    if (all.length > 0 && opts.includeFiles) {
-      return attach(
-        { scorer: 'typecheck', score: 100, summary: `mypy: no type errors in changed files (${all.length} elsewhere)`, details: { runner: 'mypy', errors: 0, totalErrors: all.length } },
-        { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: ['mypy'] },
-      );
-    }
-    if (run.ok) {
-      return attach(
-        { scorer: 'typecheck', score: 100, summary: 'mypy: no type errors', details: { runner: 'mypy', errors: 0 } },
-        { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: ['mypy'] },
-      );
-    }
-    if (/not recognized|no module named|ENOENT|command not found/i.test(run.output)) {
-      return honest('typecheck', 'mypy is not installed');
-    }
-    return honest('typecheck', outputTail(run.output) || 'mypy produced no parseable output');
+  const ran: Array<{ project: string; runner: string; errors: number; timedOut: boolean; ok: boolean }> = [];
+  const allFindings: Finding[] = [];
+  const scopedElsewhere: number[] = [];
+  const outputs: string[] = [];
+
+  for (const p of tsProjects) {
+    const run = await runLocalCommand('npx', ['--no-install', 'tsc', '--noEmit', '--pretty', 'false'], p.dir, TYPECHECK_TIMEOUT_MS);
+    // Paths are rebased to the REPO root, not the project dir, so a merged
+    // finding is locatable in the file map the rest of the audit builds.
+    const all = parseTscOutput(run.output, p.dir).map((f) => rebaseFinding(f, p.dir, targetDir));
+    const kept = scopeFindings(all, opts.includeFiles);
+    if (all.length > kept.length) scopedElsewhere.push(all.length - kept.length);
+    allFindings.push(...kept);
+    outputs.push(run.output);
+    ran.push({ project: p.rel || '.', runner: 'tsc', errors: all.length, timedOut: run.timedOut, ok: run.ok });
   }
 
-  return honest('typecheck', 'no tsconfig.json, mypy.ini or pyrightconfig.json detected');
+  for (const p of pyOnly) {
+    const run = await runLocalCommand('mypy', ['.', '--no-error-summary', '--show-column-numbers', '--exclude', MYPY_EXCLUDE], p.dir, TYPECHECK_TIMEOUT_MS);
+    const all = parseMypyOutput(run.output, p.dir).map((f) => rebaseFinding(f, p.dir, targetDir));
+    const kept = scopeFindings(all, opts.includeFiles);
+    if (all.length > kept.length) scopedElsewhere.push(all.length - kept.length);
+    allFindings.push(...kept);
+    outputs.push(run.output);
+    ran.push({ project: p.rel || '.', runner: 'mypy', errors: all.length, timedOut: run.timedOut, ok: run.ok });
+  }
+
+  const totalErrors = allFindings.length + scopedElsewhere.reduce((a, b) => a + b, 0);
+  const projectCount = tsProjects.length + pyOnly.length;
+  const projectNote = projectCount === 1 ? '' : ` across ${projectCount} projects`;
+  const timedOutProjects = ran.filter((r) => r.timedOut).map((r) => r.project);
+  const failedProjects = ran.filter((r) => !r.ok && !r.timedOut).map((r) => r.project);
+
+  const details = {
+    runner: tsProjects.length > 0 ? 'tsc' : 'mypy',
+    errors: allFindings.length,
+    totalErrors,
+    projectsFound: projectCount,
+    projectsRan: ran.length,
+    projects: ran,
+  };
+
+  // A project that timed out or could not run did not typecheck. If that was
+  // every project, this is `unavailable`, not a clean 100: reporting "no type
+  // errors" for a run that never executed is the exact overclaim this scorer
+  // exists to avoid.
+  if (ran.every((r) => !r.ok)) {
+    const missing = /not recognized|ENOENT|Cannot find module 'typescript'|command not found|No module named/i.test(outputs.join('\n'));
+    const reason = timedOutProjects.length === projectCount
+      ? `typecheck timed out after ${TYPECHECK_TIMEOUT_MS}ms in ${timedOutProjects.join(', ')}`
+      : missing
+        ? `${tsProjects.length > 0 ? 'tsc' : 'mypy'} is not installed in ${failedProjects.join(', ') || 'this project'}`
+        : outputTail(outputs.join('\n')) || `${failedProjects.join(', ') || 'the typechecker'} produced no parseable output`;
+    return honest('typecheck', reason, '', details);
+  }
+
+  const scoped = opts.includeFiles && scopedElsewhere.length
+    ? ` in changed files (of ${totalErrors} total)`
+    : '';
+
+  if (allFindings.length > 0) {
+    const score = Math.max(0, 100 - Math.min(80, allFindings.length * 2));
+    return attach(
+      { scorer: 'typecheck', score, summary: `${details.runner}: ${allFindings.length} type error${allFindings.length === 1 ? '' : 's'}${projectNote}${scoped}`, details },
+      { findings: allFindings, dimensions: ['build_ci', 'correctness'], analyzers: [details.runner] },
+    );
+  }
+  if (totalErrors > 0 && opts.includeFiles) {
+    return attach(
+      { scorer: 'typecheck', score: 100, summary: `${details.runner}: no type errors in changed files (${totalErrors} elsewhere)`, details },
+      { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: [details.runner] },
+    );
+  }
+  // Some projects ran and some did not: a partial result is `partial`, and the
+  // summary names which, so 100 is not read as "the whole repo typechecks".
+  const status: ScorerResult['status'] = failedProjects.length || timedOutProjects.length ? 'partial' : 'ok';
+  const caveat = status === 'partial'
+    ? ` — ${[...failedProjects, ...timedOutProjects].join(', ')} did not complete`
+    : '';
+  return attach(
+    { scorer: 'typecheck', score: 100, summary: `${details.runner} --noEmit: no type errors in ${ran.length} of ${projectCount} project${projectCount === 1 ? '' : 's'}${caveat}`, details, status },
+    { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: [details.runner], status },
+  );
+}
+
+/** Rewrite a finding's file location from a project dir to the repo root. */
+function rebaseFinding(f: Finding, fromDir: string, toDir: string): Finding {
+  if (!f.location?.file) return f;
+  const abs = path.isAbsolute(f.location.file)
+    ? f.location.file
+    : path.resolve(fromDir, f.location.file);
+  const rel = path.relative(toDir, abs).replace(/\\/g, '/');
+  if (!rel || rel.startsWith('..')) return f;
+  return { ...f, location: { ...f.location, file: rel } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1746,7 +2026,14 @@ export function parseEslintJson(json: unknown, targetDir: string): Finding[] {
     if (!file || typeof file !== 'object') continue;
     const rec = file as Record<string, unknown>;
     const filePath = typeof rec.filePath === 'string' ? rec.filePath : '';
-    const rel = filePath ? path.relative(targetDir, filePath).replace(/\\/g, '/') : '';
+    // eslint may report a relative filePath. `path.relative` resolves a relative
+    // second argument against process.cwd(), not against targetDir, so it was
+    // computing a path from the wrong base whenever eslint ran in a
+    // subdirectory. Resolve against the run directory first.
+    const abs = filePath
+      ? (path.isAbsolute(filePath) ? filePath : path.resolve(targetDir, filePath))
+      : '';
+    const rel = abs ? path.relative(targetDir, abs).replace(/\\/g, '/') : '';
     const messages = Array.isArray(rec.messages) ? rec.messages : [];
     for (const msg of messages) {
       if (!msg || typeof msg !== 'object') continue;
@@ -1816,74 +2103,141 @@ function lintScore(findings: Finding[]): number {
   return Math.max(0, 100 - Math.min(80, penalty));
 }
 
+/**
+ * Lint, across every project in the tree.
+ *
+ * Same defect as the typecheck scorer: the old code tested
+ * `ESLINT_CONFIGS.some(f => exists(path.join(targetDir, f)))` at the root only,
+ * so a monorepo whose eslint config lives in `webui/` reported `unavailable`
+ * — "no eslint, ruff or flake8 config detected" — as if the repo had no
+ * linter. `discoverProjects` finds them; each is linted in its own directory so
+ * the tool picks up the right config and node_modules resolution.
+ */
 export async function runLintScorer(
   targetDir?: string,
-  opts: { includeFiles?: Set<string> } = {},
+  opts: { includeFiles?: Set<string>; gitIgnore?: GitIgnoreMatcher } = {},
 ): Promise<ScorerResult> {
   if (!targetDir || !fs.existsSync(targetDir)) return honest('lint', 'lint needs a local targetDir');
 
-  if (ESLINT_CONFIGS.some((f) => fs.existsSync(path.join(targetDir, f)))) {
-    const run = await runLocalCommand('npx', ['--no-install', 'eslint', '--format', 'json', '.'], targetDir, LINT_TIMEOUT_MS);
+  const projects = discoverProjects(targetDir, { ...(opts.gitIgnore ? { gitIgnore: opts.gitIgnore } : {}) });
+  const eslintProjects = projects.filter((p) => p.markers.some((m) => ESLINT_CONFIGS.includes(m)));
+  const ruffProjects = projects.filter((p) => !eslintProjects.includes(p)
+    && p.markers.some((m) => m === 'ruff.toml' || m === '.ruff.toml' || m === 'pyproject.toml' || m === 'pytest.ini' || m === 'tox.ini'));
+  const flake8Projects = projects.filter((p) => !eslintProjects.includes(p) && !ruffProjects.includes(p)
+    && p.markers.some((m) => m === '.flake8' || m === 'setup.cfg'));
+
+  if (eslintProjects.length === 0 && ruffProjects.length === 0 && flake8Projects.length === 0) {
+    return honest('lint', 'no eslint, ruff or flake8 config detected');
+  }
+
+  const ran: Array<{ project: string; runner: string; problems: number | null; timedOut: boolean; ok: boolean }> = [];
+  const allFindings: Finding[] = [];
+  const scopedElsewhere: number[] = [];
+  const outputs: string[] = [];
+
+  /**
+   * `parsed: null` means the tool ran but emitted nothing we could parse. That
+   * is NOT zero problems — it is an unknown, and it must not be folded into a
+   * clean run, so it is recorded with `problems: null` and excluded from
+   * `runnable`.
+   */
+  const record = (
+    p: DiscoveredProject,
+    runner: string,
+    run: { ok: boolean; timedOut: boolean; output: string },
+    parsed: Finding[] | null,
+  ): void => {
+    if (parsed === null) {
+      outputs.push(run.output);
+      ran.push({ project: p.rel || '.', runner, problems: null, timedOut: run.timedOut, ok: run.ok });
+      return;
+    }
+    const all = parsed.map((f) => rebaseFinding(f, p.dir, targetDir));
+    const kept = scopeFindings(all, opts.includeFiles);
+    if (all.length > kept.length) scopedElsewhere.push(all.length - kept.length);
+    allFindings.push(...kept);
+    outputs.push(run.output);
+    ran.push({ project: p.rel || '.', runner, problems: all.length, timedOut: run.timedOut, ok: run.ok });
+  };
+
+  for (const p of eslintProjects) {
+    const run = await runLocalCommand('npx', ['--no-install', 'eslint', '--format', 'json', '.'], p.dir, LINT_TIMEOUT_MS);
     const jsonStart = run.output.indexOf('[');
+    let parsed: Finding[] | null = null;
     if (jsonStart !== -1) {
-      try {
-        const parsed = JSON.parse(run.output.slice(jsonStart));
-        const all = parseEslintJson(parsed, targetDir);
-        const findings = scopeFindings(all, opts.includeFiles);
-        return attach(
-          { scorer: 'lint', score: lintScore(findings), summary: `eslint: ${findings.length} problem${findings.length === 1 ? '' : 's'}${opts.includeFiles ? ` in changed files (of ${all.length})` : ''}`, details: { runner: 'eslint', problems: findings.length, totalProblems: all.length } },
-          { findings, dimensions: ['maintainability'], analyzers: ['eslint'], status: run.ok ? 'ok' : 'partial' },
-        );
-      } catch {
-        /* not JSON — fall through to the tool-unavailable checks */
-      }
+      try { parsed = parseEslintJson(JSON.parse(run.output.slice(jsonStart)), p.dir); } catch { parsed = null; }
     }
-    if (/not recognized|ENOENT|Cannot find module|command failed/i.test(run.output)) {
-      return honest('lint', 'eslint is not installed locally');
-    }
-    return honest('lint', outputTail(run.output) || 'eslint produced no parseable output');
+    record(p, 'eslint', run, parsed);
   }
 
-  const ruffConfigured = fs.existsSync(path.join(targetDir, 'ruff.toml'))
-    || fs.existsSync(path.join(targetDir, '.ruff.toml'))
-    || hasPythonTests(targetDir);
-  const flake8Configured = fs.existsSync(path.join(targetDir, '.flake8'))
-    || fs.existsSync(path.join(targetDir, 'setup.cfg'));
-
-  if (ruffConfigured) {
-    const run = await runLocalCommand('ruff', ['check', '.', '--output-format=concise'], targetDir, LINT_TIMEOUT_MS);
-    const all = parseRuffText(run.output, targetDir);
-    const findings = scopeFindings(all, opts.includeFiles);
-    if (findings.length > 0) {
-      return attach(
-        { scorer: 'lint', score: lintScore(findings), summary: `ruff: ${findings.length} problem${findings.length === 1 ? '' : 's'}${opts.includeFiles ? ` in changed files (of ${all.length})` : ''}`, details: { runner: 'ruff', problems: findings.length, totalProblems: all.length } },
-        { findings, dimensions: ['maintainability'], analyzers: ['ruff'], status: 'ok' },
-      );
-    }
-    if (run.ok || (all.length > 0 && opts.includeFiles)) {
-      return attach(
-        { scorer: 'lint', score: 100, summary: opts.includeFiles ? `ruff: no problems in changed files (${all.length} elsewhere)` : 'ruff: no problems', details: { runner: 'ruff', problems: 0, totalProblems: all.length } },
-        { findings: [], dimensions: ['maintainability'], analyzers: ['ruff'] },
-      );
-    }
-    if (/not recognized|ENOENT|No module named|command not found/i.test(run.output) === false) {
-      return honest('lint', outputTail(run.output) || 'ruff produced no parseable output');
-    }
+  for (const p of ruffProjects) {
+    const run = await runLocalCommand('ruff', ['check', '.', '--output-format=concise'], p.dir, LINT_TIMEOUT_MS);
+    const unparsed = !run.ok && !run.timedOut && !parseRuffText(run.output, p.dir).length && /not recognized|ENOENT|No module named|command not found/i.test(run.output);
+    record(p, 'ruff', run, unparsed ? null : parseRuffText(run.output, p.dir));
   }
 
-  if (flake8Configured) {
-    const run = await runLocalCommand('flake8', ['.'], targetDir, LINT_TIMEOUT_MS);
-    const all = parseFlake8Text(run.output, targetDir);
-    const findings = scopeFindings(all, opts.includeFiles);
-    if (findings.length > 0) {
-      return attach(
-        { scorer: 'lint', score: lintScore(findings), summary: `flake8: ${findings.length} problem${findings.length === 1 ? '' : 's'}${opts.includeFiles ? ` in changed files (of ${all.length})` : ''}`, details: { runner: 'flake8', problems: findings.length, totalProblems: all.length } },
-        { findings, dimensions: ['maintainability'], analyzers: ['flake8'] },
-      );
-    }
+  for (const p of flake8Projects) {
+    const run = await runLocalCommand('flake8', ['.'], p.dir, LINT_TIMEOUT_MS);
+    const unparsed = !run.ok && !run.timedOut && /not recognized|ENOENT|No module named|command not found/i.test(run.output);
+    record(p, 'flake8', run, unparsed ? null : parseFlake8Text(run.output, p.dir));
   }
 
-  return honest('lint', 'no eslint, ruff or flake8 config detected');
+  const totalProblems = allFindings.length + scopedElsewhere.reduce((a, b) => a + b, 0);
+  const projectCount = eslintProjects.length + ruffProjects.length + flake8Projects.length;
+  const runner = eslintProjects.length > 0 ? 'eslint' : ruffProjects.length > 0 ? 'ruff' : 'flake8';
+  const projectNote = projectCount === 1 ? '' : ` across ${projectCount} projects`;
+  const timedOutProjects = ran.filter((r) => r.timedOut).map((r) => r.project);
+  const unparsed = ran.filter((r) => r.problems === null).map((r) => r.project);
+  const failedProjects = ran.filter((r) => !r.ok && !r.timedOut && r.problems !== null).map((r) => r.project);
+  const runnable = ran.filter((r) => r.problems !== null);
+
+  const details = {
+    runner,
+    problems: allFindings.length,
+    totalProblems,
+    projectsFound: projectCount,
+    projectsRan: ran.length,
+    projects: ran,
+  };
+
+  if (runnable.length === 0) {
+    const missing = /not recognized|ENOENT|Cannot find module|command not found|No module named/i.test(outputs.join('\n'));
+    return honest('lint', timedOutProjects.length === projectCount
+      ? `lint timed out after ${LINT_TIMEOUT_MS}ms in ${timedOutProjects.join(', ')}`
+      : missing
+        ? `${runner} is not installed in ${unparsed.join(', ') || 'this project'}`
+        : `${unparsed.join(', ') || 'the linter'} produced no parseable output`,
+    '', details);
+  }
+
+  const scoped = opts.includeFiles && scopedElsewhere.length
+    ? ` in changed files (of ${totalProblems} total)`
+    : '';
+
+  if (allFindings.length > 0) {
+    return attach(
+      { scorer: 'lint', score: lintScore(allFindings), summary: `${runner}: ${allFindings.length} problem${allFindings.length === 1 ? '' : 's'}${projectNote}${scoped}`, details },
+      { findings: allFindings, dimensions: ['maintainability'], analyzers: [runner], status: 'ok' },
+    );
+  }
+  if (totalProblems > 0 && opts.includeFiles) {
+    return attach(
+      { scorer: 'lint', score: 100, summary: `${runner}: no problems in changed files (${totalProblems} elsewhere)`, details },
+      { findings: [], dimensions: ['maintainability'], analyzers: [runner] },
+    );
+  }
+  const status: ScorerResult['status'] = failedProjects.length || timedOutProjects.length || unparsed.length ? 'partial' : 'ok';
+  const incomplete = [...failedProjects, ...timedOutProjects, ...unparsed];
+  return attach(
+    {
+      scorer: 'lint',
+      score: 100,
+      summary: `${runner}: no problems in ${runnable.length} of ${projectCount} project${projectCount === 1 ? '' : 's'}${status === 'partial' ? ` — ${incomplete.join(', ')} did not complete` : ''}`,
+      details,
+      status,
+    },
+    { findings: [], dimensions: ['maintainability'], analyzers: [runner], status },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2306,9 +2660,25 @@ export interface AuditPlan {
   stage: AuditStageName | null;
 }
 
-/** Resolve explicit scorers > preset > stage preset > full suite. Pure and unit-testable. */
+/** Resolve explicit scorers > preset > stage preset > full suite, then apply the
+ *  repo's `tools.enabled` / `tools.disabled` toggles. Pure and unit-testable.
+ *
+ *  These toggles used to be parsed into `AuditConfig.tools` and read by nothing:
+ *  the only occurrences of `config.tools` in the tree were its own declaration
+ *  and parse site, so a repo that disabled a scorer still ran it, and a repo that
+ *  enabled one never gained it. The doc comments claimed
+ *  "When non-empty, only these tools run" / "wins over `enabled`"; that contract
+ *  is now actually implemented here.
+ *
+ *  `disabled` is applied last so it wins, matching the documented precedence.
+ *  An explicit `scorers` array is still a hard request: if `enabled` filters it
+ *  down to nothing the run reports nothing rather than silently running the
+ *  whole preset, because a repo that disabled everything asked for that. */
 export function resolveAuditPlan(
-  params: Pick<AuditRunParams, 'scorers' | 'full' | 'preset' | 'stage'>,
+  params: Pick<AuditRunParams, 'scorers' | 'full' | 'preset' | 'stage'> & {
+    /** `tools` block from the repo's openhub.yaml; omitted means no filtering. */
+    tools?: { enabled?: string[]; disabled?: string[] };
+  },
 ): AuditPlan {
   const stage = params.stage && AUDIT_STAGES[params.stage] ? params.stage : null;
   const preset =
@@ -2317,8 +2687,41 @@ export function resolveAuditPlan(
       : stage
         ? AUDIT_STAGES[stage].preset
         : null;
+  const base =
+    params.scorers ?? (preset ? [...AUDIT_PRESETS[preset].scorers] : [...DEFAULT_AUDIT_SCORERS]);
+
+  const enabled = (params.tools?.enabled ?? []).filter(Boolean);
+  const disabled = new Set((params.tools?.disabled ?? []).filter(Boolean));
+  // An unknown name in either list is a typo, and silently ignoring it is how a
+  // scorer ends up running that the repo believes it switched off.
+  const known = new Set<string>(DEFAULT_AUDIT_SCORERS);
+  for (const presets of Object.values(AUDIT_PRESETS)) {
+    for (const scorer of presets.scorers) known.add(scorer);
+  }
+  // Real MCP tools that are not scorers. Naming `reviewdog` in `tools.disabled`
+  // is a reasonable thing for a repo to write — it IS a tool, exposed as
+  // openhub_reviewdog_rdjson — and calling it an unknown scorer teaches the
+  // reader that the warning means their whole config is wrong. It means the
+  // toggle has no effect on THIS lane, which is a different and milder fact.
+  const NON_SCORER_TOOLS = new Set([
+    'reviewdog', 'pr_agent', 'ecosystem_audit', 'ecosystem_refresh',
+  ]);
+  for (const name of [...enabled, ...disabled]) {
+    if (known.has(name)) continue;
+    const message = NON_SCORER_TOOLS.has(name)
+      ? `openhub.yaml tools toggle names "${name}", which is a tool, not a scorer — the toggle does not affect this audit`
+      : `openhub.yaml tools toggle names an unknown scorer: ${name}`;
+    // Surfaced by the caller; kept out of the pure function's return shape.
+    process.emitWarning(message, 'OpenHubConfigWarning');
+  }
+
+  const afterEnabled = enabled.length
+    ? base.filter((s) => enabled.includes(s))
+    : [...base];
+  const scorers = afterEnabled.filter((s) => !disabled.has(s));
+
   return {
-    scorers: params.scorers ?? (preset ? [...AUDIT_PRESETS[preset].scorers] : [...DEFAULT_AUDIT_SCORERS]),
+    scorers,
     full: params.full ?? (preset ? AUDIT_PRESETS[preset].full : false),
     preset,
     stage,
@@ -2395,8 +2798,22 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
   // Resolve the real code root once, so a wrapper/parent folder does not
   // silently degrade every local scorer.
   const localTarget = params.targetDir ? resolveCodeRoot(params.targetDir) : params.targetDir;
-  // Depth comes from the resolved plan: explicit scorers > preset > stage preset > full suite.
-  const plan = resolveAuditPlan(params);
+  // The repo's config is loaded once and its pieces threaded into the scorers
+  // that need them: tools toggles decide the plan, `tests:` scopes local_qa, and
+  // .gitignore bounds every directory walk. Each was parsed and then read by
+  // nothing, so a repo's stated intent was inert.
+  const repoConfig = localTarget
+    ? (() => { try { return loadAuditConfig(localTarget); } catch { return undefined; } })()
+    : undefined;
+  const repoTools = repoConfig?.config.tools;
+  const gitIgnore = repoConfig?.gitIgnore;
+  const qaOpts: LocalQaOptions = {
+    ...(repoConfig?.config.testCommands.length ? { commands: repoConfig.config.testCommands } : {}),
+    timeoutMs: repoConfig?.config.testTimeoutMs ?? LOCAL_QA_TIMEOUT_MS,
+    ...(gitIgnore ? { gitIgnore } : {}),
+  };
+  const walkerOpts = gitIgnore ? { gitIgnore } : {};
+  const plan = resolveAuditPlan({ ...params, ...(repoTools ? { tools: repoTools } : {}) });
   // Diff-scope the audit by default when the target is a git work tree, with a
   // large-diff guard that falls back to a full audit. `diffScope` restricts the
   // whole-tree scanners (Deep) to the changed files; crg/ocr already review the
@@ -2434,6 +2851,9 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
   const extraCtx = {
     ...(preflight ? { preflight } : {}),
     ...(diffScope ? { changedFiles: diffScope } : {}),
+    ...(repoConfig?.config.pathFilters.allowLargeFiles.length
+      ? { allowLargeFiles: repoConfig.config.pathFilters.allowLargeFiles }
+      : {}),
   };
 
   // Runtime cache (P4/G2) — off unless AUDIT_CACHE_TTL_MS > 0. Keyed by scorer,
@@ -2454,17 +2874,17 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
   const run = (s: ScorerName): Promise<ScorerResult> => {
     if (s === 'reporank') return runRepoRankScorer({ repoUrl: params.repoUrl, targetDir: localTarget });
     if (s === 'grader') return runGraderScorer({ repoUrl: params.repoUrl, targetDir: localTarget });
-    if (s === 'claw') return runClawProtectScorer({ repoUrl: params.repoUrl, targetDir: localTarget });
+    if (s === 'claw') return runClawProtectScorer({ repoUrl: params.repoUrl, targetDir: localTarget, ...walkerOpts });
     if (s === 'sca') return runScaScorer(localTarget);
     if (s === 'codegraph') return Promise.resolve(codegraphScorerResult(oss.report, oss.error));
     if (s === 'ocr') return Promise.resolve(ocrScorerResult(oss.report, oss.error));
     if (s === 'deep') return runDeepScorer(localTarget, diffScope ? { includeFiles: diffScope } : {});
     if (s === 'codegang') return runCodeGangScorer(localTarget);
     if (s === 'codenexus') return runCodeNexusScorer({ repoUrl: params.repoUrl, targetDir: localTarget });
-    if (s === 'local_qa') return runLocalQaScorer(localTarget);
+    if (s === 'local_qa') return runLocalQaScorer(localTarget, qaOpts);
     if (s === 'cmake') return runCmakeScorer(localTarget);
-    if (s === 'typecheck') return runTypecheckScorer(localTarget, diffScope ? { includeFiles: diffScope } : {});
-    if (s === 'lint') return runLintScorer(localTarget, diffScope ? { includeFiles: diffScope } : {});
+    if (s === 'typecheck') return runTypecheckScorer(localTarget, { ...(diffScope ? { includeFiles: diffScope } : {}), ...walkerOpts });
+    if (s === 'lint') return runLintScorer(localTarget, { ...(diffScope ? { includeFiles: diffScope } : {}), ...walkerOpts });
     if (s === 'deps_freshness') return runDepsFreshnessScorer(localTarget, extraCtx);
     if (s === 'licenses_sbom') return runLicensesSbomScorer(localTarget, extraCtx);
     if (s === 'duplication') return runDuplicationScorer(localTarget, extraCtx);

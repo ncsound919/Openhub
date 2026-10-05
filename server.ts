@@ -29,6 +29,14 @@ import {
   executeTests,
 } from './src/services/systemScanner.js';
 import {
+  askOllama,
+  collectOutdatedDependencies,
+  readGitHistory,
+  readGitStatus,
+  OLLAMA_MODEL,
+  OLLAMA_URL,
+} from './src/services/workspaceIntelligence.js';
+import {
   getGitHubIntegration,
   saveGitHubIntegration,
   removeGitHubIntegration,
@@ -545,6 +553,15 @@ async function startServer() {
   // Self-registration is opt-in. It is allowed only when explicitly enabled, or
   // as a first-run bootstrap while the user store is still empty. Login, refresh,
   // SSO and SCIM are unaffected.
+  //
+  // The catch arm used to answer 403 'registration is disabled' for ANY error,
+  // which made a broken user store indistinguishable from a policy decision: a
+  // missing `users` table and a store that already has rows both produced the same
+  // 403 with no diagnostic. It is now 500 with the underlying message, because a
+  // database failure is an operator problem and must not be reported as "you are
+  // not allowed". A genuinely disabled store still returns 403. This is the
+  // distinction 2026-10-04-commands-that-report-success-while-doing-nothing
+  // demands: a refusal must name its real cause.
   app.use('/api/auth', (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (req.method !== 'POST' || !/^\/register\/?$/i.test(req.path)) return next();
     if (process.env.OPENHUB_ALLOW_REGISTRATION === '1') return next();
@@ -553,7 +570,13 @@ async function startServer() {
         if (count === 0) return next();
         return res.status(403).json({ error: 'registration is disabled' });
       })
-      .catch(() => res.status(403).json({ error: 'registration is disabled' }));
+      .catch((err: unknown) => {
+        console.error('[Auth] countUsers failed while gating registration:', err);
+        return res.status(500).json({
+          error: 'registration gate could not evaluate the user store',
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      });
   });
 
   app.use('/api/auth', auth.router({
@@ -697,9 +720,26 @@ async function startServer() {
 
   app.get('/api/settings/profile', auth.middleware(), (req, res) => {
     const db = getDb();
-    const row = db.prepare('SELECT id, username, email, avatar_url, first_name, last_name FROM users WHERE id = ?').get(getUser(req).sub) as any;
+    // `role` and `active` were missing from both the SELECT and the response, so
+    // this route reported `role: undefined` for every user while /api/auth/me
+    // reported the real value. Any UI gating on the profile response therefore
+    // saw a user with no role and hid the owner-only affordances, which reads as
+    // "the buttons are broken" rather than "the field is missing". The role is
+    // read from the user row, which is authoritative, not from the token.
+    const row = db.prepare(
+      'SELECT id, username, email, avatar_url, first_name, last_name, role, active FROM users WHERE id = ?',
+    ).get(getUser(req).sub) as any;
     if (!row) return res.status(404).json({ error: 'User not found' });
-    res.json({ id: row.id, username: row.username, email: row.email, avatarUrl: row.avatar_url, firstName: row.first_name, lastName: row.last_name });
+    res.json({
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      avatarUrl: row.avatar_url,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.role ?? null,
+      active: row.active !== 0,
+    });
   });
 
   // Avatar upload as a base64 data URL (capped at 2MB). Stored directly on the user row.
@@ -775,14 +815,83 @@ async function startServer() {
   app.get('/api/repos', auth.middleware(), (req, res) => {
     const db = getDb();
     const { page, limit } = getPaginationParams(req);
+    // LEFT JOIN the observed status so the list carries a live health column
+    // instead of the UI having to fetch every repo's status one request at a
+    // time. A repo that has never been observed comes back with
+    // health='unobserved' rather than NULL, so a client cannot mistake
+    // "not yet measured" for "clean".
     const repos = db.prepare(`
-      SELECT r.*, u.username as owner_name
+      SELECT r.*, u.username as owner_name,
+             COALESCE(s.health, 'unobserved')      AS status_health,
+             COALESCE(s.health_reason, 'never observed') AS status_reason,
+             s.branch        AS status_branch,
+             s.head_sha      AS status_head_sha,
+             s.dirty_count   AS status_dirty_count,
+             s.has_remote    AS status_has_remote,
+             s.observed_at   AS status_observed_at
       FROM repositories r
       JOIN users u ON r.owner_id = u.id
+      LEFT JOIN repo_status s ON s.repo_id = r.id
       WHERE r.owner_id = ?
       ORDER BY r.updated_at DESC
     `).all(getUser(req).sub);
     res.json(paginate(repos, page, limit));
+  });
+
+  // ===================== REPO STATUS LEDGER (current state + change history) =====================
+  // The ledger is written by repo-status-ledger.mjs, which is the only writer:
+  // it owns the "did a watched field actually change" decision so an unchanged
+  // tree appends nothing. These routes are read-only on purpose -- a POST here
+  // would let a caller claim a healthy repo it never measured.
+
+  // Current observed state for every repo the caller owns, with the most recent
+  // change per repo. Scoped by owner_id exactly like /api/repos above; a repo id
+  // belonging to another account must not be readable by guessing the id.
+  app.get('/api/repos/status', auth.middleware(), (req, res) => {
+    const db = getDb();
+    const rows = db.prepare(`
+      SELECT r.id AS repo_id, r.name, r.full_path,
+             COALESCE(s.health, 'unobserved') AS health,
+             COALESCE(s.health_reason, 'never observed') AS reason,
+             s.branch, s.head_sha, s.dirty_count, s.has_remote, s.remote_url,
+             s.last_commit_at, s.observed_at
+      FROM repositories r
+      LEFT JOIN repo_status s ON s.repo_id = r.id
+      WHERE r.owner_id = ?
+      ORDER BY CASE COALESCE(s.health, 'unobserved')
+                 WHEN 'at-risk' THEN 0 WHEN 'dirty' THEN 1 WHEN 'ok' THEN 2
+                 WHEN 'unbacked-up' THEN 3 WHEN 'unreadable' THEN 4 ELSE 5 END,
+               COALESCE(s.dirty_count, 0) DESC
+    `).all(getUser(req).sub) as { observed_at?: string | null }[];
+
+    const counts = db.prepare(`
+      SELECT COALESCE(s.health, 'unobserved') AS health, COUNT(*) AS n
+      FROM repositories r
+      LEFT JOIN repo_status s ON s.repo_id = r.id
+      WHERE r.owner_id = ?
+      GROUP BY COALESCE(s.health, 'unobserved')
+    `).all(getUser(req).sub) as { health: string; n: number }[];
+    const byHealth: Record<string, number> = {};
+    for (const c of counts) byHealth[c.health] = c.n;
+
+    res.json({ repos: rows, byHealth, observedAt: rows[0]?.observed_at ?? null });
+  });
+
+  // Change history for one repo. 404 rather than 403 when the repo is not the
+  // caller's, so an id probe cannot confirm the existence of another account's
+  // repository.
+  app.get('/api/repos/:id/status', auth.middleware(), (req, res) => {
+    const db = getDb();
+    const owned = db.prepare('SELECT id FROM repositories WHERE id = ? AND owner_id = ?')
+      .get(req.params.id, getUser(req).sub);
+    if (!owned) return res.status(404).json({ error: 'Repository not found' });
+
+    const current = db.prepare('SELECT * FROM repo_status WHERE repo_id = ?').get(req.params.id) ?? null;
+    const { limit } = getPaginationParams(req);
+    const events = db.prepare(
+      'SELECT id, observed_at, field, old_value, new_value, note FROM repo_status_events WHERE repo_id = ? ORDER BY id DESC LIMIT ?',
+    ).all(req.params.id, limit);
+    res.json({ current, events });
   });
 
   app.post('/api/repos', auth.middleware(), (req, res) => {
@@ -803,6 +912,13 @@ async function startServer() {
     const ownerName = user.username ?? user.email?.split('@')[0] ?? 'user';
     // The username becomes a directory under REPOS_ROOT: refuse separators
     // and dot segments, and assert containment.
+    //
+    // \u0000 in the pattern is the thing being rejected, not an accident. A NUL
+    // in a path segment truncates the name in every C-level syscall on Windows,
+    // so a validated username can become a different directory on disk. There
+    // is no way to write "reject NUL" without the control character in the
+    // regex, which is why the rule is disabled here rather than the check.
+    // eslint-disable-next-line no-control-regex
     if (!ownerName || ownerName === '.' || ownerName === '..' || /[\\/\u0000]/.test(ownerName)) {
       return res.status(400).json({ error: 'Your username cannot be used as a repository directory' });
     }
@@ -1744,6 +1860,91 @@ async function startServer() {
     try {
       const analysis = analyzeSystemAndFiles();
       res.json(analysis);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Workspace Intelligence ────────────────────────────────────────────────
+  // These four back src/pages/WorkspaceIntelligence.tsx. The page was written
+  // and never mounted, and every one of these endpoints was missing; each fetch
+  // sat behind an `if (res.ok)` guard, so the page rendered an empty shell and
+  // tests/endpointCoverage.test.ts reported five unmatched frontend calls.
+  //
+  // The directory is the server's own cwd, matching every other /api/workspace
+  // route here. It is deliberately NOT a request parameter: a `?dir=` would be a
+  // path-traversal primitive reading another user's checkout.
+  //
+  // Each handler distinguishes "nothing to report" from "could not look", and
+  // says which. The page renders `[]` as "all clean", so returning an empty
+  // result for an unexamined target would be a false green.
+  app.get('/api/workspace/git/status', auth.middleware(), async (_req, res) => {
+    try {
+      const result = await readGitStatus(process.cwd());
+      // 503 rather than 200 with an empty list: the caller asked a question that
+      // could not be answered, and a 200 would render as a clean working tree.
+      if (!result.available) {
+        return res.status(503).json({ error: result.error ?? 'git state unavailable', status: [], available: false });
+      }
+      res.json({ status: result.status, branch: result.branch, head: result.head, available: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/workspace/git/history', auth.middleware(), async (req, res) => {
+    try {
+      const raw = Number(req.query.limit);
+      const limit = Number.isFinite(raw) && raw > 0 ? raw : undefined;
+      const result = await readGitHistory(process.cwd(), limit);
+      if (!result.available) {
+        return res.status(503).json({ error: result.error ?? 'git history unavailable', history: [], available: false });
+      }
+      res.json({ history: result.history, available: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/workspace/deps/outdated', auth.middleware(), async (_req, res) => {
+    try {
+      const result = await collectOutdatedDependencies(process.cwd());
+      // No manifest and no runner is 200 — "this project has no dependencies"
+      // is a real answer. A manifest that exists but whose manager failed is
+      // 503, because `{}` would render as "all dependencies up to date".
+      if (result.runners.length === 0 && result.manifests.length > 0) {
+        return res.status(503).json({
+          error: `manifest present (${result.manifests.join(', ')}) but no package manager answered`,
+          reasons: result.errors,
+          outdated: {},
+          available: false,
+        });
+      }
+      res.json({
+        outdated: result.outdated,
+        runners: result.runners,
+        manifests: result.manifests,
+        available: true,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/workspace/ollama/chat', auth.middleware(), async (req, res) => {
+    try {
+      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt : '';
+      if (!prompt.trim()) {
+        return res.status(400).json({ error: 'prompt is required' });
+      }
+      const result = await askOllama(prompt);
+      if (!result.ok) {
+        // 503 with the reason. Ollama being absent is the normal case for a
+        // developer who has not installed it, not a server fault — but it is
+        // still "could not answer", and the page needs to say which.
+        return res.status(503).json({ error: result.reason, endpoint: OLLAMA_URL, model: OLLAMA_MODEL });
+      }
+      res.json({ response: result.response, model: result.model });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

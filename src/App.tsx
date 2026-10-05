@@ -21,6 +21,7 @@ const ExtensionsView = lazy(() => import('./pages/ExtensionsView').then((m) => (
 const UserSettingsView = lazy(() => import('./pages/UserSettingsView').then((m) => ({ default: m.UserSettingsView })));
 const SettingsView = lazy(() => import('./pages/SettingsView').then((m) => ({ default: m.SettingsView })));
 const WorkspacePage = lazy(() => import('./ide/WorkspacePage').then((m) => ({ default: m.WorkspacePage })));
+const WorkspaceIntelligence = lazy(() => import('./pages/WorkspaceIntelligence').then((m) => ({ default: m.WorkspaceIntelligence })));
 const StudioPage = lazy(() => import('./ide/StudioPage').then((m) => ({ default: m.StudioPage })));
 const FleetPanel = lazy(() => import('./pages/FleetPanel').then((m) => ({ default: m.FleetPanel })));
 const AxiomHarnessView = lazy(() => import('./pages/AxiomHarnessView').then((m) => ({ default: m.AxiomHarnessView })));
@@ -99,6 +100,12 @@ function AppRoutes() {
           <Route path="models" element={<ModelSelectionView />} />
           <Route path="workspace" element={<WorkspacePage />} />
           <Route path="workspace/:owner/:repo" element={<WorkspacePage />} />
+          {/* Mounted 2026-10-05. The page existed but was never routed, and all
+              five /api/workspace endpoints it called were unimplemented, so it
+              rendered nothing and tests/endpointCoverage.test.ts had been
+              failing on it. Deliberately NOT in the rail (src/lib/nav.ts keeps
+              the IA small); reachable by URL and ⌘K. */}
+          <Route path="workspace-intelligence" element={<WorkspaceIntelligence />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path=":owner/:repo" element={<RepoLayout />}>
             <Route index element={<CodeView />} />

@@ -72,6 +72,20 @@ export function attach(result: ScorerResult, extras: EvidenceExtras = {}): Score
 }
 
 /** Honest skip: no score, a real error, and the envelope marked unavailable. */
-export function honest(scorer: string, error: string, summary = ''): ScorerResult {
-  return attach({ scorer, score: null, summary: summary || error, error }, { status: 'unavailable' });
+/**
+ * An honest no-op: `unavailable` with a reason, never a zero.
+ *
+ * `details` is optional but matters, and it matters most here. An unavailable
+ * result that FOUND things is actionable — "a 4.5 MB file was exempted by
+ * config, and nothing else was scanned" is a different situation from "this repo
+ * has nothing to scan", and dropping the detail collapses both into one
+ * sentence. Measured on git_history: with every large file exempted and no text
+ * files present, the scorer correctly refused to claim a perfect score, and the
+ * exemption note went with it.
+ */
+export function honest(scorer: string, error: string, summary = '', details?: Record<string, unknown>): ScorerResult {
+  return attach(
+    { scorer, score: null, summary: summary || error, error, ...(details ? { details } : {}) },
+    { status: 'unavailable' },
+  );
 }

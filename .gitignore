@@ -24,3 +24,8 @@ __pycache__/
 # Persisted audit lifecycle ledger: finding fingerprints with firstSeen/lastSeen.
 # Runtime state, regenerated on each audit, same class as data/ above.
 .openhub/
+
+# SQLite sidecars. data/ covers the database itself, but a -wal or -shm file can
+# appear beside any tracked .db and is binary noise that differs on every run.
+*.db-wal
+*.db-shm

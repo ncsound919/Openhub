@@ -12,6 +12,8 @@ import { findSecrets, SECRET_RULES } from './secretRules.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { matchesGlob } from '../core/glob.js';
+import { collectOutdatedDependencies } from './workspaceIntelligence.js';
 import { attach, honest, makeFinding, type ScorerResult } from './evidence.js';
 import { collectSourceFiles } from './analyzers.js';
 import { runLocalCommand } from './processRunner.js';
@@ -22,6 +24,11 @@ import type { Dimension } from './dimensions.js';
 export interface ExtraScorerContext {
   preflight?: PreflightReport;
   changedFiles?: Set<string>;
+  /**
+   * Repo-declared exemptions from the git_history large-file rule, as
+   * `{ path, reason }`. See `AuditPathFilters.allowLargeFiles`.
+   */
+  allowLargeFiles?: Array<{ path: string; reason: string }>;
 }
 
 const JS_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/i;
@@ -69,58 +76,36 @@ export async function runDepsFreshnessScorer(
   if (!targetDir || !fs.existsSync(targetDir)) {
     return honest('deps_freshness', 'dependency freshness needs an existing targetDir');
   }
+
+  // ONE implementation of "which dependencies are behind". The Workspace
+  // Intelligence dashboard renders the same answer, and two `npm outdated --json`
+  // call sites would eventually disagree — a dependency count that differs
+  // between the audit and the UI is worse than either number being wrong alone.
+  const collected = await collectOutdatedDependencies(targetDir);
+  const { runners, errors: depErrors, manifests } = collected;
   const findings: Finding[] = [];
-  const runners: string[] = [];
 
-  if (fs.existsSync(path.join(targetDir, 'package.json'))) {
-    const run = await runLocalCommand('npm', ['outdated', '--json'], { cwd: targetDir, timeoutMs: 120_000 });
-    const parsed = parseJson<Record<string, { current?: string; latest?: string; wanted?: string }>>(run.output);
-    if (parsed) {
-      runners.push('npm');
-      for (const [name, info] of Object.entries(parsed)) {
-        const current = info.current ?? '?';
-        const latest = info.latest ?? info.wanted ?? '?';
-        const major = String(latest).split('.')[0] !== String(current).split('.')[0];
-        findings.push(makeFinding({
-          source: 'deps_freshness',
-          dimension: 'dependencies',
-          category: major ? 'outdated-major' : 'outdated-minor',
-          severity: major ? 'medium' : 'low',
-          confidence: 0.85,
-          determinism: 'static',
-          location: { file: 'package.json' },
-          evidence: `${name}: ${current} → ${latest}`,
-          remediation: `Upgrade ${name} to ${latest}.`,
-        }));
-      }
-    }
-  }
-
-  const pythonManifest = ['pyproject.toml', 'requirements.txt', 'setup.py'].some((f) => fs.existsSync(path.join(targetDir, f)));
-  if (pythonManifest) {
-    const run = await runLocalCommand('pip', ['list', '--outdated', '--format=json'], { cwd: targetDir, timeoutMs: 120_000 });
-    const parsed = parseJson<Array<{ name?: string; version?: string; latest_version?: string }>>(run.output);
-    if (parsed) {
-      runners.push('pip');
-      for (const pkg of parsed) {
-        const major = String(pkg.latest_version ?? '').split('.')[0] !== String(pkg.version ?? '').split('.')[0];
-        findings.push(makeFinding({
-          source: 'deps_freshness',
-          dimension: 'dependencies',
-          category: major ? 'outdated-major' : 'outdated-minor',
-          severity: major ? 'medium' : 'low',
-          confidence: 0.85,
-          determinism: 'static',
-          location: { file: 'requirements.txt' },
-          evidence: `${pkg.name}: ${pkg.version ?? '?'} → ${pkg.latest_version ?? '?'}`,
-          remediation: `Upgrade ${pkg.name} to ${pkg.latest_version ?? 'latest'}.`,
-        }));
-      }
-    }
+  for (const [name, info] of Object.entries(collected.outdated)) {
+    findings.push(makeFinding({
+      source: 'deps_freshness',
+      dimension: 'dependencies',
+      category: info.major ? 'outdated-major' : 'outdated-minor',
+      severity: info.major ? 'medium' : 'low',
+      confidence: 0.85,
+      determinism: 'static',
+      location: { file: info.manifest },
+      evidence: `${name}: ${info.current} → ${info.latest}`,
+      remediation: `Upgrade ${name} to ${info.latest}.`,
+    }));
   }
 
   if (runners.length === 0) {
-    return honest('deps_freshness', 'no package.json or Python manifest, or the package manager could not report outdated deps');
+    return honest(
+      'deps_freshness',
+      manifests.length === 0
+        ? 'no package.json or Python manifest'
+        : `manifest present (${manifests.join(', ')}) but ${depErrors.join('; ') || 'the package manager reported nothing'}`,
+    );
   }
   const penalty = findings.reduce((s, f) => s + (f.severity === 'medium' ? 3 : 1), 0);
   const majors = findings.filter((f) => f.category === 'outdated-major').length;
@@ -128,7 +113,7 @@ export async function runDepsFreshnessScorer(
     scorer: 'deps_freshness',
     score: penaltyScore(penalty, 60),
     summary: `${findings.length} outdated package${findings.length === 1 ? '' : 's'} (${majors} major) via ${runners.join('+')}`,
-    details: { outdated: findings.length, majors, runners },
+    details: { outdated: findings.length, majors, runners, ...(depErrors.length ? { errors: depErrors } : {}) },
   }, { findings, dimensions: ['dependencies'], analyzers: runners });
 }
 
@@ -713,16 +698,33 @@ export async function runGitHistoryScorer(
   // 1. Large tracked files.
   const list = await runLocalCommand('git', ['ls-files', '-z'], { cwd: targetDir, timeoutMs: 20_000 });
   const tracked = list.output.split('\u0000').map((s) => s.trim()).filter(Boolean).slice(0, 800);
+  const exemptions = ctx?.allowLargeFiles ?? [];
+  const isExempt = (file: string): string | null => {
+    const norm = file.replace(/\\/g, '/');
+    const hit = exemptions.find((e) => e.path.replace(/\\/g, '/') === norm || matchesGlob(norm, e.path));
+    return hit ? hit.reason : null;
+  };
   for (const file of tracked) {
     try {
       const stat = fs.statSync(path.join(targetDir, file));
       if (stat.isFile() && stat.size > 1_000_000) {
+        // A repo may declare a large file intentional, with a reason. The rule
+        // stays on by default: 4.5 MB of vendored model is a decision, not a
+        // defect, but so is a 400 MB stray dump, and the tool cannot tell them
+        // apart. Making the repo state the reason converts an unactionable
+        // recurring finding into a recorded decision — and the exemption is
+        // reported in `notes`, so "this was allowed and why" is still visible.
+        const reason = isExempt(file);
+        if (reason) {
+          notes.push(`large file allowed by config: ${file.replace(/\\/g, '/')} (${(stat.size / 1_048_576).toFixed(1)} MB) — ${reason}`);
+          continue;
+        }
         findings.push(makeFinding({
           source: 'git_history', dimension: 'security', category: 'large-file',
           severity: 'low', confidence: 0.9, determinism: 'static',
           location: { file: file.replace(/\\/g, '/') },
           evidence: `${(stat.size / 1_048_576).toFixed(1)} MB tracked file`,
-          remediation: 'Move large binaries out of the repository (Git LFS or external storage).',
+          remediation: 'Move large binaries out of the repository (Git LFS or external storage), or declare it intentional with pathFilters.allowLargeFiles and a reason.',
         }));
       }
     } catch { /* skip */ }
@@ -814,6 +816,10 @@ export async function runGitHistoryScorer(
       'git_history',
       'no tracked text files matched the scan set and no history scanner ran',
       'git history: nothing examined',
+      // Notes are passed even on this path. If a large file was exempted, that
+      // is the reason there is nothing to report, and discarding it would leave
+      // an `unavailable` that looks identical to an empty repo.
+      { secrets, largeFiles: large, vagueCommits: vague.length, notes },
     );
   }
   return attach({
