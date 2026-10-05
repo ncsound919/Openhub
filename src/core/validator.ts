@@ -42,8 +42,19 @@ export interface FindingValidation {
 }
 
 export interface ValidationContext {
-  /** Repo-relative path → full file content. */
+  /** Repo-relative path → full file content. Used for EXISTENCE and for reading
+   *  the reported line. May include documentation (see CORE_EXTENSIONS). */
   files: ReadonlyMap<string, string>;
+  /**
+   * Repo-relative path → content, SOURCE FILES ONLY. Every semantic check reads
+   * this instead of `files`: `isImported`, `packageSymbolPresent`, and the
+   * injection source scan all regex over whole file contents, so admitting
+   * markdown to `files` would let prose confirm a vulnerability. A README that
+   * merely names a vulnerable symbol must not make a CVE reachable
+   * (that would be a false-positive amplifier, the opposite of this module's
+   * purpose). Defaults to `files` when the caller does not split them.
+   */
+  codeFiles?: ReadonlyMap<string, string>;
   /** Direct dependency names (from package.json / requirements, etc.). */
   directDependencies?: ReadonlySet<string>;
   /** Optional package → symbols/APIs for finer CVE reachability. */
@@ -119,8 +130,14 @@ export function validateFinding(f: Finding, ctx: ValidationContext): FindingVali
   const line = f.location?.line;
   const evidence: ValidationEvidence[] = [];
 
+  // Semantic checks read source files only; `files` may contain documentation.
+  const codeFiles = ctx.codeFiles ?? ctx.files;
+
   if (!file) {
-    return { ...base, rationale: 'no file location to verify', evidence: [{ kind: 'not-found', detail: 'finding has no location' }] };
+    // Not stale. A finding with no location was never locatable, which is a
+    // different failure from "the code moved" -- and `stale` is dropped by
+    // default, so mislabelling it silently discards an unpinned finding.
+    return { ...base, verdict: 'not_applicable', confidence: 0, rationale: 'no file location to verify', evidence: [{ kind: 'not-found', detail: 'finding has no location' }] };
   }
   const content = ctx.files.get(file);
   if (content === undefined) {
@@ -160,11 +177,11 @@ export function validateFinding(f: Finding, ctx: ValidationContext): FindingVali
       return { ...base, verdict: 'not_applicable', confidence: 0, rationale: 'no package name to trace', evidence, reachability: 'unknown' };
     }
     const symbols = ctx.packageSymbols?.get(pkg) ?? [];
-    const sym = symbols.length ? packageSymbolPresent(symbols, ctx.files) : null;
+    const sym = symbols.length ? packageSymbolPresent(symbols, codeFiles) : null;
     if (sym) {
       return { ...base, verdict: 'confirmed', confidence: 0.9, rationale: `vulnerable symbol "${sym}" from ${pkg} is referenced`, evidence: [...evidence, { kind: 'symbol-present', detail: sym }], reachability: 'reachable' };
     }
-    if (isImported(pkg, ctx.files)) {
+    if (isImported(pkg, codeFiles)) {
       return { ...base, verdict: 'confirmed', confidence: 0.7, rationale: `${pkg} is imported and may be reachable`, evidence: [...evidence, { kind: 'import-present', detail: pkg }], reachability: 'reachable' };
     }
     if (ctx.directDependencies?.has(pkg)) {
@@ -175,9 +192,14 @@ export function validateFinding(f: Finding, ctx: ValidationContext): FindingVali
 
   // ── injection/taint: sink + source heuristic ──
   if (INJECTION_RE.test(f.category)) {
-    const region = lineText || content;
-    const sink = SINK_RE.test(region) || (SINK_RE.test(content) && evText && content.includes(evText.slice(0, 20)));
-    const source = SOURCE_RE.test(content);
+    // A sink written in prose is not a sink. Semantic evidence is read from
+    // codeFiles, so a documentation location can never satisfy this check -- a
+    // fenced code sample in a README is not a reachable injection.
+    const codeContent = codeFiles.get(file);
+    const region = lineText || codeContent || content;
+    const sink = SINK_RE.test(region)
+      || (codeContent !== undefined && SINK_RE.test(codeContent) && evText.length > 0 && codeContent.includes(evText.slice(0, 20)));
+    const source = codeContent !== undefined && SOURCE_RE.test(codeContent);
     if (sink && source) {
       return { ...base, verdict: 'confirmed', confidence: 0.75, rationale: 'a dangerous sink and a plausible tainted source co-occur in this file', evidence: [...evidence, { kind: 'sink-present' }, { kind: 'source-present' }], reachability: 'reachable' };
     }

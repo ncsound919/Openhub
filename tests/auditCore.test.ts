@@ -44,13 +44,28 @@ function finding(over: Record<string, unknown> = {}): Finding {
 }
 
 describe('collectCoreFiles / readManifestDependencies', () => {
-  it('walks source files and skips node_modules', () => {
+  it('walks source files, keeps documentation, and skips node_modules', () => {
     const d = tmpDir();
     write(d, 'src/a.ts', 'const x = 1;\n');
     write(d, 'node_modules/pkg/index.js', 'module.exports = {};\n');
     write(d, 'README.md', '# hi');
     const files = collectCoreFiles(d).map((f) => f.file).sort();
-    expect(files).toEqual(['src/a.ts']);
+    // README.md was previously excluded, which made every doc-located finding
+    // unconditionally `stale` (validator.ts looks the path up in this walk) and
+    // then dropped. Markdown is now collected so a finding may cite a doc path;
+    // runAuditCore keeps it OUT of ValidationContext.codeFiles, so prose still
+    // cannot satisfy a semantic check.
+    expect(files).toEqual(['README.md', 'src/a.ts']);
+  });
+
+  it('collects the extensions the LANGUAGES registry supports', () => {
+    // Drift guard. CORE_EXTENSIONS is a private copy of the registry that
+    // analyzers.ts:4-7 declares to be the single source of truth, and it had
+    // drifted -- dropping valid TypeScript, Kotlin and C++ files.
+    const d = tmpDir();
+    for (const f of ['a.mts', 'b.cts', 'c.kts', 'd.cxx']) write(d, f, 'x');
+    const files = collectCoreFiles(d).map((f) => f.file).sort();
+    expect(files).toEqual(['a.mts', 'b.cts', 'c.kts', 'd.cxx']);
   });
 
   it('reads direct dependencies from package.json', () => {

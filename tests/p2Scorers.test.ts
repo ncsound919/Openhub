@@ -251,7 +251,7 @@ describe('static scorers produce real evidence', () => {
     // A descriptive message, so commit-hygiene contributes no finding either.
     commit(dir, 'add documentation for the project');
 
-    const r = await runGitHistoryScorer(dir, preflight([{ name: 'gitleaks', available: false }]));
+    const r = await runGitHistoryScorer(dir, { preflight: preflight([{ name: 'gitleaks', available: false }]) });
     expect(r.score).toBeNull();
     expect(r.status).toBe('unavailable');
     expect(r.error).toContain('no tracked text files matched the scan set');
@@ -265,9 +265,9 @@ describe('static scorers produce real evidence', () => {
     git(dir, ['init', '-q']);
     commit(dir, 'add documentation for the project');
 
-    const r = await runGitHistoryScorer(dir, preflight([{ name: 'gitleaks', available: true }]));
+    const r = await runGitHistoryScorer(dir, { preflight: preflight([{ name: 'gitleaks', available: true }]) });
     // Whatever the score, it must not be the "examined nothing" refusal.
-    expect(r.error ?? '').not.toContain('nothing examined');
+    expect(r.error ?? '').not.toContain('no tracked text files matched');
   }, 60_000);
 
   it('api_contract detects a removed operation vs HEAD', async () => {

@@ -108,6 +108,60 @@ describe('validateFinding — dependency reachability', () => {
     expect(v.verdict).toBe('unconfirmed');
     expect(v.reachability).toBe('unknown');
   });
+
+  // ── documentation is locatable, never load-bearing evidence ──────────────
+  // collectCoreFiles now admits .md so a finding can cite a doc path. Without
+  // this split, a README that merely NAMES a vulnerable symbol would confirm
+  // the CVE -- a false-positive amplifier, the opposite of this module's purpose.
+  it('confirms a doc-located finding on existence alone, not on prose', () => {
+    const v = validateFinding(
+      f({ category: 'docs', location: { file: 'README.md', line: 3 } }),
+      ctx({ 'README.md': '# Title\n\nsome prose\n' }),
+    );
+    expect(v.verdict).not.toBe('stale');
+    expect(v.evidence.some((e) => e.kind === 'file-exists')).toBe(true);
+  });
+
+  it('does NOT confirm a CVE from a symbol that appears only in documentation', () => {
+    const v = validateFinding(
+      f({ category: 'cve:axios', cve: 'CVE-2026-9' }),
+      ctx(
+        { 'README.md': 'We previously used axios.get(url) here.', 'src/a.ts': 'console.log(1)' },
+        {
+          codeFiles: new Map([['src/a.ts', 'console.log(1)']]),
+          packageSymbols: new Map([['axios', ['axios.get']]]),
+        },
+      ),
+    );
+    expect(v.verdict).not.toBe('confirmed');
+    expect(v.reachability).not.toBe('reachable');
+    expect(v.evidence.some((e) => e.kind === 'symbol-present')).toBe(false);
+  });
+
+  it('does NOT confirm an injection from a fenced code sample in a doc', () => {
+    // Constructed so it FAILS without the codeFiles guard: the sink and the
+    // tainted source are both present in the markdown, and the finding's evidence
+    // is a literal substring of the doc, so the `SINK_RE.test(content) &&
+    // content.includes(evText)` clause is satisfied. Only reading codeFiles makes
+    // this unconfirmable.
+    const doc = '# X\n\n```js\neval(req.body.x)\n```\n';
+    const v = validateFinding(
+      f({ category: 'injection:sqli', location: { file: 'README.md', line: 4 }, evidence: 'eval(req.body.x)' }),
+      ctx({ 'README.md': doc }, { codeFiles: new Map() }),
+    );
+    expect(v.verdict).not.toBe('confirmed');
+  });
+
+  it('confirms an injection in real source, so the guard is not blanket', () => {
+    // The other direction: the guard must not neuter genuine findings. A .ts file
+    // with the same sink and source still confirms.
+    const src = 'const q = eval(req.body.x);\n';
+    const v = validateFinding(
+      f({ category: 'injection:sqli', location: { file: 'src/a.ts', line: 1 }, evidence: 'eval(req.body.x)' }),
+      ctx({ 'src/a.ts': src }, { codeFiles: new Map([['src/a.ts', src]]) }),
+    );
+    expect(v.verdict).toBe('confirmed');
+  });
 });
 
 describe('validateFindings', () => {

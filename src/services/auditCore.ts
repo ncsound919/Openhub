@@ -19,6 +19,21 @@ import type { Finding } from './findings.js';
 const CORE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.java', '.rb',
   '.php', '.cs', '.kt', '.swift', '.c', '.h', '.cpp', '.hpp', '.cc', '.sol', '.vue', '.svelte',
+  // Drift fix: these four are registered in analyzers.ts LANGUAGES (lines 28, 68,
+  // 92) -- which its own header declares to be "the single source of truth the
+  // file collectors ... all read, so a .py file is never silently skipped because
+  // only the TS/JS extensions were hard-coded". This private copy had drifted and
+  // was dropping valid TypeScript, Kotlin and C++ files its own sibling accepts.
+  '.mts', '.cts', '.kts', '.cxx',
+  // Markdown, so a finding may cite a documentation path. Without it every
+  // doc-located finding is unconditionally `stale` (validator.ts:125-127 looks the
+  // path up in this walk's map) and is then discarded by droppedStale. Markdown is
+  // NEVER used for semantic evidence: validator.ts takes a separate codeFiles map,
+  // so prose cannot confirm CVE reachability or an injection sink.
+  //
+  // Consequence to be aware of: runRulesForRepo (line 276) shares this walker, so
+  // plain-English rules without a restrictive `include` glob will now see prose.
+  '.md',
 ]);
 const CORE_SKIP_DIRS = new Set([
   'node_modules', 'dist', 'build', '.git', 'coverage', '.next', '.turbo', 'vendor',
@@ -185,8 +200,14 @@ export function runAuditCore(params: AuditCoreRunParams): AuditCoreResult {
   const env = params.env ?? process.env;
   const configResult: AuditConfigResult = loadAuditConfig(params.rootDir);
   const files = params.files ?? collectCoreFiles(params.rootDir);
+  const fileMap = new Map(files.map((f) => [f.file, f.content]));
   const ctx: ValidationContext = {
-    files: new Map(files.map((f) => [f.file, f.content])),
+    files: fileMap,
+    // Source files only. `files` may now contain markdown so a finding can cite a
+    // documentation path, but every semantic check (CVE symbol presence, import
+    // detection, injection sink/source) must read this subset -- otherwise a
+    // sentence in a README confirms a vulnerability.
+    codeFiles: new Map(files.filter((f) => !f.file.toLowerCase().endsWith('.md')).map((f) => [f.file, f.content])),
     directDependencies: readManifestDependencies(params.rootDir),
   };
 

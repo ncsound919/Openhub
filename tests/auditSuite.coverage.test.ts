@@ -339,10 +339,15 @@ describe('runCodeGangScorer branches', () => {
     vi.stubGlobal('fetch', vi.fn(async () => okJson({ success: true })));
     expect((await runCodeGangScorer(dir)).error).toContain('no repo map');
 
+    // An empty repo map previously scored 100: avg complexity 0 produced
+    // `100 - max(0, 0 - 10) * 5`, i.e. perfect architecture health from having
+    // measured nothing. That test line pinned the defect. It now reports
+    // unavailable, matching git_history and ocr.
     vi.stubGlobal('fetch', vi.fn(async () => okJson({ success: true, repoMap: { files: [] } })));
     const empty = await runCodeGangScorer(dir);
-    expect(empty.score).toBe(100);
-    expect(empty.summary).toContain('0 files');
+    expect(empty.score).toBeNull();
+    expect(empty.status).toBe('unavailable');
+    expect(empty.error).toContain('no files');
 
     vi.stubGlobal('fetch', vi.fn(async () => okJson({
       success: true,
