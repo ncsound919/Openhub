@@ -91,6 +91,23 @@ test('the writer waits for a lock instead of failing fast', () => {
   assert.match(src, /journal_mode = WAL/, 'script must match the server journal mode');
 });
 
+test('no subprocess runs while the write transaction is open', () => {
+  // The crash this prevents: the whole observe-and-write loop ran inside one
+  // db.transaction(), holding a RESERVED lock across 45 git subprocess calls.
+  // Any server write in that ~60s window died with "database is locked".
+  // Phase 1 observes (subprocesses allowed, no transaction); phase 2 writes
+  // (transaction, no subprocesses).
+  const src = fs.readFileSync(SCRIPT, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const writeTxn = src.match(/const write = db\.transaction\(\(\) => \{([\s\S]*?)\n\}\);\nwrite\(\);/);
+  assert.ok(writeTxn, 'the write phase is a single named transaction');
+  const body = writeTxn[1];
+  assert.ok(!body.includes('observe('), 'write transaction must not observe (subprocess)');
+  assert.ok(!body.includes('execFileSync'), 'write transaction must not spawn subprocesses');
+  assert.ok(!body.includes('existsSync'), 'write transaction must not touch the filesystem');
+});
+
 test('an unchanged tree appends zero events', () => {
   run('--db', DB, '--quiet');
   const before = ro('SELECT COUNT(*) n FROM repo_status_events')[0].n;

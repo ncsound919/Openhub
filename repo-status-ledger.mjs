@@ -195,39 +195,45 @@ const WATCHED = [
 const tally = { ok: 0, dirty: 0, 'at-risk': 0, unreadable: 0, 'unbacked-up': 0 };
 let events = 0;
 
-const run = db.transaction(() => {
-  const now = new Date().toISOString();
-  for (const r of repos) {
-    if (!fs.existsSync(r.full_path)) {
-      // Still recorded, and still diffed. A repo whose folder was deleted or a
-      // drive was unmounted is the single most important transition this ledger
-      // can see, so skipping the diff here would drop exactly the event that
-      // matters. `path does not exist on disk` distinguishes this from the
-      // `unreadable / not a git repository` case below.
-      const o = { branch: null, headSha: null, dirty: null, hasRemote: 0,
-        health: 'unreadable', reason: 'path does not exist on disk' };
-      const before = prior.get(r.id);
-      if (before) {
-        for (const [col, pick] of WATCHED) {
-          const a = before[col] ?? null;
-          const b = pick(o) ?? null;
-          if (String(a) !== String(b)) {
-            writeEvent(r.id, now, col, a === null ? null : String(a), b === null ? null : String(b), o.reason);
-            events++;
-          }
-        }
-      }
-      insert.run({ repo_id: r.id, ...(legacy ? { full_path: r.full_path, name: r.name } : {}),
-        branch: null, head_sha: null, dirty_count: null, last_commit_at: null,
-        subject: null, has_remote: 0, remote_url: null,
-        health: 'unreadable', health_reason: 'path does not exist on disk', observed_at: now });
-      tally.unreadable++;
-      if (!QUIET) console.log(`  MISSING  ${r.name}  ${r.full_path}`);
-      continue;
-    }
-    const o = observe(r.full_path);
-    tally[o.health] = (tally[o.health] || 0) + 1;
+// Phase 1 -- observe. No transaction, no writes: every git subprocess runs here,
+// so nothing holds a database lock while a child process is slow. An earlier
+// version wrapped the whole loop in db.transaction(), which held a RESERVED
+// lock for the full ~60s sweep; any server write in that window -- including
+// the boot migration -- died with "database is locked" after the 10s
+// busy_timeout, and the unhandled rejection killed the server. A sampler must
+// never take down the thing it samples, so the lock window below is one fast
+// pass of prepared statements instead of the whole observation loop.
+const now = new Date().toISOString();
+const seen = [];
+for (const r of repos) {
+  let o;
+  if (!fs.existsSync(r.full_path)) {
+    // Still recorded, and still diffed. A repo whose folder was deleted or a
+    // drive was unmounted is the single most important transition this ledger
+    // can see, so skipping the diff here would drop exactly the event that
+    // matters. `path does not exist on disk` distinguishes this from the
+    // `unreadable / not a git repository` case below.
+    o = { branch: null, headSha: null, dirty: null, lastCommitAt: null, subject: null,
+      hasRemote: 0, remoteUrl: null, health: 'unreadable', reason: 'path does not exist on disk', missing: true };
+  } else {
+    o = observe(r.full_path);
+  }
+  tally[o.health] = (tally[o.health] || 0) + 1;
+  seen.push({ r, o });
+  if (!QUIET) {
+    console.log(o.missing
+      ? `  MISSING  ${r.name}  ${r.full_path}`
+      : `  ${o.health.padEnd(11)} ${String(r.name).slice(0, 34).padEnd(34)} ${(o.branch || '-').padEnd(9)} dirty=${o.dirty ?? '-'} ${o.reason}`);
+  }
+}
 
+// Phase 2 -- write. One short transaction of prepared statements only; no
+// subprocesses, no filesystem reads, nothing that can stall while holding the
+// lock. prior.get runs here too: the "before" snapshot must be taken at write
+// time, not observation time, or a concurrent writer could slip a change
+// between the read and the write and we would silently overwrite it.
+const write = db.transaction(() => {
+  for (const { r, o } of seen) {
     const before = prior.get(r.id);
     if (before) {
       for (const [col, pick] of WATCHED) {
@@ -243,13 +249,9 @@ const run = db.transaction(() => {
       branch: o.branch, head_sha: o.headSha,
       dirty_count: o.dirty, last_commit_at: o.lastCommitAt, subject: o.subject,
       has_remote: o.hasRemote, remote_url: o.remoteUrl, health: o.health, health_reason: o.reason, observed_at: now });
-
-    if (!QUIET) {
-      console.log(`  ${o.health.padEnd(11)} ${String(r.name).slice(0, 34).padEnd(34)} ${(o.branch || '-').padEnd(9)} dirty=${o.dirty ?? '-'} ${o.reason}`);
-    }
   }
 });
-run();
+write();
 
 console.log(`\nrepos=${repos.length}  events_appended=${events}`);
 console.log(`health: ok=${tally.ok} dirty=${tally.dirty} at-risk=${tally['at-risk']} unbacked-up=${tally['unbacked-up']} unreadable=${tally.unreadable}`);
