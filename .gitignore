@@ -1,0 +1,26 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+data/
+test-results/
+playwright/.auth/
+repos/
+__pycache__/
+*.pyc
+.e2e/
+
+# Stray stderr captures from dev/boot runs
+*.err
+
+# Local test-runner state. A SQLite database plus its WAL, recreated per run --
+# committing it produced a 5 MB diff of binary noise on the initial import.
+.vitest/
+
+# Persisted audit lifecycle ledger: finding fingerprints with firstSeen/lastSeen.
+# Runtime state, regenerated on each audit, same class as data/ above.
+.openhub/

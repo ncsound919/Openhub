@@ -1,0 +1,28 @@
+services:
+  ollama:
+    # TODO(security): pin to a specific release tag (or @sha256 digest) instead of
+    # :latest so a pulled update cannot silently change what runs here.
+    image: ollama/ollama:latest
+    container_name: openhub-ollama
+    ports:
+      # Loopback only: the Ollama API has no authentication.
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./scripts/ollama-init.sh:/init.sh
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 5
+        ollama pull llama3.2
+        wait
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

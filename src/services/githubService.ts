@@ -1,0 +1,661 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { v4 as uuidv4 } from 'uuid';
+import { getDb } from '../auth/db.js';
+import { encryptToken, decryptToken } from './tokenCrypto.js';
+import { isSubpath } from '../lib/pathGuard.js';
+import { resolveBin, gitSafetyArgs, safeChildEnv } from './binResolve.js';
+
+const GITHUB_API_BASE = 'https://api.github.com';
+const execFileAsync = promisify(execFile);
+
+/**
+ * GitHub owner / repo names and OpenHub usernames become URL path segments
+ * and directory names under REPOS_ROOT, so they are restricted to a plain
+ * basename alphabet. `.` and `..` are rejected explicitly.
+ */
+export const SAFE_NAME_RE = /^[A-Za-z0-9._-]{1,100}$/;
+
+export function isSafeName(value: unknown): value is string {
+  return typeof value === 'string' && SAFE_NAME_RE.test(value) && value !== '.' && value !== '..';
+}
+
+export function assertSafeName(value: unknown, label: string): string {
+  if (!isSafeName(value)) {
+    throw new Error(`Invalid ${label}: use 1-100 letters, numbers, dot, dash or underscore`);
+  }
+  return value;
+}
+
+/**
+ * Encode a repository file path for the GitHub contents API: each segment is
+ * percent-encoded and `.`/`..`/empty segments are refused, so a crafted path
+ * cannot walk to a different API endpoint.
+ */
+export function encodeContentsPath(filePath: unknown): string {
+  if (typeof filePath !== 'string' || filePath.trim() === '') throw new Error('filePath is required');
+  const segments = filePath.replace(/\\/g, '/').replace(/^\/+/, '').split('/');
+  if (segments.some((seg) => seg === '' || seg === '.' || seg === '..')) {
+    throw new Error('filePath must be a relative path without empty, "." or ".." segments');
+  }
+  return segments.map((seg) => encodeURIComponent(seg)).join('/');
+}
+
+function repoPath(owner: string, repo: string): string {
+  return `${encodeURIComponent(assertSafeName(owner, 'owner'))}/${encodeURIComponent(assertSafeName(repo, 'repository name'))}`;
+}
+
+function getHeaders(token: string): Record<string, string> {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'OpenHub-Autonomous-Platform/2.0',
+  };
+}
+
+export interface GitHubUser {
+  id: number;
+  login: string;
+  name: string | null;
+  avatar_url: string;
+  email: string | null;
+  bio: string | null;
+  public_repos: number;
+  total_private_repos?: number;
+  html_url: string;
+}
+
+export interface GitHubRepoSummary {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: {
+    login: string;
+    avatar_url: string;
+  };
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  fork: boolean;
+  default_branch: string;
+  language: string | null;
+  stargazers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  updated_at: string;
+  pushed_at: string;
+  is_imported?: boolean;
+  local_repo_id?: string;
+}
+
+export function getGitHubIntegration(userId: string): {
+  accessToken: string;
+  githubUsername: string | null;
+  githubAvatar: string | null;
+  githubEmail: string | null;
+  scope: string | null;
+  updatedAt: string;
+} | null {
+  const db = getDb();
+  const row: any = db.prepare(`
+    SELECT access_token, github_username, github_avatar, github_email, scope, updated_at
+    FROM github_integrations
+    WHERE user_id = ?
+  `).get(userId);
+
+  if (!row) return null;
+  // Stored tokens are AES-GCM encrypted (tokenCrypto); legacy plaintext rows
+  // pass through and are re-encrypted on the next save. A row that cannot be
+  // decrypted (key changed) is treated as not connected.
+  let accessToken: string;
+  try {
+    accessToken = decryptToken(String(row.access_token));
+  } catch {
+    console.warn('[GitHub] stored token could not be decrypted (OPENHUB_TOKEN_KEY or server secret changed?); treating as disconnected');
+    return null;
+  }
+  return {
+    accessToken,
+    githubUsername: row.github_username,
+    githubAvatar: row.github_avatar,
+    githubEmail: row.github_email,
+    scope: row.scope,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function saveGitHubIntegration(
+  userId: string,
+  token: string,
+  profile: Partial<GitHubUser>,
+  scope: string = 'repo,read:user,workflow'
+) {
+  const db = getDb();
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO github_integrations (
+      id, user_id, access_token, scope, github_username, github_id, github_avatar, github_email, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      access_token = excluded.access_token,
+      scope = excluded.scope,
+      github_username = excluded.github_username,
+      github_id = excluded.github_id,
+      github_avatar = excluded.github_avatar,
+      github_email = excluded.github_email,
+      updated_at = datetime('now')
+  `).run(
+    id,
+    userId,
+    encryptToken(token),
+    scope,
+    profile.login || null,
+    profile.id ? String(profile.id) : null,
+    profile.avatar_url || null,
+    profile.email || null
+  );
+}
+
+export function removeGitHubIntegration(userId: string) {
+  const db = getDb();
+  db.prepare('DELETE FROM github_integrations WHERE user_id = ?').run(userId);
+}
+
+/**
+ * Vault auto-connect opt-out. Disconnecting GitHub must not be immediately
+ * undone by the next status check re-provisioning from Keywire, so an explicit
+ * disconnect records a per-user suppression flag; `POST /api/github/vault-connect`
+ * clears it. Backed by the shared `node_settings` key/value table.
+ */
+function ensureNodeSettings(): void {
+  getDb().exec(`
+    CREATE TABLE IF NOT EXISTS node_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+}
+
+function vaultSuppressionKey(userId: string): string {
+  return `github.vaultAutoConnect.suppressed.${userId}`;
+}
+
+export function setVaultAutoConnectSuppressed(userId: string, suppressed: boolean): void {
+  const db = getDb();
+  ensureNodeSettings();
+  const key = vaultSuppressionKey(userId);
+  if (suppressed) {
+    db.prepare('INSERT OR REPLACE INTO node_settings (key, value, updated_at) VALUES (?, ?, ?)')
+      .run(key, '1', new Date().toISOString());
+  } else {
+    db.prepare('DELETE FROM node_settings WHERE key = ?').run(key);
+  }
+}
+
+export function isVaultAutoConnectSuppressed(userId: string): boolean {
+  const db = getDb();
+  ensureNodeSettings();
+  const row = db.prepare('SELECT value FROM node_settings WHERE key = ?').get(vaultSuppressionKey(userId)) as { value?: string } | undefined;
+  return row?.value === '1';
+}
+
+export async function verifyAndFetchGitHubProfile(token: string): Promise<GitHubUser> {
+  const res = await fetch(`${GITHUB_API_BASE}/user`, {
+    headers: getHeaders(token),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`GitHub token verification failed (${res.status}): ${errorText || res.statusText}`);
+  }
+
+  return await res.json();
+}
+
+export async function fetchUserRepos(token: string, userId: string): Promise<GitHubRepoSummary[]> {
+  const res = await fetch(`${GITHUB_API_BASE}/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator`, {
+    headers: getHeaders(token),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch GitHub repos: ${res.statusText}`);
+  }
+
+  const rawRepos: any[] = await res.json();
+  const db = getDb();
+
+  // Find repos already imported by this user
+  const syncedList: any[] = db.prepare(`
+    SELECT github_repo_id, local_repo_id, github_full_name
+    FROM github_synced_repos
+    WHERE user_id = ?
+  `).all(userId);
+
+  const syncedMap = new Map<number, string>();
+  for (const item of syncedList) {
+    syncedMap.set(item.github_repo_id, item.local_repo_id);
+  }
+
+  return rawRepos.map((r) => ({
+    id: r.id,
+    name: r.name,
+    full_name: r.full_name,
+    owner: {
+      login: r.owner.login,
+      avatar_url: r.owner.avatar_url,
+    },
+    private: r.private,
+    html_url: r.html_url,
+    description: r.description,
+    fork: r.fork,
+    default_branch: r.default_branch || 'main',
+    language: r.language,
+    stargazers_count: r.stargazers_count || 0,
+    forks_count: r.forks_count || 0,
+    open_issues_count: r.open_issues_count || 0,
+    updated_at: r.updated_at,
+    pushed_at: r.pushed_at,
+    is_imported: syncedMap.has(r.id),
+    local_repo_id: syncedMap.get(r.id),
+  }));
+}
+
+function createGitAskPassHelper(): { directory: string; helperPath: string } {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'openhub-git-askpass-'));
+  fs.chmodSync(directory, 0o700);
+
+  if (process.platform === 'win32') {
+    const scriptPath = path.join(directory, 'askpass.cjs');
+    const helperPath = path.join(directory, 'askpass.cmd');
+    fs.writeFileSync(
+      scriptPath,
+      "const prompt = process.argv.slice(2).join(' ').toLowerCase();\n" +
+        "process.stdout.write(prompt.includes('username') ? 'x-access-token\\n' : (process.env.GIT_ASKPASS_TOKEN || '') + '\\n');\n",
+      { encoding: 'utf8', mode: 0o700 }
+    );
+    fs.writeFileSync(
+      helperPath,
+      `@echo off\r\n"${process.execPath.replace(/"/g, '""')}" "${scriptPath.replace(/"/g, '""')}" %*\r\n`,
+      { encoding: 'utf8', mode: 0o700 }
+    );
+    return { directory, helperPath };
+  }
+
+  const helperPath = path.join(directory, 'askpass.sh');
+  fs.writeFileSync(
+    helperPath,
+    '#!/bin/sh\ncase "$1" in\n  *[Uu]sername*) printf "%s\\n" "x-access-token" ;;\n  *) printf "%s\\n" "$GIT_ASKPASS_TOKEN" ;;\nesac\n',
+    { encoding: 'utf8', mode: 0o700 }
+  );
+  fs.chmodSync(helperPath, 0o700);
+  return { directory, helperPath };
+}
+
+async function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
+  try {
+    // Absolute git (never a git.exe planted in the repo cwd on Windows), with
+    // repo-config overrides neutralised (fsmonitor, hooks, file transport).
+    const network = args.some((a) => a === 'clone' || a === 'fetch' || a === 'pull' || a === 'push');
+    const { stdout } = await execFileAsync(resolveBin('git', cwd), [...gitSafetyArgs({ network }), ...args], {
+      cwd,
+      env: safeChildEnv(env),
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return stdout;
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      throw new Error('Git is not installed or is not available on the server PATH.');
+    }
+    throw new Error(`Git ${args.includes('clone') ? 'clone' : 'operation'} failed.`);
+  }
+}
+
+async function isGitWorktreeRoot(repoDir: string): Promise<boolean> {
+  try {
+    const topLevel = (await runGit(['-C', repoDir, 'rev-parse', '--show-toplevel'], repoDir)).trim();
+    return fs.realpathSync(topLevel) === fs.realpathSync(repoDir);
+  } catch {
+    return false;
+  }
+}
+
+function isExpectedGitHubRemote(remoteUrl: string, owner: string, repo: string): boolean {
+  const expectedPath = `${owner}/${repo}`.toLowerCase();
+  const normalized = remoteUrl.trim().replace(/\/$/, '').replace(/\.git$/, '');
+  const httpsMatch = normalized.match(/^https?:\/\/[^@/]+@github\.com\/(.+)$/i)
+    || normalized.match(/^https?:\/\/github\.com\/(.+)$/i);
+  const sshMatch = normalized.match(/^(?:git@github\.com:|ssh:\/\/git@github\.com\/)(.+)$/i);
+  const remotePath = (httpsMatch?.[1] || sshMatch?.[1])?.replace(/\.git$/, '').toLowerCase();
+  return remotePath === expectedPath;
+}
+
+export async function importGitHubRepo(
+  userId: string,
+  openhubUsername: string,
+  owner: string,
+  repo: string,
+  token: string,
+  reposRoot: string
+) {
+  assertSafeName(owner, 'owner');
+  assertSafeName(repo, 'repository name');
+  // The OpenHub username is a directory under reposRoot. Legacy accounts may
+  // carry characters outside SAFE_NAME_RE (e.g. '+'), so only separators and
+  // dot segments are refused here; containment is asserted below.
+  if (typeof openhubUsername !== 'string' || openhubUsername === '' || openhubUsername === '.' || openhubUsername === '..'
+    || /[\\/\u0000]/.test(openhubUsername)) {
+    throw new Error('Invalid username for the repository directory');
+  }
+  const db = getDb();
+  const repoRes = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}`, {
+    headers: getHeaders(token),
+  });
+  if (!repoRes.ok) {
+    throw new Error(`Failed to load GitHub repository ${owner}/${repo}: ${repoRes.statusText}`);
+  }
+
+  const ghRepo = await repoRes.json();
+  const defaultBranch = ghRepo.default_branch || 'main';
+  const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+  const ownerDir = path.join(reposRoot, openhubUsername);
+  const repoDir = path.join(ownerDir, repo);
+  if (path.resolve(repoDir) === path.resolve(reposRoot) || !isSubpath(reposRoot, repoDir)) {
+    throw new Error(`Cannot import ${owner}/${repo}: target directory escapes the repositories root`);
+  }
+  const repoExists = fs.existsSync(repoDir);
+
+  fs.mkdirSync(ownerDir, { recursive: true });
+
+  if (repoExists && (!fs.statSync(repoDir).isDirectory() || !(await isGitWorktreeRoot(repoDir)))) {
+    throw new Error(`Cannot import ${owner}/${repo}: ${repoDir} exists but is not a Git worktree root.`);
+  }
+
+  const askPass = createGitAskPassHelper();
+  const gitEnv: NodeJS.ProcessEnv = {
+    GIT_ASKPASS: askPass.helperPath,
+    GIT_ASKPASS_TOKEN: token,
+    GIT_TERMINAL_PROMPT: '0',
+  };
+
+  try {
+    if (repoExists) {
+      const status = await runGit(['-C', repoDir, 'status', '--porcelain=v1', '--untracked-files=all'], repoDir);
+      if (status.trim()) {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing worktree has local changes. Commit, stash, or remove them before importing.`);
+      }
+
+      let originUrl: string;
+      try {
+        originUrl = (await runGit(['-C', repoDir, 'remote', 'get-url', 'origin'], repoDir)).trim();
+      } catch {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing Git worktree has no origin remote.`);
+      }
+      if (!isExpectedGitHubRemote(originUrl, owner, repo)) {
+        throw new Error(`Cannot import ${owner}/${repo}: the existing origin remote does not match this repository.`);
+      }
+
+      // Keep the persistent remote credential-free; the token exists only in this child process environment.
+      await runGit(['-C', repoDir, 'remote', 'set-url', 'origin', cloneUrl], repoDir);
+      await runGit(['-c', 'credential.helper=', '-C', repoDir, 'fetch', '--prune', 'origin'], repoDir, gitEnv);
+      await runGit(['-C', repoDir, 'checkout', '-B', defaultBranch, '--track', `origin/${defaultBranch}`], repoDir);
+      await runGit(['-C', repoDir, 'reset', '--hard', `origin/${defaultBranch}`], repoDir);
+    } else {
+      let cloneAttempted = false;
+      try {
+        cloneAttempted = true;
+        await runGit(
+          ['-c', 'credential.helper=', 'clone', '--origin', 'origin', '--branch', defaultBranch, cloneUrl, repoDir],
+          ownerDir,
+          gitEnv
+        );
+      } catch (error) {
+        if (cloneAttempted) fs.rmSync(repoDir, { recursive: true, force: true });
+        throw error;
+      }
+    }
+  } finally {
+    delete gitEnv.GIT_ASKPASS_TOKEN;
+    fs.rmSync(askPass.directory, { recursive: true, force: true });
+  }
+
+  let existingRepo: any = db.prepare(`
+    SELECT id FROM repositories WHERE owner_id = ? AND name = ?
+  `).get(userId, repo);
+
+  let localRepoId = existingRepo?.id;
+
+  if (!localRepoId) {
+    localRepoId = uuidv4();
+    db.prepare(`
+      INSERT INTO repositories (id, owner_id, name, description, full_path, is_private, default_branch, language)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      localRepoId,
+      userId,
+      repo,
+      ghRepo.description || '',
+      repoDir,
+      ghRepo.private ? 1 : 0,
+      defaultBranch,
+      ghRepo.language || 'TypeScript'
+    );
+  }
+
+  const syncId = uuidv4();
+  db.prepare(`
+    INSERT INTO github_synced_repos (
+      id, user_id, local_repo_id, github_repo_id, github_full_name, github_owner, github_name, default_branch, last_synced_at, sync_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'synced')
+    ON CONFLICT(id) DO NOTHING
+  `).run(
+    syncId,
+    userId,
+    localRepoId,
+    ghRepo.id,
+    ghRepo.full_name,
+    owner,
+    repo,
+    defaultBranch
+  );
+
+  return {
+    id: localRepoId,
+    name: repo,
+    owner_id: userId,
+    owner_name: openhubUsername,
+    github_full_name: ghRepo.full_name,
+    github_url: ghRepo.html_url,
+    description: ghRepo.description,
+    full_path: repoDir,
+    default_branch: defaultBranch,
+    is_private: ghRepo.private ? 1 : 0,
+    language: ghRepo.language,
+  };
+}
+
+export async function pushSyncToGitHub(
+  userId: string,
+  openhubUsername: string,
+  repoName: string,
+  filePath: string,
+  content: string,
+  message: string,
+  token: string,
+  reposRoot: string
+) {
+  const encodedPath = encodeContentsPath(filePath);
+  const db = getDb();
+
+  // Find linked GitHub repo
+  const syncEntry: any = db.prepare(`
+    SELECT g.*
+    FROM github_synced_repos g
+    JOIN repositories r ON g.local_repo_id = r.id
+    WHERE g.user_id = ? AND r.name = ?
+  `).get(userId, repoName);
+
+  if (!syncEntry) {
+    return { syncedToGitHub: false, reason: 'Repository is not linked to GitHub' };
+  }
+
+  // Check if file exists on GitHub to get SHA
+  let fileSha: string | undefined;
+  try {
+    const getRes = await fetch(
+      `${GITHUB_API_BASE}/repos/${repoPath(syncEntry.github_owner, syncEntry.github_name)}/contents/${encodedPath}`,
+      { headers: getHeaders(token) }
+    );
+    if (getRes.ok) {
+      const fileData = await getRes.json();
+      fileSha = fileData.sha;
+    }
+  } catch {
+    // New file
+  }
+
+  const putRes = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoPath(syncEntry.github_owner, syncEntry.github_name)}/contents/${encodedPath}`,
+    {
+      method: 'PUT',
+      headers: getHeaders(token),
+      body: JSON.stringify({
+        message: message || `Update ${filePath} via OpenHub`,
+        content: Buffer.from(content).toString('base64'),
+        branch: syncEntry.default_branch || 'main',
+        sha: fileSha,
+      }),
+    }
+  );
+
+  if (!putRes.ok) {
+    const err = await putRes.text();
+    throw new Error(`Failed to push to GitHub: ${err}`);
+  }
+
+  db.prepare(`
+    UPDATE github_synced_repos
+    SET last_synced_at = datetime('now'), sync_status = 'synced'
+    WHERE id = ?
+  `).run(syncEntry.id);
+
+  return { syncedToGitHub: true, commit: await putRes.json() };
+}
+
+export async function fetchGitHubIssues(token: string, owner: string, repo: string) {
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/issues?state=all&per_page=30`, {
+    headers: getHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch issues: ${res.statusText}`);
+  return await res.json();
+}
+
+export async function createGitHubIssue(token: string, owner: string, repo: string, title: string, body: string) {
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/issues`, {
+    method: 'POST',
+    headers: getHeaders(token),
+    body: JSON.stringify({ title, body }),
+  });
+  if (!res.ok) throw new Error(`Failed to create issue: ${res.statusText}`);
+  return await res.json();
+}
+
+export async function fetchGitHubPulls(token: string, owner: string, repo: string) {
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/pulls?state=all&per_page=30`, {
+    headers: getHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch PRs: ${res.statusText}`);
+  return await res.json();
+}
+
+export async function fetchGitHubWorkflows(token: string, owner: string, repo: string) {
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/actions/workflows`, {
+    headers: getHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch workflows: ${res.statusText}`);
+  return await res.json();
+}
+
+export async function fetchGitHubWorkflowRuns(token: string, owner: string, repo: string) {
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/actions/runs?per_page=20`, {
+    headers: getHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch workflow runs: ${res.statusText}`);
+  return await res.json();
+}
+
+export async function dispatchGitHubWorkflow(
+  token: string,
+  owner: string,
+  repo: string,
+  workflowId: string | number,
+  ref: string = 'main',
+  inputs: Record<string, any> = {}
+) {
+  const wf = String(workflowId);
+  if (!/^[A-Za-z0-9._-]{1,200}$/.test(wf) || wf === '.' || wf === '..') throw new Error('Invalid workflow id');
+  const res = await fetch(`${GITHUB_API_BASE}/repos/${repoPath(owner, repo)}/actions/workflows/${encodeURIComponent(wf)}/dispatches`, {
+    method: 'POST',
+    headers: getHeaders(token),
+    body: JSON.stringify({ ref, inputs }),
+  });
+  if (!res.ok && res.status !== 204) {
+    const msg = await res.text();
+    throw new Error(`Failed to dispatch workflow: ${msg || res.statusText}`);
+  }
+  return { success: true };
+}
+
+export function recordGitHubWebhookEvent(event: string, payload: any, signatureValid: boolean = true) {
+  const db = getDb();
+  const id = uuidv4();
+  const repoFullName = payload?.repository?.full_name || 'unknown';
+  const sender = payload?.sender?.login || 'unknown';
+  const action = payload?.action || 'event';
+  const summary = `${event}.${action} on ${repoFullName} by @${sender}`;
+
+  db.prepare(`
+    INSERT INTO github_webhook_events (id, event_type, repo_full_name, sender, action, summary, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    event,
+    repoFullName,
+    sender,
+    action,
+    summary,
+    JSON.stringify(payload)
+  );
+
+  return { id, summary };
+}
+
+export function getGitHubWebhookEvents(limit: number = 30) {
+  const db = getDb();
+  return db.prepare(`
+    SELECT * FROM github_webhook_events
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit);
+}
+
+/**
+ * Webhook events for repositories `userId` has linked (imported) in OpenHub.
+ * Events are recorded tenant-agnostically by the signed receiver, so listing
+ * must be scoped to the caller's repos (audit 2026-09-23).
+ */
+export function getGitHubWebhookEventsForUser(userId: string, limit: number = 30) {
+  const db = getDb();
+  return db.prepare(`
+    SELECT * FROM github_webhook_events
+    WHERE lower(repo_full_name) IN (
+      SELECT lower(github_full_name) FROM github_synced_repos WHERE user_id = ?
+    )
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(userId, limit);
+}
