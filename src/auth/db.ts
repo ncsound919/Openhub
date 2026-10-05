@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { withBusyRetrySync } from '../lib/sqliteRetry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,7 +34,23 @@ export function getDb(): Database.Database {
 export function initializeDatabase() {
   const db = getDb();
 
-  db.exec(`
+  // One retry boundary around the entire migration, not per statement.
+  //
+  // Measured 2026-10-05: the failure came from the CREATE TABLE block below, so
+  // guarding only the UPDATEs left the actual thrower unguarded — and a
+  // per-statement retry nested inside a whole-migration one would allow
+  // attempts^2 tries against a wedged database. Everything inside is idempotent
+  // (IF NOT EXISTS, and ADD COLUMN guarded by a PRAGMA table_info check), so
+  // re-running a partially-applied migration is safe.
+  //
+  // The SYNC helper, deliberately: this runs during boot before the event loop
+  // has anything else scheduled, and waiting is busy_timeout's job (10s), not
+  // ours — see the note on withBusyRetrySync in lib/sqliteRetry.ts. Attempts are
+  // raised above the default 5 because boot has no second chance: the status
+  // ledger holds a write lock for a ~60s sweep every 15 minutes, and this is the
+  // only moment we can wait it out.
+  withBusyRetrySync('boot-migrate-schema', () => {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
@@ -279,8 +296,13 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_repo_events_repo   ON repo_status_events(repo_id, id DESC);
   `);
 
-  migrateUsersTable(db);
-  migrateRepoStatusTables(db);
+    migrateUsersTable(db);
+    // NOT wrapped in its own retry: the boundary above already encloses it, and a
+    // nested retry multiplies the worst case (5 x 5 = 25 attempts against a
+    // genuinely wedged database) while adding nothing — the outer call re-runs
+    // the same idempotent statements either way.
+    migrateRepoStatusTables(db);
+  }, { attempts: 12 });
 
   console.log('[DB] Database initialized at', dbPath());
 }
@@ -295,6 +317,25 @@ export function initializeDatabase() {
  *  This is the whole class of bug in one function -- a schema created outside
  *  the migration file means the migration file's version of it is never
  *  exercised, so nothing notices the two disagree. */
+/**
+ * Additive, idempotent column migrations for the status-ledger tables.
+ *
+ * Every writer in this server shares one SQLite file, so SQLITE_BUSY is routine
+ * traffic rather than a defect, and the retry policy for it lives in ONE place:
+ * src/lib/sqliteRetry.ts. An earlier version of this file grew its own
+ * `withBusyRetry` with an `Atomics.wait` sleep between attempts. That was removed:
+ * it duplicated the policy, and blocking the event loop to wait out a lock is
+ * worse than the lock — busy_timeout already does the waiting, which is why
+ * withBusyRetrySync deliberately retries without sleeping.
+ *
+ * Measured 2026-10-05, openhub-pm2.err.log (before either side was hardened):
+ *   Unhandled promise rejection: SqliteError: database is locked
+ *     at migrateRepoStatusTables -> initializeDatabase -> startServer
+ * A boot inside the ledger's ~60s sweep window threw, the promise rejected, and
+ * the global handler in server.ts swallowed it — so the server came up with the
+ * repo_status backfill never applied and nothing but that log line recorded it.
+ * Retrying is the difference between "booted late" and "booted wrong".
+ */
 function migrateRepoStatusTables(db: Database.Database): void {
   const cols = (t: string) => db.prepare(`PRAGMA table_info(${t})`).all() as Array<{ name: string }>;
   const has = (t: string, name: string) => cols(t).some((c) => c.name === name);

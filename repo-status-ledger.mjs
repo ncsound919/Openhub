@@ -50,14 +50,37 @@ if (!DB) { console.error('usage: node repo-status-ledger.mjs --db <path> [--repo
 
 const Database = require('better-sqlite3');
 const db = new Database(DB);
-// This writer runs on a cron while the server holds the same file open. The
-// server sets WAL (see src/auth/db.ts) but not busy_timeout, so without both of
-// these the two processes collide and the *server* dies with an unhandled
-// "database is locked" -- a read-only sampler taking down the app it samples.
-// journal_mode is set read-only-ish here because WAL is persistent on the file,
-// not a per-connection setting; the timeout is what actually matters.
+// This writer runs on a cron while the server holds the same file open. Both
+// ends now set WAL and a busy timeout, so neither dies on the other's lock:
+//   - server: src/auth/db.ts (WAL + busy_timeout 10000) retries transient
+//     SQLITE_BUSY via withBusyRetry/withBusyRetrySync (src/lib/sqliteRetry.ts),
+//     because a serving loop must not drop ticks;
+//   - here:   WAL + busy_timeout 30000 below, and NO retry loop on top. That
+//     asymmetry is deliberate: this process fires on a 15-minute cron, so a
+//     failure is loud (nonzero exit, pm2 err log) and self-heals next cycle,
+//     while a retry loop here would only turn a >30s stuck lock into a slower
+//     failure. The process that can least afford to fail waits longest; the
+//     process that can afford to fail, fails loud instead of retrying forever.
+//
+ // Measured 2026-10-05 in openhub-pm2.err.log, before both sides were hardened:
+//   Unhandled promise rejection: SqliteError: database is locked
+//     at migrateRepoStatusTables -> initializeDatabase -> startServer
+// and again at dreamTick -> startDreamLoop. A read-mostly sampler taking down the
+// app it samples is the failure mode this file exists to avoid.
+//
+// The comment this replaces claimed "the server sets WAL but not busy_timeout".
+// That was true when written and is now false -- db.ts:27 sets busy_timeout and
+// explains why. A stale comment describing a bug that no longer exists sends the
+// next reader hunting for a fix that is already in place.
+//
+// journal_mode is set because WAL is persistent on the file, not a per-connection
+// setting; setting it is harmless and makes the sampler's intent explicit.
+//
+// The sampler's timeout is deliberately LONGER than the server's 10s. It runs on
+// a 15-minute cron and a missed cycle is lost data, whereas the server retries and
+// recovers -- so the process that can least afford to fail waits longest.
 db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 10000');
+db.pragma('busy_timeout = 30000');
 db.pragma('foreign_keys = ON');
 
 // The authoritative schema for these two tables lives in src/auth/db.ts, not

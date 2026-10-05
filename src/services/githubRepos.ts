@@ -1,4 +1,5 @@
 import { getDb } from '../auth/db.js';
+import { withBusyRetry } from '../lib/sqliteRetry.js';
 import { resolveSecret } from './keywire.js';
 
 /**
@@ -187,7 +188,12 @@ export async function syncFleetRepos(env: NodeJS.ProcessEnv = process.env): Prom
   for (const login of FLEET_ACCOUNTS) {
     try {
       const repos = await fetchAccountRepos(login, token, env);
-      upsertRepos(repos, syncedAt);
+      // The upsert is one fast prepared-statement transaction, but it still
+      // shares the file with the dream loop, self-report, and the external
+      // status-ledger sampler. A transient BUSY retries with backoff; a stuck
+      // lock records the error on the account and the next 5-minute cycle picks
+      // it up. Either way the other account still syncs.
+      await withBusyRetry(`fleet-sync:${login}`, () => upsertRepos(repos, syncedAt));
       accounts.push({ owner: login, count: repos.length });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

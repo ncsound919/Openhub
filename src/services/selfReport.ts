@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb } from '../auth/db.js';
+import { isBusyError, withBusyRetry } from '../lib/sqliteRetry.js';
 import { listIncidents, dispatchState } from './incidentBus.js';
 import { listRuns } from './supervisor.js';
 import { summarizeEvents, listEvents, recordEvent } from './telemetry.js';
@@ -33,12 +34,22 @@ export type ReportSection<T> = ({ ok: true } & T) | { ok: false; error: string }
 
 async function safe<T>(fn: () => T | Promise<T>): Promise<ReportSection<T>> {
   try {
-    const value = await fn();
+    // Sections that read SQLite share the file with the dream loop, fleet
+    // sync, and the external status-ledger sampler. A transient BUSY retries
+    // with backoff here so one locked moment does not mark a healthy section
+    // degraded; anything else -- including a stuck lock after retries -- lands
+    // in the section's error field per the honesty contract above. Network
+    // sections are unaffected: their errors are never BUSY, so they pass
+    // through on the first failure exactly as before.
+    const value = await withBusyRetry('self-report-section', fn);
     if (value && typeof value === 'object' && 'ok' in (value as Record<string, unknown>)) {
       return value as ReportSection<T>;
     }
     return { ok: true, ...(value as T) };
   } catch (err) {
+    if (isBusyError(err)) {
+      console.warn('[self-report] section skipped after lock retries:', err instanceof Error ? err.message : err);
+    }
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

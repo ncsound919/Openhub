@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../auth/db.js';
+import { withBusyRetrySync } from '../lib/sqliteRetry.js';
 import { getAgentReadouts, buildWorkOrder } from './agentReadouts.js';
 
 /**
@@ -145,10 +146,17 @@ export function dreamTick(): number {
       summary = excluded.summary, last_analyzed_at = excluded.last_analyzed_at
   `);
   const now = new Date().toISOString();
-  for (const repo of repos) {
-    const entry = analyzeRepo(repo);
-    upsert.run(entry.repoId, entry.status, entry.purpose, entry.development, entry.grade, entry.score, entry.findings, entry.summary, now);
-  }
+  // The whole tick shares one lock policy: a transient BUSY retries (the
+  // status-ledger sampler and fleet sync hold the same file), anything else
+  // throws at once so real defects stay loud. The caller (startDreamLoop)
+  // still guards the tick, so a persistently stuck lock skips one cycle with a
+  // warning instead of killing the loop.
+  withBusyRetrySync('dream-tick', () => {
+    for (const repo of repos) {
+      const entry = analyzeRepo(repo);
+      upsert.run(entry.repoId, entry.status, entry.purpose, entry.development, entry.grade, entry.score, entry.findings, entry.summary, now);
+    }
+  });
   return repos.length;
 }
 
@@ -185,7 +193,23 @@ function ensureTable(): void {
 }
 
 export function startDreamLoop(intervalMs = 120_000): NodeJS.Timeout {
-  void dreamTick();
+  // The initial tick was OUTSIDE the guard that protects the interval below.
+  //
+  // Measured 2026-10-05: openhub-pm2.err.log held
+  //   Unhandled promise rejection: SqliteError: database is locked
+  //     at dreamTick (dreamState.ts:150)
+  //     at startDreamLoop (dreamState.ts:188)   <- this line
+  // `openhub-status-ledger` runs every 15 minutes against this same
+  // data/openhub.db (ecosystem.config.json:22-24) and holds a write lock for a
+  // ~60s sweep, so a boot landing in that window throws here. The rejection was
+  // swallowed by the global handler in server.ts, which meant the dream state
+  // silently stopped updating with nothing in the log but this line.
+  //
+  // The `try/catch` one line down proves the intent was for a failing tick not
+  // to matter; the startup call was simply missed. dreamTick is synchronous
+  // (`(): number`), so a plain try/catch is the correct guard — no promise to
+  // await.
+  try { dreamTick(); } catch { /* a locked DB must not stop the loop */ }
   return setInterval(() => {
     try { dreamTick(); } catch { /* a repo failing must not kill the loop */ }
   }, intervalMs);
