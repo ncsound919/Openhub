@@ -69,8 +69,41 @@ describe('evaluateAuditGate', () => {
   });
 
   it('passes and fails the release gate on its minimum', () => {
-    expect(evaluateAuditGate(85, 'release')).toMatchObject({ pass: true, advisory: false, minScore: 80 });
-    expect(evaluateAuditGate(79, 'release')).toMatchObject({ pass: false, advisory: false });
+    // coveragePercent is passed because release carries a 60% floor: a score of 85
+    // from a run that examined 1 of 12 dimensions must NOT pass. See the
+    // low-coverage cases below.
+    expect(evaluateAuditGate(85, 'release', { coveragePercent: 100 })).toMatchObject({ pass: true, advisory: false, minScore: 80 });
+    expect(evaluateAuditGate(79, 'release', { coveragePercent: 100 })).toMatchObject({ pass: false, advisory: false });
+  });
+
+  // The defect this whole change exists for. Uncovered dimension weight never
+  // enters the score denominator, so a 1-of-12 run scores on that one dimension
+  // alone and can report 100. Measured on a markdown-only repo: score 100,
+  // coverage 8%, verdict pass.
+  it('fails the release gate closed on a high score earned at low coverage', () => {
+    const gate = evaluateAuditGate(100, 'release', { coveragePercent: 8 });
+    expect(gate?.pass).toBe(false);
+    expect(gate?.reason).toMatch(/coverage 8% is below this stage's 60% floor/);
+  });
+
+  it('passes the release gate at exactly the floor, fails just below', () => {
+    expect(evaluateAuditGate(100, 'release', { coveragePercent: 60 })?.pass).toBe(true);
+    expect(evaluateAuditGate(100, 'release', { coveragePercent: 59 })?.pass).toBe(false);
+  });
+
+  it('leaves the low-stakes stages ungated on coverage', () => {
+    // A repo with no toolchain cannot pass `pr`. Permanently-red CI teaches
+    // people to bypass gates, so the floor is release-only by design.
+    for (const stage of ['pre-commit', 'pr', 'merge', 'nightly'] as const) {
+      expect(evaluateAuditGate(100, stage, { coveragePercent: 8 })?.pass).toBe(true);
+    }
+  });
+
+  it('names the coverage floor in the reason, not a bare number', () => {
+    // "failed" must never be indistinguishable from "could not verify".
+    const gate = evaluateAuditGate(100, 'release', { coveragePercent: 8 });
+    expect(gate?.reason).toContain('60%');
+    expect(gate?.reason).toContain('fails closed');
   });
 
   it('fails closed when no score was produced', () => {

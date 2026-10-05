@@ -233,7 +233,7 @@ export interface AuditReport {
   /** WHY the verdict is what it is — so "fail" is never ambiguous between real
    *  findings and an audit that could not verify (missing scanners). Optional so
    *  report fixtures/consumers built before this field stay valid. */
-  verdictReason?: 'ok' | 'below-threshold' | 'critical-findings' | 'required-scanners-unavailable' | 'unscored';
+  verdictReason?: 'ok' | 'below-threshold' | 'critical-findings' | 'required-scanners-unavailable' | 'unscored' | 'low-coverage';
   /** Human-readable one-liner for `verdictReason`. */
   verdictDetail?: string;
   /** Whether this audit was diff-scoped or full-tree, and the guard notes. */
@@ -2207,6 +2207,24 @@ export interface AuditStage {
   preset: AuditPresetName;
   /** Minimum reconciled score to pass. `null` = advisory: recorded, never blocks. */
   minScore: number | null;
+  /**
+   * Minimum share of the 12 quality dimensions that must be FULLY examined for
+   * this stage's verdict to mean anything. `null` = this stage does not gate on
+   * coverage.
+   *
+   * Why this exists. Uncovered dimension weight never enters the score
+   * denominator (see reconcileResults), so a run that examined 1 of 12
+   * dimensions scores on that one dimension alone and can report 100 / grade A.
+   * Measured on a markdown-only repository: git_history scored 100 having scanned
+   * 4 files, coverage was 1/12 = 8%, and the verdict was `pass`. coveragePercent
+   * was computed and read by nothing.
+   *
+   * `null` on the low-stakes stages is deliberate: a repo with no toolchain cannot
+   * pass `pr`, and permanently-red CI teaches people to bypass gates. `release`
+   * carries the floor because certifying a release from 8% coverage is the claim
+   * this exists to stop.
+   */
+  minCoveragePercent: number | null;
   /** Whether a stage run is also indexed into Recourse memory (infrequent, high-signal only). */
   memory: boolean;
   description: string;
@@ -2216,30 +2234,35 @@ export const AUDIT_STAGES: Record<AuditStageName, AuditStage> = {
   'pre-commit': {
     preset: 'quick',
     minScore: 60,
+    minCoveragePercent: null,
     memory: false,
     description: 'Every commit must compile, lint clean, and add no secrets.',
   },
   pr: {
     preset: 'standard',
     minScore: 70,
+    minCoveragePercent: null,
     memory: false,
     description: 'PRs are reviewed, scanned, and tested before human review.',
   },
   merge: {
     preset: 'deep',
     minScore: 70,
+    minCoveragePercent: null,
     memory: true,
     description: 'Merges run the full suite across the change; outcomes teach the learner.',
   },
   nightly: {
     preset: 'deep',
     minScore: null,
+    minCoveragePercent: null,
     memory: true,
     description: 'Scheduled sweep is informational — it feeds the learner, never blocks.',
   },
   release: {
     preset: 'release',
     minScore: 80,
+    minCoveragePercent: 60,
     memory: true,
     description: 'Releases require a full-tree pass at release quality.',
   },
@@ -2271,6 +2294,9 @@ export interface AuditGateInputs {
   criticalFindings?: number;
   /** Required scorers that were in the plan but unavailable. */
   requiredUnavailableScorers?: string[];
+  /** Share of quality dimensions fully examined (0-100). Compared against the
+   *  stage's minCoveragePercent; a shortfall fails the gate closed. */
+  coveragePercent?: number;
 }
 
 export interface AuditPlan {
@@ -2300,9 +2326,11 @@ export function resolveAuditPlan(
 }
 
 /** Evaluate a stage gate against a reconciled score. A missing score fails
- *  closed; advisory stages never block. Two hard conditions override the score
- *  even on a high-scoring run: any critical finding, and any required scorer
- *  that was unavailable (so a blind spot can never read as a pass). */
+ * closed; advisory stages never block. Three hard conditions override the score
+ * even on a high-scoring run: any critical finding, any required scorer that was
+ * unavailable, and a run whose coverage fell below the stage's floor -- so a blind
+ * spot can never read as a pass, which is the property the first two were written
+ * for and the third completes. */
 export function evaluateAuditGate(
   overallScore: number | null,
   stage: AuditStageName | null,
@@ -2312,12 +2340,16 @@ export function evaluateAuditGate(
   const def = AUDIT_STAGES[stage];
   const critical = inputs.criticalFindings ?? 0;
   const reqMissing = inputs.requiredUnavailableScorers ?? [];
+  const covFloor = def.minCoveragePercent;
+  const covShort = covFloor !== null && (inputs.coveragePercent ?? 0) < covFloor;
   const hardReason =
     critical > 0
-      ? `${critical} critical finding(s) — gate fails closed`
+      ? `${critical} critical finding(s) - gate fails closed`
       : reqMissing.length
-        ? `required scorer(s) unavailable: ${reqMissing.join(', ')} — gate fails closed`
-        : null;
+        ? `required scorer(s) unavailable: ${reqMissing.join(', ')} - gate fails closed`
+        : covShort
+          ? `coverage ${inputs.coveragePercent ?? 0}% is below this stage's ${covFloor}% floor - gate fails closed`
+          : null;
   if (def.minScore === null) {
     return {
       stage,
@@ -2474,26 +2506,9 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
     (s) => scorersToRun.includes(s) && unavailableScorers.includes(s),
   );
 
-  // Fail closed on the two conditions a passing score must never mask: a
-  // critical finding, or a required scanner that did not run.
-  const overallStatus: AuditReport['overallStatus'] =
-    criticalFindings > 0 || requiredUnavailableScorers.length > 0
-      ? 'fail'
-      : overallScore === null ? 'fail' : overallScore >= 80 ? 'pass' : overallScore >= 60 ? 'warn' : 'fail';
-
-  // Name the reason so a "fail" is never confused with "could not verify".
-  const verdictReason: AuditReport['verdictReason'] =
-    criticalFindings > 0 ? 'critical-findings'
-      : requiredUnavailableScorers.length > 0 ? 'required-scanners-unavailable'
-        : overallScore === null ? 'unscored'
-          : overallScore >= 80 ? 'ok' : 'below-threshold';
-  const verdictDetail =
-    verdictReason === 'critical-findings' ? `${criticalFindings} critical finding${criticalFindings === 1 ? '' : 's'}`
-      : verdictReason === 'required-scanners-unavailable' ? `could not verify — required scanner(s) unavailable: ${requiredUnavailableScorers.join(', ')}`
-        : verdictReason === 'unscored' ? 'no scorer produced a score'
-          : verdictReason === 'ok' ? `score ${overallScore}`
-            : `score ${overallScore} is below the 80 pass bar`;
-
+// Coverage first: overallStatus needs it. It used to be computed further down
+  // and read by nothing, which is how a run covering 1 of 12 dimensions could
+  // report 100 and grade A.
   const dimensionScores: Partial<Record<Dimension, number | null>> = {};
   for (const d of reconciliation.dimensions) dimensionScores[d.dimension] = d.score;
   const coverage = buildCoverageFromResults(results, dimensionScores);
@@ -2501,9 +2516,47 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
     ? Math.round((coverage.covered / coverage.total) * 100)
     : 0;
 
+  // The floor below which a score may not certify anything. Not a threshold for
+  // "the code is bad" -- it is "the audit did not look at enough to say". Set per
+  // stage; null means this stage does not gate on coverage.
+  const stageDef = params.stage ? AUDIT_STAGES[params.stage] : undefined;
+  const minCoveragePercent = stageDef?.minCoveragePercent ?? null;
+  const coverageShortfall =
+    minCoveragePercent !== null && coveragePercent < minCoveragePercent;
+
+  // Fail closed on the three conditions a passing score must never mask: a
+  // critical finding, a required scanner that did not run, or a run that examined
+  // too little to certify anything.
+  const overallStatus: AuditReport['overallStatus'] =
+    criticalFindings > 0 || requiredUnavailableScorers.length > 0 || coverageShortfall
+      ? 'fail'
+      : overallScore === null ? 'fail' : overallScore >= 80 ? 'pass' : overallScore >= 60 ? 'warn' : 'fail';
+
+  // Name the reason so a "fail" is never confused with "could not verify".
+  const verdictReason: AuditReport['verdictReason'] =
+    criticalFindings > 0 ? 'critical-findings'
+      : requiredUnavailableScorers.length > 0 ? 'required-scanners-unavailable'
+        : coverageShortfall ? 'low-coverage'
+          : overallScore === null ? 'unscored'
+            : overallScore >= 80 ? 'ok' : 'below-threshold';
+  const verdictDetail =
+    verdictReason === 'critical-findings' ? `${criticalFindings} critical finding${criticalFindings === 1 ? '' : 's'}`
+      : verdictReason === 'required-scanners-unavailable' ? `could not verify - required scanner(s) unavailable: ${requiredUnavailableScorers.join(', ')}`
+        : verdictReason === 'low-coverage'
+          ? `only ${coverage.covered} of ${coverage.total} quality dimensions were examined `
+            + `(${coveragePercent}%), below this stage's ${minCoveragePercent}% floor - a high score here `
+            + `describes the dimensions that ran, not the repository`
+          : verdictReason === 'unscored' ? 'no scorer produced a score'
+            : verdictReason === 'ok' ? `score ${overallScore}`
+              : `score ${overallScore} is below the 80 pass bar`;
+
   // Designated build gate: a stage turns the reconciled score into a verdict
   // the pipeline can enforce. Advisory stages record without blocking.
-  const gate = evaluateAuditGate(overallScore, plan.stage, { criticalFindings, requiredUnavailableScorers });
+  const gate = evaluateAuditGate(overallScore, plan.stage, {
+    criticalFindings,
+    requiredUnavailableScorers,
+    coveragePercent,
+  });
 
   const report: AuditReport = {
     id: receiptRunId,
@@ -2566,9 +2619,9 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
   // release stages additionally index into Recourse memory — so what the gates
   // catch (and what they miss) teaches the audit team over time. Best-effort
   // and isolated — a feedback failure never fails the audit.
-  const stageDef = plan.stage ? AUDIT_STAGES[plan.stage] : null;
+  const planStageDef = plan.stage ? AUDIT_STAGES[plan.stage] : null;
   if (auditFeedbackEnabled(params.feedback) || plan.stage !== null) {
-    report.feedback = await recordAuditFeedback(report, { memory: stageDef?.memory === true });
+    report.feedback = await recordAuditFeedback(report, { memory: planStageDef?.memory === true });
   }
 
   // Jev advisory (opt-in): a calibrated severity/next-step read on top of the

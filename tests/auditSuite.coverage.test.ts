@@ -465,6 +465,42 @@ describe('executeAuditSuite dispatch', () => {
     expect(report.overallStatus).toBe('pass');
   });
 
+  // The end-to-end version of the low-coverage gate: a stage run whose coverage
+  // falls under that stage's floor must not report `pass`, whatever the score.
+  // Reproduces the measured markdown-only case (score 100, coverage 8%) through
+  // executeAuditSuite rather than through the gate function alone.
+  it('fails a release-stage run closed when coverage is below the floor', async () => {
+    vi.mocked(fetchOssReview).mockResolvedValue({ ok: true, report: { graph: { available: true, report: {} } } });
+    const dir = tmp();
+    // One scorer, so few dimensions are examined. No stage means no floor applies.
+    const unscoped = await executeAuditSuite({ targetDir: dir, scorers: ['codegraph'] });
+    expect(unscoped.verdictReason).not.toBe('low-coverage');
+
+    const report = await executeAuditSuite({ targetDir: dir, scorers: ['codegraph'], stage: 'release' });
+    expect(report.verdictReason).toBe('low-coverage');
+    expect(report.overallStatus).toBe('fail');
+    expect(report.verdictDetail).toMatch(/below this stage's 60% floor/);
+    expect(report.coveragePercent).toBeLessThan(60);
+    expect(report.gate?.pass).toBe(false);
+    expect(report.gate?.reason).toMatch(/coverage \d+% is below this stage's 60% floor/);
+  });
+
+  it('does not gate the pr stage on coverage', async () => {
+    vi.mocked(fetchOssReview).mockResolvedValue({ ok: true, report: { graph: { available: true, report: {} } } });
+    const dir = tmp();
+    vi.mocked(fetchOssReview).mockResolvedValue({
+      ok: true,
+      report: {
+        graph: {
+          available: true,
+          report: { test_gaps: [{}, {}], changed_functions: [{}], affected_flows: [] },
+        },
+      },
+    });
+    const report = await executeAuditSuite({ targetDir: dir, scorers: ['codegraph'], stage: 'pr' });
+    expect(report.verdictReason).not.toBe('low-coverage');
+  }, 60_000);
+
   it('warns when the average is between 60 and 80', async () => {
     vi.mocked(fetchOssReview).mockResolvedValue({
       ok: true,
