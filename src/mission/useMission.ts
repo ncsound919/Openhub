@@ -140,6 +140,16 @@ async function postJson(path: string, body: unknown): Promise<Record<string, unk
   return readEnvelope(res);
 }
 
+async function getJson(path: string): Promise<Record<string, unknown>> {
+  const res = await fetch(path, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { ...getAuthHeaders() },
+    signal: AbortSignal.timeout(15_000),
+  });
+  return readEnvelope(res);
+}
+
 /**
  * Create an opencode session and register it as a mission in `planned` state.
  * Resolves with the session/mission id. It deliberately does NOT send the goal
@@ -414,4 +424,153 @@ export async function fetchSession(id: string): Promise<Record<string, unknown>>
   const json = await readEnvelope(res);
   const data = json.data;
   return data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+}
+
+/* ------------------------------------------------------------------ *
+ * Review surface: diff, todos, messages, rewind, steer
+ *
+ * The exact JSON shapes for GET /session/:id/diff, /todo and /message are
+ * UNVERIFIED against a live engine. Every normalizer below reads common field
+ * names defensively and drops entries it cannot understand — it never
+ * fabricates a path, count or patch.
+ * ------------------------------------------------------------------ */
+
+/** One changed file, normalized for the inspector. */
+export interface FileDiff {
+  path: string;
+  additions?: number;
+  deletions?: number;
+  patch?: string;
+  status?: string;
+}
+
+/** One session todo, normalized for the inspector. */
+export interface MissionTodo {
+  content: string;
+  status?: string;
+  priority?: string;
+}
+
+/**
+ * Normalize a raw opencode diff payload into `FileDiff[]`. Accepts the
+ * documented `FileDiff[]` as well as a `{ diffs: [...] }` / `{ files: [...] }`
+ * wrapper. A row with no readable path is skipped rather than rendered blank.
+ */
+export function normalizeFileDiff(raw: unknown): FileDiff[] {
+  let list = raw;
+  if (list && typeof list === 'object' && !Array.isArray(list)) {
+    const rec = list as Record<string, unknown>;
+    if (Array.isArray(rec.diffs)) list = rec.diffs;
+    else if (Array.isArray(rec.files)) list = rec.files;
+  }
+  if (!Array.isArray(list)) return [];
+  const out: FileDiff[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const r = item as Record<string, unknown>;
+    const path = str(r.path) ?? str(r.file);
+    if (!path) continue;
+    const entry: FileDiff = { path };
+    const additions = num(r.additions);
+    const deletions = num(r.deletions);
+    const patch = str(r.patch);
+    const status = str(r.status);
+    if (additions !== undefined) entry.additions = additions;
+    if (deletions !== undefined) entry.deletions = deletions;
+    if (patch !== undefined) entry.patch = patch;
+    if (status !== undefined) entry.status = status;
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
+ * Normalize a raw opencode todo payload into `MissionTodo[]`. Accepts a bare
+ * array or a `{ todos: [...] }` wrapper; a row with no readable content is
+ * skipped.
+ */
+export function normalizeTodos(raw: unknown): MissionTodo[] {
+  let list = raw;
+  if (list && typeof list === 'object' && !Array.isArray(list)) {
+    const rec = list as Record<string, unknown>;
+    if (Array.isArray(rec.todos)) list = rec.todos;
+  }
+  if (!Array.isArray(list)) return [];
+  const out: MissionTodo[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const r = item as Record<string, unknown>;
+    const content = str(r.content) ?? str(r.text);
+    if (!content) continue;
+    const todo: MissionTodo = { content };
+    const status = str(r.status);
+    const priority = str(r.priority);
+    if (status !== undefined) todo.status = status;
+    if (priority !== undefined) todo.priority = priority;
+    out.push(todo);
+  }
+  return out;
+}
+
+/** GET the session's cumulative diff through the OpenHub proxy. */
+export async function fetchDiff(id: string): Promise<FileDiff[]> {
+  const json = await getJson(`/api/opencode/sessions/${encodeURIComponent(id)}/diff`);
+  return normalizeFileDiff(json.data);
+}
+
+/** GET the session's todo list through the OpenHub proxy. */
+export async function fetchTodos(id: string): Promise<MissionTodo[]> {
+  const json = await getJson(`/api/opencode/sessions/${encodeURIComponent(id)}/todos`);
+  return normalizeTodos(json.data);
+}
+
+/**
+ * GET the session's messages through the OpenHub proxy. Returns the raw array —
+ * the message shape is UNVERIFIED, so callers read it defensively. A non-array
+ * payload degrades to `[]`.
+ */
+export async function fetchMessages(id: string, limit?: number): Promise<unknown[]> {
+  const qs = limit == null ? '' : `?limit=${encodeURIComponent(String(limit))}`;
+  const json = await getJson(`/api/opencode/sessions/${encodeURIComponent(id)}/messages${qs}`);
+  return Array.isArray(json.data) ? json.data : [];
+}
+
+/** Read a message id from either `{ info: { id } }` or a flat `{ id }`. */
+function pickMessageId(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const r = raw as Record<string, unknown>;
+  const info = nestedObject(r, 'info');
+  return str(info?.id) ?? str(r.id);
+}
+
+/**
+ * Rewind the session to just before its most recent message. Throws a clear
+ * error when no message id can be read, rather than sending a revert with an
+ * undefined id. Returns whether the engine reported success. Response shape is
+ * UNVERIFIED, so success is `data === true`.
+ */
+export async function revertLastStep(id: string): Promise<boolean> {
+  const messages = await fetchMessages(id);
+  const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  const messageID = pickMessageId(last);
+  if (!messageID) throw new Error('no message to revert');
+  const json = await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/revert`, { messageID });
+  return json.data === true;
+}
+
+/** Undo the most recent revert for the session. Returns whether it succeeded. */
+export async function unrevertSession(id: string): Promise<boolean> {
+  const json = await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/unrevert`, {});
+  return json.data === true;
+}
+
+/**
+ * Steer a running mission: send a follow-up message while the agent works.
+ * This is opencode's `prompt_async` (a 204, no body); it returns no data, so it
+ * returns void. The proxy exposes it both as `/prompt` and `/prompt_async`.
+ */
+export async function steer(id: string, text: string): Promise<void> {
+  await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/prompt_async`, {
+    parts: [{ type: 'text', text }],
+  });
 }

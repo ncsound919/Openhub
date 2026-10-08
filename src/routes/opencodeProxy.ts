@@ -9,6 +9,8 @@ import {
   createSession,
   promptSessionAsync,
   abortSession,
+  revertSession,
+  unrevertSession,
   sessionTodos,
   sessionDiff,
   eventsRaw,
@@ -29,7 +31,8 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
   router.use(operatorGateFor([
     /^\/opencode\/engine\/(start|stop)\/?$/,
     /^\/opencode\/sessions\/?$/,
-    /^\/opencode\/sessions\/[^/]+\/(prompt|abort)\/?$/,
+    // prompt_async is the mid-run "steer" endpoint; revert/unrevert rewind history.
+    /^\/opencode\/sessions\/[^/]+\/(prompt|prompt_async|abort|revert|unrevert)\/?$/,
   ]));
 
   router.get('/opencode/status', async (_req, res) => {
@@ -94,8 +97,34 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
     } catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
   });
 
+  // Mid-run "steer": send another message while the agent is working. Same
+  // handler as `/prompt`; the alias matches opencode's own `prompt_async` name.
+  router.post('/opencode/sessions/:id/prompt_async', async (req, res) => {
+    try {
+      const parts = Array.isArray(req.body?.parts) ? req.body.parts : [];
+      res.json({ ok: true, data: await promptSessionAsync(req.params.id, parts) });
+    } catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
+  });
+
   router.post('/opencode/sessions/:id/abort', async (req, res) => {
     try { res.json({ ok: true, data: await abortSession(req.params.id) }); }
+    catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
+  });
+
+  // Rewind the session to just before a message. `messageID` is required, so a
+  // missing one is a client error (400), not a forward attempt to the engine.
+  router.post('/opencode/sessions/:id/revert', async (req, res) => {
+    const messageID = typeof req.body?.messageID === 'string' ? req.body.messageID.trim() : '';
+    if (!messageID) {
+      res.status(400).json({ ok: false, error: 'messageID is required' });
+      return;
+    }
+    try { res.json({ ok: true, data: await revertSession(req.params.id, messageID) }); }
+    catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
+  });
+
+  router.post('/opencode/sessions/:id/unrevert', async (req, res) => {
+    try { res.json({ ok: true, data: await unrevertSession(req.params.id) }); }
     catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
   });
 

@@ -9,6 +9,7 @@ import {
   fetchSessions,
   sendPrompt,
   sessionToMission,
+  steer,
   subscribeMission,
   normalizeSessionTelemetry,
   type SessionTelemetry,
@@ -49,6 +50,11 @@ export function MissionControlPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
+  const [steerText, setSteerText] = useState('');
+  const [steering, setSteering] = useState(false);
+  // Bumped whenever the active mission or its status changes, so the inspector
+  // re-reads the diff/todos as a run progresses.
+  const [inspectorRefreshKey, setInspectorRefreshKey] = useState(0);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const elapsed = useElapsed(activeMission?.createdAt);
@@ -126,6 +132,11 @@ export function MissionControlPage() {
     };
   }, [activeSessionId]);
 
+  // Re-read the inspector whenever the active mission or its status changes.
+  useEffect(() => {
+    setInspectorRefreshKey((k) => k + 1);
+  }, [activeId, activeMission?.status]);
+
   const selectMission = (id: string) => {
     const store = useMissionStore.getState();
     store.setActive(id);
@@ -167,6 +178,31 @@ export function MissionControlPage() {
   };
 
   const canStop = activeMission?.status === 'planned' || activeMission?.status === 'running';
+
+  // Steer is only meaningful mid-run; the session id is the request target.
+  const steerSessionId = activeMission?.sessionId ?? activeMission?.id ?? null;
+  const steerTrimmed = steerText.trim();
+  const canSteer = activeMission?.status === 'running' && steerSessionId != null && steerTrimmed.length > 0 && !steering;
+  const steerReason =
+    activeMission?.status !== 'running'
+      ? 'Steering is available while the mission is running'
+      : steerSessionId == null
+        ? 'No session to steer'
+        : 'Type a message to steer the run';
+
+  const onSteer = async () => {
+    if (!steerSessionId || activeMission?.status !== 'running' || !steerText.trim() || steering) return;
+    setSteering(true);
+    setError(null);
+    try {
+      await steer(steerSessionId, steerText.trim());
+      setSteerText('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to steer the mission');
+    } finally {
+      setSteering(false);
+    }
+  };
 
   const add = telemetry?.additions;
   const del = telemetry?.deletions;
@@ -248,10 +284,49 @@ export function MissionControlPage() {
           </div>
 
           <MissionTimeline events={events} />
+
+          {/* Steer: send a follow-up while the agent runs (opencode prompt_async). */}
+          <div className="shrink-0 border-t border-[var(--color-border-muted)] px-4 py-2">
+            <div className="flex items-end gap-2">
+              <textarea
+                value={steerText}
+                onChange={(e) => setSteerText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void onSteer();
+                  }
+                }}
+                disabled={activeMission?.status !== 'running' || steering}
+                placeholder="Steer the running mission…"
+                aria-label="Steer the running mission"
+                title={steerReason}
+                rows={2}
+                className="min-w-0 flex-1 resize-none rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => void onSteer()}
+                disabled={!canSteer}
+                title={steerReason}
+                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent-text)] px-3 py-1.5 text-xs font-semibold text-[var(--color-bg-base)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+              >
+                {steering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Send
+              </button>
+            </div>
+            {activeMission?.status !== 'running' && (
+              <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">{steerReason}</p>
+            )}
+          </div>
         </div>
 
         <aside className="hidden min-h-0 w-80 shrink-0 lg:block">
-          <MissionInspector />
+          <MissionInspector
+            sessionId={activeSessionId ?? null}
+            telemetry={telemetry}
+            refreshKey={inspectorRefreshKey}
+          />
         </aside>
       </div>
 

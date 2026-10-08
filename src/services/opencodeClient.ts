@@ -65,6 +65,23 @@ export function abortSession(id: string): Promise<any> {
   return ocFetch(`/session/${encodeURIComponent(id)}/abort`, { method: 'POST' });
 }
 
+/**
+ * Revert (rewind) the session to just before `messageID`. The engine's revert
+ * body is `{ messageID, partID? }`; the response shape is UNVERIFIED against a
+ * live engine, so callers must read it defensively (the proxy forwards it as-is).
+ */
+export function revertSession(id: string, messageID: string): Promise<any> {
+  return ocFetch(`/session/${encodeURIComponent(id)}/revert`, {
+    method: 'POST',
+    body: JSON.stringify({ messageID }),
+  });
+}
+
+/** Undo the most recent revert. Response shape is UNVERIFIED. */
+export function unrevertSession(id: string): Promise<any> {
+  return ocFetch(`/session/${encodeURIComponent(id)}/unrevert`, { method: 'POST' });
+}
+
 export function sessionTodos(id: string): Promise<any> {
   return ocFetch(`/session/${encodeURIComponent(id)}/todo`);
 }
