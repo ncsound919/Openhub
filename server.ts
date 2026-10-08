@@ -87,6 +87,7 @@ import { createGithubFleetRouter } from './src/routes/githubFleet.js';
 import { createServicesLifecycleRouter } from './src/routes/servicesLifecycle.js';
 import { createFleetCapabilitiesRouter } from './src/routes/fleetCapabilities.js';
 import { createAxiomProxyRouter } from './src/routes/axiomProxy.js';
+import { createOpencodeProxyRouter } from './src/routes/opencodeProxy.js';
 import { createReceiptsRouter } from './src/routes/receipts.js';
 import { createClosedLoopRouter } from './src/routes/closedLoopRoutes.js';
 import { createAuditRouter } from './src/routes/auditRoutes.js';
@@ -2039,6 +2040,7 @@ async function startServer() {
   app.use('/api', createServicesLifecycleRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createFleetCapabilitiesRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createAxiomProxyRouter({ authMiddleware: auth.middleware() }));
+  app.use('/api', createOpencodeProxyRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createReceiptsRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createClosedLoopRouter({ authMiddleware: auth.middleware() }));
   // Machine-to-machine audit surface for Recourse's autopilot loop. Gated on
