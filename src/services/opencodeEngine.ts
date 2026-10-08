@@ -21,6 +21,7 @@ export function buildServeArgs(): string[] {
 function readPassword(): string {
   try { return parsePassword(fs.readFileSync(PASSWORD_FILE, 'utf8')); } catch { return ''; }
 }
+export function getEnginePassword(): string { return readPassword(); }
 
 export async function opencodeEngineHealth(): Promise<{ available: boolean; version?: string; error?: string }> {
   try {
