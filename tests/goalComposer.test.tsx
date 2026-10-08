@@ -31,4 +31,24 @@ describe('GoalComposer', () => {
     const view = render(React.createElement(GoalComposer, { engineOnline: true, onSubmit: vi.fn() }));
     expect(runButton(view).disabled).toBe(true);
   });
+
+  it('exposes the goal textarea by its accessible name', () => {
+    const view = render(React.createElement(GoalComposer, { engineOnline: true, onSubmit: vi.fn() }));
+    expect(view.getByLabelText('Mission goal')).toBeTruthy();
+  });
+
+  it('does not render a Plan button (Phase C owns the plan gate)', () => {
+    const view = render(React.createElement(GoalComposer, { engineOnline: true, onSubmit: vi.fn() }));
+    expect(view.queryByRole('button', { name: /plan/i })).toBeNull();
+  });
+
+  it('renders Stop only when a mission can be stopped', () => {
+    const onStop = vi.fn();
+    const noStop = render(React.createElement(GoalComposer, { engineOnline: true, onSubmit: vi.fn() }));
+    expect(noStop.queryByRole('button', { name: /stop/i })).toBeNull();
+    const stopping = render(React.createElement(GoalComposer, { engineOnline: true, onSubmit: vi.fn(), canStop: true, onStop }));
+    const stop = stopping.getByRole('button', { name: /stop/i });
+    fireEvent.click(stop);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
 });

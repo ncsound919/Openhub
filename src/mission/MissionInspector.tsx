@@ -15,11 +15,16 @@ export function MissionInspector({ tabs = DEFAULT_TABS }: MissionInspectorProps)
 
   return (
     <div className="flex h-full min-h-0 flex-col border-l border-[var(--color-border-muted)] bg-[var(--color-surface-base)]">
-      <div className="flex shrink-0 items-center gap-1 border-b border-[var(--color-border-muted)] px-2 py-1.5">
+      <div
+        role="tablist"
+        className="flex shrink-0 items-center gap-1 border-b border-[var(--color-border-muted)] px-2 py-1.5"
+      >
         {tabs.map((tab) => (
           <button
             key={tab}
             type="button"
+            role="tab"
+            aria-selected={tab === active}
             onClick={() => setActive(tab)}
             className={
               'rounded px-2 py-1 text-[11px] font-semibold transition-colors ' +

@@ -111,6 +111,13 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
 
   // Live event stream: pipe opencode's SSE frames straight through, no buffering.
   router.get('/opencode/events', async (_req, res) => {
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    const clearHeartbeat = () => {
+      if (heartbeat) {
+        clearInterval(heartbeat);
+        heartbeat = undefined;
+      }
+    };
     try {
       const upstream = await eventsRaw();
       if (!upstream.ok || !upstream.body) {
@@ -121,15 +128,30 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders?.();
+      // Comment frames keep intermediaries from dropping an idle stream.
+      heartbeat = setInterval(() => {
+        if (res.writableEnded) return;
+        try { res.write(': ping\n\n'); } catch { /* socket already closed */ }
+      }, 15_000);
       const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
-      res.on('close', () => { if (!res.writableEnded) { try { void reader.cancel(); } catch { /* already closed */ } } });
+      res.on('close', () => {
+        clearHeartbeat();
+        if (!res.writableEnded) { try { void reader.cancel(); } catch { /* already closed */ } }
+      });
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         res.write(Buffer.from(value));
       }
       res.end();
-    } catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
+    } catch (err) {
+      // Headers may already be on the wire (mid-stream failure): status+JSON is
+      // no longer possible, so just end the stream.
+      if (res.headersSent) { res.end(); return; }
+      res.status(502).json({ ok: false, error: errorMessage(err) });
+    } finally {
+      clearHeartbeat();
+    }
   });
 
   return router;

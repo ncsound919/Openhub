@@ -45,8 +45,16 @@ export async function startOpencodeEngine(): Promise<{ started: boolean; error?:
     detached: false,
     shell: process.platform === 'win32',
   });
+  // A failed spawn (missing binary, EACCES, ...) emits 'error'. Without this
+  // handler that event is unhandled and crashes the server; capture it so the
+  // wait loop can return promptly instead of waiting out the full 10s.
+  let spawnError: string | null = null;
+  child.on('error', (err) => {
+    spawnError = err instanceof Error ? err.message : String(err);
+  });
   for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 500));
+    if (spawnError) return { started: false, error: spawnError };
     if ((await opencodeEngineHealth()).available) return { started: true };
   }
   return { started: false, error: 'engine did not become healthy in 10s' };

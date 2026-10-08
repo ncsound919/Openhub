@@ -57,12 +57,22 @@ export function useEngineStatus(): EngineStatus | null {
 }
 
 /**
- * Compact opencode engine health chip. Green when the engine answers, amber
- * when it does not (with the concrete reason). Self-contained: no props.
+ * Compact opencode engine health chip. Prefer passing `status` (from a single
+ * shared `useEngineStatus()` on the page) so the page polls once, not twice.
+ * With no prop it self-polls, which keeps standalone use working.
  */
-export function EngineStatusBar() {
-  const status = useEngineStatus();
+export function EngineStatusBar({ status }: { status?: EngineStatus | null } = {}) {
+  // A provided prop (including explicit `null`) means the caller owns polling.
+  if (status !== undefined) return <EngineStatusChip status={status} />;
+  return <SelfPollingEngineStatusBar />;
+}
 
+function SelfPollingEngineStatusBar() {
+  const status = useEngineStatus();
+  return <EngineStatusChip status={status} />;
+}
+
+function EngineStatusChip({ status }: { status: EngineStatus | null }) {
   if (!status) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)]">

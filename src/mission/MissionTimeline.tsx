@@ -19,7 +19,11 @@ export function MissionTimeline({ events }: MissionTimelineProps) {
   }
 
   return (
-    <ol className="h-full min-h-0 space-y-1 overflow-y-auto p-3">
+    <ol
+      role="status"
+      aria-live="polite"
+      className="h-full min-h-0 space-y-1 overflow-y-auto p-3"
+    >
       {events.map((event, index) => (
         <li
           key={`${event.at}-${index}`}
