@@ -35,7 +35,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Build',
     items: [
       { to: '/', label: 'Command', icon: LayoutDashboard, end: true, keywords: ['status', 'home', 'dashboard', 'control', 'console', 'run', 'projects', 'repositories'] },
-      { to: '/workspace', label: 'Workspace', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'agent', 'files', 'axiom'] },
+      { to: '/missions', label: 'Missions', icon: Workflow, keywords: ['missions', 'agents', 'autonomous', 'runs', 'goals', 'missions control'] },
+      { to: '/editor', label: 'Editor', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'files'] },
       { to: '/teams', label: 'Tool Teams', icon: Workflow, keywords: ['teams', 'tools', 'job', 'cron', 'routine', 'draymond', 'recourse', 'axiom', 'control', 'buttons', 'run'] },
     ],
   },
@@ -53,6 +54,8 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 export const BREADCRUMBS: Record<string, string> = {
   '/': 'Command',
+  '/missions': 'Missions',
+  '/editor': 'Editor',
   '/workspace': 'Workspace',
   '/teams': 'Tool Teams',
   '/reporter': 'Reporter',

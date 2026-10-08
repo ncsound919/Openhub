@@ -21,6 +21,7 @@ const ExtensionsView = lazy(() => import('./pages/ExtensionsView').then((m) => (
 const UserSettingsView = lazy(() => import('./pages/UserSettingsView').then((m) => ({ default: m.UserSettingsView })));
 const SettingsView = lazy(() => import('./pages/SettingsView').then((m) => ({ default: m.SettingsView })));
 const WorkspacePage = lazy(() => import('./ide/WorkspacePage').then((m) => ({ default: m.WorkspacePage })));
+const MissionControlPage = lazy(() => import('./mission/MissionControlPage').then((m) => ({ default: m.MissionControlPage })));
 const WorkspaceIntelligence = lazy(() => import('./pages/WorkspaceIntelligence').then((m) => ({ default: m.WorkspaceIntelligence })));
 const StudioPage = lazy(() => import('./ide/StudioPage').then((m) => ({ default: m.StudioPage })));
 const FleetPanel = lazy(() => import('./pages/FleetPanel').then((m) => ({ default: m.FleetPanel })));
@@ -98,8 +99,10 @@ function AppRoutes() {
           <Route path="ecosystem" element={<Navigate to="/fleet?tab=ecosystem" replace />} />
           <Route path="settings" element={<UserSettingsView />} />
           <Route path="models" element={<ModelSelectionView />} />
-          <Route path="workspace" element={<WorkspacePage />} />
-          <Route path="workspace/:owner/:repo" element={<WorkspacePage />} />
+          <Route path="workspace" element={<Navigate to="/editor" replace />} />
+          <Route path="workspace/:owner/:repo" element={<Navigate to="/editor" replace />} />
+          <Route path="missions" element={<MissionControlPage />} />
+          <Route path="editor" element={<WorkspacePage />} />
           {/* Mounted 2026-10-05. The page existed but was never routed, and all
               five /api/workspace endpoints it called were unimplemented, so it
               rendered nothing and tests/endpointCoverage.test.ts had been
