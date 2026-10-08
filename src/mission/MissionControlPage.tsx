@@ -2,34 +2,140 @@ import { useEffect, useRef, useState } from 'react';
 import { GitBranch, Loader2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useMissionStore } from '../lib/missionStore.js';
-import { abortMission, createMission, sendPrompt, subscribeMission } from './useMission.js';
+import {
+  abortMission,
+  createMission,
+  fetchSession,
+  fetchSessions,
+  sendPrompt,
+  sessionToMission,
+  subscribeMission,
+  normalizeSessionTelemetry,
+  type SessionTelemetry,
+} from './useMission.js';
 import { EngineStatusBar, useEngineStatus } from './EngineStatusBar';
 import { GoalComposer } from './GoalComposer';
 import { MissionTimeline } from './MissionTimeline';
 import { MissionInspector } from './MissionInspector';
+import { MissionRail } from './MissionRail';
+import { MissionStatusHeader, useElapsed } from './MissionStatusHeader';
+
+const TELEMETRY_POLL_MS = 5_000;
+
+/** Render an unknown count as `—` (mono numbers only). */
+function fmtNum(n: number | undefined): string {
+  return n == null ? '—' : n.toLocaleString('en-US');
+}
 
 /**
- * Mission Control — one goal in, a mission out. This is the Phase B skeleton:
- * the header/status, the composer, the timeline and the inspector are wired to
- * real state, while telemetry numbers stay placeholders ("—") because the
- * engine lanes are not wired live yet.
+ * Mission Control — three regions: the missions rail (left), the working
+ * column (status header + composer + timeline), and the inspector (right).
+ *
+ * Sessions are the source of truth: on mount the page lists opencode sessions
+ * and upserts them as missions, then polls the active session's telemetry every
+ * ~5s. The opencode session JSON shape is UNVERIFIED against a live engine, so
+ * every telemetry read is defensive and unknown values render as `—`.
  */
 export function MissionControlPage() {
   const activeProject = useStore((s) => s.activeProject);
   const engine = useEngineStatus();
+  const missions = useMissionStore((s) => s.missions);
   const activeId = useMissionStore((s) => s.activeId);
   const activeMission = useMissionStore((s) => s.missions.find((m) => m.id === s.activeId) ?? null);
   const events = useMissionStore((s) => (s.activeId ? s.events[s.activeId] ?? [] : []));
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  const elapsed = useElapsed(activeMission?.createdAt);
 
   // One live subscription for the page's lifetime; replaced per new mission.
   useEffect(() => () => {
     unsubscribeRef.current?.();
     unsubscribeRef.current = null;
   }, []);
+
+  const subscribeTo = (id: string) => {
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = subscribeMission(
+      id,
+      (event) => {
+        useMissionStore.getState().addEvent(id, event);
+      },
+      (message) => {
+        setError(message);
+        useMissionStore.getState().setStatus(id, 'failed');
+      },
+    );
+  };
+
+  // Load the opencode session list once and reconcile it into the mission store.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchSessions();
+        if (cancelled) return;
+        const store = useMissionStore.getState();
+        for (const raw of list) {
+          const mapped = sessionToMission(raw);
+          if (!mapped) continue;
+          const existing = useMissionStore.getState().missions.find((m) => m.id === mapped.id);
+          // Never downgrade a live mission's status from a list snapshot.
+          store.upsertMission(existing ? { ...mapped, status: existing.status } : mapped);
+        }
+        setLoadError(null);
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Unable to load sessions');
+      } finally {
+        if (!cancelled) setSessionsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Poll the active session's telemetry while a mission is selected.
+  const activeSessionId = activeMission?.sessionId;
+  useEffect(() => {
+    if (!activeSessionId) {
+      setTelemetry(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const raw = await fetchSession(activeSessionId);
+        if (!cancelled) setTelemetry(normalizeSessionTelemetry(raw));
+      } catch {
+        if (!cancelled) setTelemetry(null);
+      }
+    };
+    void poll();
+    const timer = setInterval(() => {
+      void poll();
+    }, TELEMETRY_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeSessionId]);
+
+  const selectMission = (id: string) => {
+    const store = useMissionStore.getState();
+    store.setActive(id);
+    const mission = store.missions.find((m) => m.id === id);
+    // Only subscribe to missions that can still emit events; a finished session
+    // would otherwise fail the stream and wrongly flip `done` to `failed`.
+    if (mission && (mission.status === 'planned' || mission.status === 'running')) {
+      subscribeTo(mission.sessionId ?? mission.id);
+    }
+  };
 
   const onSubmit = async (goal: string) => {
     setBusy(true);
@@ -40,17 +146,7 @@ export function MissionControlPage() {
       store.setActive(id);
       // Subscribe BEFORE prompting: otherwise the engine's early frames race
       // ahead of this subscription and are lost (the "empty timeline" bug).
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = subscribeMission(
-        id,
-        (event) => {
-          useMissionStore.getState().addEvent(id, event);
-        },
-        (message) => {
-          setError(message);
-          useMissionStore.getState().setStatus(id, 'failed');
-        },
-      );
+      subscribeTo(id);
       await sendPrompt(id, goal);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start mission');
@@ -72,6 +168,17 @@ export function MissionControlPage() {
 
   const canStop = activeMission?.status === 'planned' || activeMission?.status === 'running';
 
+  const add = telemetry?.additions;
+  const del = telemetry?.deletions;
+  const filesDelta =
+    add == null && del == null
+      ? telemetry?.filesChanged == null
+        ? '—'
+        : `${telemetry.filesChanged} files`
+      : `${add == null ? '—' : `+${add}`}/${del == null ? '—' : `-${del}`}`;
+  const cost = telemetry?.cost;
+  const inlineError = error ?? loadError;
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-base)]">
       <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--color-border-muted)] px-4 py-2.5">
@@ -89,29 +196,85 @@ export function MissionControlPage() {
         </span>
       </header>
 
-      <div className="shrink-0 border-b border-[var(--color-border-muted)]">
-        <GoalComposer
-          engineOnline={engine?.available ?? false}
-          onSubmit={onSubmit}
-          busy={busy}
-          canStop={canStop}
-          onStop={onStop}
-        />
-        {error && (
-          <div className="px-4 pb-2 text-xs text-[var(--color-danger)]">{error}</div>
-        )}
-      </div>
+      <div className="flex min-h-0 flex-1">
+        {/* Rail — full vertical rail on lg+; a native select is the mobile fallback (below). */}
+        <aside className="hidden w-60 shrink-0 border-r border-[var(--color-border-muted)] lg:block">
+          <MissionRail
+            missions={missions}
+            activeId={activeId}
+            onSelect={selectMission}
+            loading={sessionsLoading}
+          />
+        </aside>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_320px]">
-        <MissionTimeline events={events} />
-        <MissionInspector />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Mobile fallback: the rail is hidden under lg, so mission switching moves here. */}
+          <div className="border-b border-[var(--color-border-muted)] px-3 py-2 lg:hidden">
+            <label htmlFor="mission-select" className="sr-only">
+              Select mission
+            </label>
+            <select
+              id="mission-select"
+              value={activeId ?? ''}
+              onChange={(e) => {
+                if (e.target.value) selectMission(e.target.value);
+              }}
+              className="w-full rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1.5 text-xs text-[var(--color-text-primary)]"
+            >
+              {missions.length === 0 ? (
+                <option value="">No missions yet</option>
+              ) : (
+                activeId == null && <option value="">Select a mission…</option>
+              )}
+              {missions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.goal}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <MissionStatusHeader mission={activeMission} session={telemetry} />
+
+          <div className="shrink-0 border-b border-[var(--color-border-muted)]">
+            <GoalComposer
+              engineOnline={engine?.available ?? false}
+              onSubmit={onSubmit}
+              busy={busy}
+              canStop={canStop}
+              onStop={onStop}
+            />
+            {inlineError && <div className="px-4 pb-2 text-xs text-[var(--color-danger)]">{inlineError}</div>}
+          </div>
+
+          <MissionTimeline events={events} />
+        </div>
+
+        <aside className="hidden min-h-0 w-80 shrink-0 lg:block">
+          <MissionInspector />
+        </aside>
       </div>
 
       <footer className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-t border-[var(--color-border-muted)] px-4 py-2 font-mono text-[11px] text-[var(--color-text-muted)]">
-        <span>status <span className="text-[var(--color-text-secondary)]">{activeMission?.status ?? 'idle'}</span></span>
-        <span>tokens <span className="text-[var(--color-text-secondary)]">—</span></span>
-        <span>cost <span className="text-[var(--color-text-secondary)]">—</span></span>
-        <span>iterations <span className="text-[var(--color-text-secondary)]">—</span></span>
+        <span>
+          status <span className="text-[var(--color-text-secondary)]">{activeMission?.status ?? 'idle'}</span>
+        </span>
+        <span>
+          tokens in/out{' '}
+          <span className="text-[var(--color-text-secondary)]">
+            {fmtNum(telemetry?.tokens?.input)} / {fmtNum(telemetry?.tokens?.output)}
+          </span>
+        </span>
+        {/* Cost unit (USD) is assumed from opencode's assistant-message `cost`. UNVERIFIED. */}
+        <span>
+          cost <span className="text-[var(--color-text-secondary)]">{cost == null ? '—' : `$${cost.toFixed(4)}`}</span>
+        </span>
+        <span>
+          files <span className="text-[var(--color-text-secondary)]">{filesDelta}</span>
+        </span>
+        <span>
+          elapsed <span className="text-[var(--color-text-secondary)]">{elapsed}</span>
+        </span>
         {busy && (
           <span className="ml-auto inline-flex items-center gap-1.5 text-[var(--color-text-secondary)]">
             <Loader2 className="h-3 w-3 animate-spin" /> starting mission…

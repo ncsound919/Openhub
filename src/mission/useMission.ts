@@ -12,7 +12,7 @@
  */
 
 import { getAuthHeaders } from '../auth/AuthProvider';
-import { useMissionStore, type MissionEvent } from '../lib/missionStore.js';
+import { useMissionStore, type Mission, type MissionEvent, type MissionStatus } from '../lib/missionStore.js';
 
 /**
  * A parsed frame that also carries the session it belongs to. The public
@@ -269,4 +269,149 @@ export function subscribeMission(
   })();
 
   return () => controller.abort();
+}
+
+/* ------------------------------------------------------------------ *
+ * Session telemetry + session->mission mapping
+ *
+ * The exact JSON shape the opencode engine returns for GET /session and
+ * GET /session/:id is still UNVERIFIED against a live engine (starting one
+ * risks a WAL clash with the running desktop app). Every field below is read
+ * defensively: an absent field stays `undefined` and the UI renders `—`.
+ * Nothing is fabricated.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Normalized, best-effort telemetry for one opencode session. Every field is
+ * optional; a missing field means "unknown", never zero.
+ */
+export interface SessionTelemetry {
+  cost?: number;
+  tokens?: { input?: number; output?: number };
+  filesChanged?: number;
+  additions?: number;
+  deletions?: number;
+  model?: string;
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+const MISSION_STATUSES = new Set<MissionStatus>(['draft', 'planned', 'running', 'review', 'done', 'failed']);
+
+function asStatus(v: unknown): MissionStatus | undefined {
+  return typeof v === 'string' && MISSION_STATUSES.has(v as MissionStatus) ? (v as MissionStatus) : undefined;
+}
+
+/**
+ * Map a session object onto telemetry, tolerating every shape seen in the
+ * opencode ecosystem: `cost`; `tokens.input` / `tokens.output` (or flat
+ * `tokens_input` / `tokens_output`); `summary.additions` / `summary.deletions` /
+ * `summary.files` (or flat `summary_additions` / `summary_deletions` /
+ * `summary_files`); and `model` / `modelID`. Unknown keys are ignored.
+ */
+export function normalizeSessionTelemetry(raw: unknown): SessionTelemetry {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const s = raw as Record<string, unknown>;
+  const out: SessionTelemetry = {};
+
+  const cost = num(s.cost);
+  if (cost !== undefined) out.cost = cost;
+
+  const tokensObj = nestedObject(s, 'tokens') ?? nestedObject(s, 'token');
+  const input = num(tokensObj?.input) ?? num(s.tokens_input) ?? num(s.inputTokens);
+  const output = num(tokensObj?.output) ?? num(s.tokens_output) ?? num(s.outputTokens);
+  if (input !== undefined || output !== undefined) {
+    out.tokens = {};
+    if (input !== undefined) out.tokens.input = input;
+    if (output !== undefined) out.tokens.output = output;
+  }
+
+  const summary = nestedObject(s, 'summary');
+  const additions = num(s.summary_additions) ?? num(summary?.additions) ?? num(s.additions);
+  const deletions = num(s.summary_deletions) ?? num(summary?.deletions) ?? num(s.deletions);
+  const filesChanged = num(s.summary_files) ?? num(summary?.files) ?? num(s.filesChanged);
+  if (additions !== undefined) out.additions = additions;
+  if (deletions !== undefined) out.deletions = deletions;
+  if (filesChanged !== undefined) out.filesChanged = filesChanged;
+
+  const model =
+    str(s.model) ??
+    str(s.modelID) ??
+    str(s.modelId) ??
+    str(nestedObject(s, 'model')?.id) ??
+    str(nestedObject(s, 'model')?.modelID);
+  if (model) out.model = model;
+
+  return out;
+}
+
+/** Parse an ISO timestamp from the several epoch/string shapes a session may carry. */
+function isoTime(s: Record<string, unknown>): string | undefined {
+  const time = nestedObject(s, 'time');
+  const candidates = [time?.created, time?.updated, s.createdAt, s.created, s.time];
+  for (const c of candidates) {
+    if (typeof c === 'number' && Number.isFinite(c)) {
+      const ms = c < 1e12 ? c * 1000 : c; // seconds vs milliseconds
+      const d = new Date(ms);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    } else if (typeof c === 'string') {
+      const d = new Date(c);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Map a raw opencode session onto a `Mission`. Returns null when there is no
+ * usable id. Status is taken from the session when it is a known status,
+ * otherwise `done` (a session that exists in the list is not actively planned).
+ */
+export function sessionToMission(raw: unknown): Mission | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const s = raw as Record<string, unknown>;
+  const id = str(s.id) ?? str(s.sessionID) ?? str(s.sessionId);
+  if (!id) return null;
+  const goal = str(s.title) ?? str(s.goal) ?? 'Untitled session';
+  const status = asStatus(s.status) ?? 'done';
+  const createdAt = isoTime(s) ?? new Date().toISOString();
+  return { id, goal, sessionId: id, status, createdAt };
+}
+
+/** GET the opencode session list through the OpenHub proxy. */
+export async function fetchSessions(): Promise<unknown[]> {
+  const res = await fetch('/api/opencode/sessions', {
+    method: 'GET',
+    credentials: 'include',
+    headers: { ...getAuthHeaders() },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = await readEnvelope(res);
+  const data = json.data;
+  if (Array.isArray(data)) return data;
+  // Tolerate a wrapped `{ sessions: [...] }` payload.
+  if (data && typeof data === 'object') {
+    const inner = (data as Record<string, unknown>).sessions;
+    if (Array.isArray(inner)) return inner;
+  }
+  return [];
+}
+
+/** GET one opencode session (telemetry source) through the OpenHub proxy. */
+export async function fetchSession(id: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`/api/opencode/sessions/${encodeURIComponent(id)}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { ...getAuthHeaders() },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = await readEnvelope(res);
+  const data = json.data;
+  return data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
 }

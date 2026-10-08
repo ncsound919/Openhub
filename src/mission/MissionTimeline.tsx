@@ -12,7 +12,7 @@ interface MissionTimelineProps {
 export function MissionTimeline({ events }: MissionTimelineProps) {
   if (events.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--color-text-muted)]">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-[var(--color-text-muted)]">
         No mission yet — describe a goal to begin.
       </div>
     );
@@ -22,7 +22,7 @@ export function MissionTimeline({ events }: MissionTimelineProps) {
     <ol
       role="status"
       aria-live="polite"
-      className="h-full min-h-0 space-y-1 overflow-y-auto p-3"
+      className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3"
     >
       {events.map((event, index) => (
         <li
