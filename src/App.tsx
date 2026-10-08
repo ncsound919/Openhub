@@ -48,7 +48,7 @@ function RouteFallback() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return <div data-loading="auth" className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}><div className="text-gray-400">Loading OpenHub…</div></div>;
+  if (isLoading) return <div data-loading="auth" className="min-h-[100dvh] flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}><div className="text-gray-400">Loading OpenHub…</div></div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -58,7 +58,7 @@ function AppRoutes() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}>
+      <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}>
         <div className="text-gray-400 font-mono text-sm">Loading OpenHub…</div>
       </div>
     );
@@ -129,12 +129,15 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
+    <>
+      <a href="#main" className="skip-link">Skip to content</a>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </>
   );
 }

@@ -57,7 +57,7 @@ export function MissionStatusHeader({ mission, session, elapsed }: MissionStatus
   if (!mission) {
     return (
       <div className="flex shrink-0 items-center border-b border-[var(--color-border-muted)] px-4 py-2.5">
-        <span className="text-xs text-[var(--color-text-muted)]">No active mission</span>
+        <span className="text-balance text-xs text-[var(--color-text-muted)]">No active mission</span>
       </div>
     );
   }

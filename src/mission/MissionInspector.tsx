@@ -33,24 +33,32 @@ function dash(n: number | undefined): string {
   return n == null ? '—' : n.toLocaleString('en-US');
 }
 
+/** Skeleton row widths as static classes so the placeholder needs no inline style. */
+const SKELETON_WIDTHS = ['w-[80%]', 'w-[65%]', 'w-[50%]'];
+
 /** A small pulsing placeholder row for the loading state. */
 function Skeleton() {
   return (
     <div className="space-y-2 p-3" aria-label="Loading" role="status">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="h-3 animate-pulse rounded bg-[var(--color-surface-overlay)]" style={{ width: `${80 - i * 15}%` }} />
+      {SKELETON_WIDTHS.map((width, i) => (
+        <div
+          key={i}
+          className={`h-3 motion-safe:animate-pulse rounded bg-[var(--color-surface-overlay)] ${width}`}
+        />
       ))}
     </div>
   );
 }
 
-const TODO_STATUS: Record<string, { color: string; mark: string }> = {
-  done: { color: 'var(--color-success)', mark: '✓' },
-  completed: { color: 'var(--color-success)', mark: '✓' },
-  in_progress: { color: 'var(--color-info)', mark: '◐' },
-  'in-progress': { color: 'var(--color-info)', mark: '◐' },
-  pending: { color: 'var(--color-text-muted)', mark: '○' },
+const TODO_STATUS: Record<string, { className: string; mark: string }> = {
+  done: { className: 'text-[var(--color-success)]', mark: '✓' },
+  completed: { className: 'text-[var(--color-success)]', mark: '✓' },
+  in_progress: { className: 'text-[var(--color-info)]', mark: '◐' },
+  'in-progress': { className: 'text-[var(--color-info)]', mark: '◐' },
+  pending: { className: 'text-[var(--color-text-muted)]', mark: '○' },
 };
+
+const TODO_STATUS_FALLBACK = { className: 'text-[var(--color-text-muted)]', mark: '○' };
 
 /**
  * Right-hand inspector for a mission: the review surface (diff + rewind), the
@@ -260,7 +268,7 @@ function ChangesTab({ sessionId, diff, loading, busy, canUnrevert, expanded, onT
       {loading ? (
         <Skeleton />
       ) : diff.length === 0 ? (
-        <p className="p-4 text-center text-xs text-[var(--color-text-muted)]">No changes yet</p>
+        <p className="p-4 text-center text-balance text-xs text-[var(--color-text-muted)]">No changes yet</p>
       ) : (
         <ul className="divide-y divide-[var(--color-border-muted)]">
           {diff.map((file) => (
@@ -302,19 +310,19 @@ function ChangesTab({ sessionId, diff, loading, busy, canUnrevert, expanded, onT
 function TodosTab({ loading, todos }: { loading: boolean; todos: MissionTodo[] }) {
   if (loading) return <Skeleton />;
   if (todos.length === 0) {
-    return <p className="p-4 text-center text-xs text-[var(--color-text-muted)]">No todos yet</p>;
+    return <p className="p-4 text-center text-balance text-xs text-[var(--color-text-muted)]">Nothing queued</p>;
   }
   return (
     <ul className="p-2">
       {todos.map((todo, i) => {
-        const meta = (todo.status && TODO_STATUS[todo.status]) || { color: 'var(--color-text-muted)', mark: '○' };
+        const meta = (todo.status && TODO_STATUS[todo.status]) || TODO_STATUS_FALLBACK;
         return (
           <li key={`${i}-${todo.content}`} className="flex items-start gap-2 px-1 py-1">
-            <span className="mt-px w-3 shrink-0 text-center font-mono" style={{ color: meta.color }} aria-hidden="true">
+            <span className={`mt-px w-3 shrink-0 text-center font-mono ${meta.className}`} aria-hidden="true">
               {meta.mark}
             </span>
             <span className="min-w-0 flex-1 break-words text-[var(--color-text-primary)]">{todo.content}</span>
-            <span className="shrink-0 font-mono text-[10px]" style={{ color: meta.color }}>
+            <span className={`shrink-0 font-mono text-[10px] ${meta.className}`}>
               {todo.status ?? '—'}
             </span>
             {todo.priority && (
@@ -352,7 +360,7 @@ function TelemetryTab({ telemetry }: { telemetry: SessionTelemetry | null }) {
 function ArtifactsTab({ loading, diff }: { loading: boolean; diff: FileDiff[] }) {
   if (loading) return <Skeleton />;
   if (diff.length === 0) {
-    return <p className="p-4 text-center text-xs text-[var(--color-text-muted)]">No artifacts yet</p>;
+    return <p className="p-4 text-center text-balance text-xs text-[var(--color-text-muted)]">No artifacts</p>;
   }
   return (
     <ul className="divide-y divide-[var(--color-border-muted)]">

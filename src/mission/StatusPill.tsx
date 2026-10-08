@@ -43,7 +43,7 @@ export interface StatusPillProps {
 }
 
 export function StatusPill({ status, size = 'md', pulse = false }: StatusPillProps) {
-  const sizing = size === 'sm' ? 'px-1.5 py-0.5 text-[9px]' : 'px-2.5 py-1 text-[11px]';
+  const sizing = size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]';
   return (
     <span
       className={

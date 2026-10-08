@@ -49,62 +49,86 @@ export function groupEventsIntoSteps(events: MissionEvent[]): MissionStep[] {
 }
 
 /**
+ * A friendlier step heading for display: a raw engine `taskId` (e.g.
+ * `task_abc123`) becomes `Task abc123`'s tail, while synthetic steps keep their
+ * own heading. `full` carries the untruncated value for the `title` attribute.
+ */
+export function stepLabel(step: MissionStep): { label: string; full: string } {
+  if (step.taskId) {
+    return { label: `Task ${step.taskId.slice(-4)}`, full: step.taskId };
+  }
+  return { label: step.heading, full: step.heading };
+}
+
+/**
  * Ordered mission event log, grouped into steps. Each event shows its local
  * time, `kind` and text. If there are no events, a calm empty state is shown.
  */
 export function MissionTimeline({ events }: MissionTimelineProps) {
   if (events.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-[var(--color-text-muted)]">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-balance text-sm text-[var(--color-text-muted)]">
         No mission yet — describe a goal to begin.
       </div>
     );
   }
 
   const steps = groupEventsIntoSteps(events);
+  const latest = events[events.length - 1];
+  const note = 'Step grouping is heuristic — refined once live event shapes are verified.';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Honesty: the step boundaries are inferred from an unverified event shape. */}
-      <p className="shrink-0 border-b border-[var(--color-border-muted)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
-        Step grouping is heuristic — refined once live event shapes are verified.
+      <p id="mission-steps-note" className="sr-only">
+        {note}
       </p>
+      {/* Only the newest event is announced; the list itself is not a live region,
+          so appending does not re-read the whole timeline. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {latest ? `${latest.kind}: ${latest.text}` : ''}
+      </span>
       <ol
-        role="status"
-        aria-live="polite"
+        aria-describedby="mission-steps-note"
+        title={note}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
       >
-        {steps.map((step) => (
-          <li
-            key={step.index}
-            className="overflow-hidden rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)]"
-          >
-            <div className="flex items-center gap-2 border-b border-[var(--color-border-muted)] px-3 py-1.5">
-              <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
-                {String(step.index + 1).padStart(2, '0')}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--color-text-primary)]" title={step.heading}>
-                {step.heading}
-              </span>
-              <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{step.events.length}</span>
-            </div>
-            <ul className="space-y-1 p-2">
-              {step.events.map((event, index) => (
-                <li key={`${event.at}-${index}`} className="flex items-start gap-3 px-1 py-0.5">
-                  <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">
-                    {new Date(event.at).toLocaleTimeString()}
-                  </span>
-                  <span className="shrink-0 font-mono text-[11px] font-semibold text-[var(--color-accent-text)]">
-                    {event.kind}
-                  </span>
-                  <span className="min-w-0 flex-1 break-words text-xs text-[var(--color-text-secondary)]">
-                    {event.text}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
+        {steps.map((step) => {
+          const { label, full } = stepLabel(step);
+          return (
+            <li
+              key={step.index}
+              className="overflow-hidden rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)]"
+            >
+              <div className="flex items-center gap-2 border-b border-[var(--color-border-muted)] px-3 py-1.5">
+                <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                  {String(step.index + 1).padStart(2, '0')}
+                </span>
+                <span
+                  className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--color-text-primary)]"
+                  title={full}
+                >
+                  {label}
+                </span>
+                <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{step.events.length}</span>
+              </div>
+              <ul className="space-y-1 p-2">
+                {step.events.map((event, index) => (
+                  <li key={`${event.at}-${index}`} className="flex items-start gap-3 px-1 py-0.5">
+                    <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">
+                      {new Date(event.at).toLocaleTimeString()}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] font-semibold text-[var(--color-accent-text)]">
+                      {event.kind}
+                    </span>
+                    <span className="min-w-0 flex-1 break-words text-pretty text-xs text-[var(--color-text-secondary)]">
+                      {event.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

@@ -38,7 +38,7 @@ export function MissionRail({ missions, activeId, onSelect, loading = false }: M
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-[var(--color-surface-base)]">
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-muted)] px-3 py-2.5">
-        <h2 className="text-xs font-semibold text-[var(--color-text-primary)]">Missions</h2>
+        <h2 className="text-balance text-xs font-semibold text-[var(--color-text-primary)]">Missions</h2>
         <span className="rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-overlay)] px-2 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)]">
           {missions.length}
         </span>
@@ -55,7 +55,7 @@ export function MissionRail({ missions, activeId, onSelect, loading = false }: M
             ))}
           </ul>
         ) : ordered.length === 0 ? (
-          <p className="px-2 py-6 text-center text-xs text-[var(--color-text-muted)]">No missions yet</p>
+          <p className="text-balance px-2 py-6 text-center text-xs text-[var(--color-text-muted)]">No missions yet</p>
         ) : (
           <ul className="space-y-1">
             {ordered.map((m) => {

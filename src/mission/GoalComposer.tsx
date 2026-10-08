@@ -44,7 +44,7 @@ export function GoalComposer({ engineOnline, onSubmit, busy = false, canStop = f
         placeholder="Describe the mission…"
         aria-label="Mission goal"
         rows={3}
-        className="w-full resize-none rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+        className="w-full resize-none rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
       />
       <div className="flex items-center gap-2">
         {/* Fill is the light accent variant so the dark label clears WCAG AA:

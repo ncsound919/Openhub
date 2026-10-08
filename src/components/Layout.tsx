@@ -98,9 +98,9 @@ export function Layout() {
 
   return (
     <PipelineProvider>
-    <div className="min-h-screen flex font-sans relative bg-[var(--color-bg-base)]">
+    <div className="min-h-[100dvh] flex font-sans relative bg-[var(--color-bg-base)]">
       {/* Sidebar — desktop */}
-      <aside className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-base)]/80 backdrop-blur sticky top-0 h-screen z-40">
+      <aside className="hidden lg:flex w-[236px] shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-base)]/80 backdrop-blur sticky top-0 h-[100dvh] z-40">
         <Link to="/" className="flex items-center gap-2.5 px-4 pt-5 pb-4">
           <span className="w-8 h-8 rounded-md flex items-center justify-center bg-[var(--color-accent)]">
             <span className="text-[15px] font-extrabold text-[var(--color-text-primary)] leading-none tracking-tight">O</span>
@@ -282,7 +282,7 @@ export function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col pb-16">
+        <main id="main" tabIndex={-1} className="flex-1 flex flex-col pb-16">
           <Outlet />
         </main>
 

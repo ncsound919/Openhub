@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { getAuthHeaders } from '../auth/AuthProvider';
 
 export interface EngineStatus {
@@ -75,8 +75,8 @@ function SelfPollingEngineStatusBar() {
 function EngineStatusChip({ status }: { status: EngineStatus | null }) {
   if (!status) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)]">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)]">
+        <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm bg-[var(--color-surface-overlay)] motion-safe:animate-pulse" />
         checking opencode…
       </span>
     );
