@@ -25,6 +25,17 @@ import {
 } from '../src/services/p2Scorers';
 import type { PreflightReport } from '../src/services/preflight';
 
+/** The gitleaks-backed git_history assertion needs the binary on PATH; skip where absent. */
+function gitleaksAvailable(): boolean {
+  try {
+    execFileSync('gitleaks', ['version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const HAS_GITLEAKS = gitleaksAvailable();
+
 const dirs: string[] = [];
 
 function tmpProject(files: Record<string, string | Buffer>): string {
@@ -321,7 +332,7 @@ describe('static scorers produce real evidence', () => {
     expect(r.summary).toContain('nothing examined');
   }, 60_000);
 
-  it('git_history still scores when gitleaks swept the history over zero text files', async () => {
+  it.skipIf(!HAS_GITLEAKS)('git_history still scores when gitleaks swept the history over zero text files', async () => {
     // The zero-evidence guard must NOT fire when the authoritative history scan
     // actually ran: that is real evidence, so the scorer reports a score.
     const dir = tmpProject({ 'README.md': '# hi\n' });

@@ -29,8 +29,8 @@ export function peerSpecs(env: NodeJS.ProcessEnv = process.env): PeerSpec[] {
     { id: 'recourse', label: 'Recourse', baseUrl: (env.RECOURSE_URL || 'http://localhost:3050').replace(/\/+$/, ''), token: env.RECOURSE_API_SECRET },
     { id: 'devBrain', label: 'Dev-Brain', baseUrl: (env.DEV_BRAIN_URL || 'http://localhost:3450').replace(/\/+$/, '') },
     { id: 'axiom', label: 'Axiom', baseUrl: (env.AXIOM_URL || 'http://localhost:3198').replace(/\/+$/, '') },
-    { id: 'draymond', label: 'Draymond', baseUrl: (env.DRAYMOND_URL || 'http://localhost:3000').replace(/\/+$/, ''), token: env.DRAYMOND_CRON_SECRET },
-    { id: 'keywire', label: 'Keywire', baseUrl: (env.KEYWIRE_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '') },
+    { id: 'draymond', label: 'Draymond', baseUrl: (env.DRAYMOND_URL || 'http://localhost:3444').replace(/\/+$/, ''), token: env.DRAYMOND_CRON_SECRET },
+    { id: 'keywire', label: 'Keywire', baseUrl: (env.KEYWIRE_URL || 'http://127.0.0.1:4700').replace(/\/+$/, '') },
   ];
 }
 

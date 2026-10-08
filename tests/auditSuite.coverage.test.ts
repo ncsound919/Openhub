@@ -517,24 +517,31 @@ describe('transport errors name the endpoint', () => {
   // "fetch failed", so "RepoRank and Grader are both down" and "one answered"
   // were indistinguishable in scorer output. An error that cannot be acted on.
   const PREV = process.env.REPORANK_API_KEY;
+  const PREV_URL = process.env.REPORANK_URL;
+  // A guaranteed-closed port. The test must not depend on a real RepoRank being
+  // down: on an on-demand host it is up, and the error becomes HTTP 401 instead
+  // of a transport failure.
+  const CLOSED_REPORANK = 'http://127.0.0.1:9';
 
   afterEach(() => {
     if (PREV === undefined) delete process.env.REPORANK_API_KEY;
     else process.env.REPORANK_API_KEY = PREV;
+    if (PREV_URL === undefined) delete process.env.REPORANK_URL;
+    else process.env.REPORANK_URL = PREV_URL;
   });
 
   it('names the host it failed to reach for a local-dir scan', async () => {
-    // 127.0.0.1:3200 is the RepoRank default and refuses connections in this
-    // environment, which is exactly the condition that produced the bare error.
     process.env.REPORANK_API_KEY = 'gr_test_dummy';
+    process.env.REPORANK_URL = CLOSED_REPORANK;
     const r = await runRepoRankScorer({ targetDir: process.cwd() });
     expect(r.error).toContain('fetch failed');
     // The endpoint, so a reader knows WHICH service is down.
-    expect(r.error).toContain('127.0.0.1:3200');
+    expect(r.error).toContain('127.0.0.1:9');
   }, 60_000);
 
   it('does not leak a query string (API keys live in URLs)', async () => {
     process.env.REPORANK_API_KEY = 'gr_secret_value_do_not_log';
+    process.env.REPORANK_URL = CLOSED_REPORANK;
     const r = await runRepoRankScorer({ targetDir: process.cwd() });
     expect(r.error).not.toContain('gr_secret_value_do_not_log');
   }, 60_000);

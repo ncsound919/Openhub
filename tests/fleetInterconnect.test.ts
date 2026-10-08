@@ -15,7 +15,8 @@ describe('peerSpecs', () => {
     const specs = peerSpecs({ RECOURSE_URL: 'http://localhost:3050' });
     expect(specs.map((s) => s.id)).toEqual(['recourse', 'devBrain', 'axiom', 'draymond', 'keywire']);
     expect(specs[0].baseUrl).toBe('http://localhost:3050');
-    expect(specs[4].baseUrl).toBe('http://127.0.0.1:3000');
+    // Keywire moved to :4700 (Phase-0 fix); :3000 is Grafana on this host.
+    expect(specs[4].baseUrl).toBe('http://127.0.0.1:4700');
   });
 });
 

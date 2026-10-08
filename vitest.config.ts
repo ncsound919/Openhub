@@ -6,6 +6,9 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'tests/e2e.test.ts'],
+    // Strip ambient app config (the server's .env is inherited when the audit's
+    // local_qa runs the suite as a server child) so every test is hermetic.
+    setupFiles: ['./tests/setup.ts'],
     // Real-IO suites (git worktrees, spawned CLIs, subprocess QA runs) routinely
     // exceed the 5s default under 55-file parallel load — a false timeout, not a
     // real failure. Assertions are unaffected.
