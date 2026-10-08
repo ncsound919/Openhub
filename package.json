@@ -32,7 +32,7 @@
     "@react-three/fiber": "^9.7.0",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-query": "^5.100.6",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vitejs/plugin-react": "^6.1.2",
     "awesome-node-auth": "^1.9.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
