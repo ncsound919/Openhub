@@ -31,7 +31,14 @@ export interface ServiceStatus {
 
 const UPLIFT_ROOT = process.env.UPLIFT_ROOT || 'C:\\Users\\User\\Downloads\\Uplift';
 const ORCH_DIR = path.join(UPLIFT_ROOT, 'Draymond-Orchestrator');
-const AXIOM_DIR = path.join(UPLIFT_ROOT, 'Deepseek Harness', 'Axiom Agent');
+// Most fleet services were moved under BUSINESS/INFRASTRUCTURE during the
+// 2026-09 dedupe; the audit-suite engines (RepoRank, Grader, The Deep,
+// Claw-Protect, CodeNexus, OmniResearch) now start from there. Axiom still
+// lives under Uplift (its only checkout). ORCH_DIR is retained only because the
+// fleet's LiteLLM config (litellm.yaml) and deterministic-brain live in it.
+// Draymond, Mutly and Vibe-Reality are retired and deliberately absent.
+const BUSINESS_INFRA = process.env.OPENHUB_SERVICE_ROOT || 'C:\\Users\\User\\Downloads\\BUSINESS\\INFRASTRUCTURE';
+const AXIOM_DIR = path.join(UPLIFT_ROOT, '06_Resources', 'Axiom Agent');
 
 /** Per-service log dir, so a failed boot is diagnosable from the UI/disk. */
 function logDir(): string {
@@ -51,37 +58,13 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     args: ['tsx', 'server.ts'],
     category: 'core',
   },
-  draymond: {
-    slug: 'draymond',
-    name: 'Draymond Orchestrator',
-    port: 3444,
-    healthPath: '/',
-    cwd: ORCH_DIR,
-    // The current build artifact is a full .next build (next start), not the
-    // standalone output. `npm run start` serves it; a fresh `npm run build`
-    // switches the artifact back to .next/standalone (see next.config.ts).
-    command: 'npm',
-    args: ['run', 'start'],
-    env: {
-      PORT: '3444',
-      // Operator's documented constraints (fleet-manifest.js): autonomous
-      // fleet cold-start / failover / repair-benchmark dispatch are OFF —
-      // they caused EADDRINUSE crash loops. On-demand start must honor them.
-      DRAYMOND_AUTOSTART_SERVICES: '0',
-      DRAYMOND_SECTOR_LIFECYCLE: '0',
-      DRAYMOND_FAILOVER_MATRIX: '0',
-      DRAYMOND_REPAIR_BENCHMARK_ENABLED: '0',
-      DRAYMOND_AUTO_START_SERVICES: '0',
-    },
-    category: 'repair',
-  },
   grader: {
     slug: 'grader',
     name: 'Grader Code Evaluator',
     port: 3201,
     // Grader's own server.ts exposes /api/healthz and /api/readyz.
     healthPath: '/api/healthz',
-    cwd: path.join(ORCH_DIR, 'agents', 'Grader-main'),
+    cwd: path.join(BUSINESS_INFRA, 'Grader-main'),
     command: 'npm',
     args: ['run', 'dev'],
     category: 'audit',
@@ -91,7 +74,7 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     name: 'RepoRank Scanner',
     port: 3200,
     healthPath: '/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'reporank', 'apps', 'api'),
+    cwd: path.join(BUSINESS_INFRA, 'reporank', 'apps', 'api'),
     command: 'npx',
     args: ['tsx', 'src/index.ts'],
     category: 'audit',
@@ -101,7 +84,7 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     name: 'Claw-Protect Security Audit',
     port: 3300,
     healthPath: '/api/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'Claw-Protect-main'),
+    cwd: path.join(BUSINESS_INFRA, 'Claw-Protect-main'),
     command: 'npm',
     args: ['run', 'dev'],
     env: { CLAW_PORT: '3300', CLAW_SERVE_SAAS: 'false' },
@@ -112,7 +95,7 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     name: 'CodeNexus PR & Review Engine',
     port: 3205,
     healthPath: '/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'CodeNexus-main'),
+    cwd: path.join(BUSINESS_INFRA, 'CodeNexus-main'),
     command: 'npm',
     args: ['run', 'dev'],
     category: 'audit',
@@ -122,7 +105,7 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     name: 'OmniResearch 2',
     port: 3012,
     healthPath: '/api/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'omniresearch 2'),
+    cwd: path.join(BUSINESS_INFRA, 'omniresearch 2'),
     command: 'npx',
     args: ['tsx', 'server.ts'],
     // PORT is pinned after inherited env so a host PORT=3010 (OpenHub) cannot
@@ -138,31 +121,10 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     // and deep-intent passes the `deep` audit scorer calls. tsx avoids a
     // stale-dist problem on on-demand start; PORT matches DEEP_URL default.
     healthPath: '/api/v1/health',
-    cwd: path.join(UPLIFT_ROOT, 'The Deep'),
+    cwd: path.join(BUSINESS_INFRA, 'The Deep'),
     command: 'npx',
     args: ['tsx', 'server.ts'],
     env: { PORT: '3100' },
-    category: 'audit',
-  },
-  'vibe-reality': {
-    slug: 'vibe-reality',
-    name: 'Vibe-Reality Code Auditor',
-    port: 3202,
-    healthPath: '/api/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'Vibe-Reality-main'),
-    command: 'node',
-    args: ['--import', 'tsx', 'server.ts'],
-    env: { PORT: '3202', VIBE_REALITY_LOCAL: '1' },
-    category: 'audit',
-  },
-  mutly: {
-    slug: 'mutly',
-    name: 'Mutly Indexer & Daemon',
-    port: 4000,
-    healthPath: '/api/health',
-    cwd: path.join(ORCH_DIR, 'agents', 'Mutly-Daemon-Agent'),
-    command: 'npm',
-    args: ['run', 'dev'],
     category: 'audit',
   },
   'deterministic-brain': {
@@ -171,16 +133,20 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     port: 3210,
     healthPath: '/health',
     cwd: path.join(ORCH_DIR, 'agents', 'deterministic-brain'),
+    // main.py --serve reads BRAIN_HOST/API_PORT and binds :3210 (see
+    // start-deterministic-brain.ps1); startup.py boots a wider daemon stack.
     command: 'python',
-    args: ['startup.py'],
-    env: { API_PORT: '3210', UVICORN_WORKERS: '1' },
+    args: ['main.py', '--serve'],
+    env: { API_PORT: '3210', BRAIN_HOST: '127.0.0.1', UVICORN_WORKERS: '1' },
     category: 'core',
   },
   litellm: {
     slug: 'litellm',
     name: 'LiteLLM Proxy',
     port: 4100,
-    healthPath: '/health',
+    // LiteLLM gates /health behind auth (401); /health/liveliness is the
+    // unauthenticated liveness endpoint (200). Probing /health read it as down.
+    healthPath: '/health/liveliness',
     cwd: ORCH_DIR,
     command: 'litellm',
     args: ['--config', 'litellm.yaml', '--port', '4100'],
@@ -206,7 +172,7 @@ export const MANAGED_SERVICES: Record<string, ManagedServiceConfig> = {
     name: 'Dev-Brain (fleet triage/intake)',
     port: 3450,
     healthPath: '/api/health',
-    cwd: path.join(UPLIFT_ROOT, 'Dev-Brain'),
+    cwd: path.join(BUSINESS_INFRA, 'Dev-Brain'),
     command: 'node',
     args: ['dist/server.cjs'],
     env: { PORT: '3450', HOST: '127.0.0.1' },
@@ -243,9 +209,12 @@ export function clearActiveProcesses(): void {
 }
 
 /** Ports the lifecycle manager must never kill, regardless of catalog: the
- *  auth authority (Keywire) and the control plane itself (OpenHub). */
+ *  auth authority (Keywire, :4700) and the control plane itself (OpenHub,
+ *  :3010). :3000 was protected historically but is not a fleet service — it is
+ *  Grafana on this host, so protecting it did nothing while leaving Keywire
+ *  (the real auth authority) unprotected. */
 export function isProtectedPort(port: number): boolean {
-  return port === 3000 || port === 3010;
+  return port === 3010 || port === 4700;
 }
 
 /** Build the env for a spawned service. The catalog port is pinned AFTER the
@@ -399,7 +368,14 @@ export async function startServiceSafe(slug: string): Promise<{ ok: boolean; mes
     try {
       const outLog = path.join(logDir(), `${slug}.log`);
       const errLog = path.join(logDir(), `${slug}.err.log`);
-      const proc = spawn(config.command, config.args, {
+      // Node DEP0190: passing an args array with `shell:true` concatenates the
+      // args unescaped. Build one command line instead, quoting any arg that
+      // contains whitespace, so shell resolution still works without the
+      // deprecated (and unsafe) form.
+      const commandLine = [config.command, ...config.args]
+        .map((part) => (/\s/.test(part) ? `"${part.replace(/"/g, '\\"')}"` : part))
+        .join(' ');
+      const proc = spawn(commandLine, {
         cwd: config.cwd,
         // PORT is pinned to the catalog port for EVERY service: many of these
         // apps read process.env.PORT, and the OpenHub launcher exports PORT=3010

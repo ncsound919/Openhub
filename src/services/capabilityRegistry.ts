@@ -84,35 +84,6 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     documentation: 'Axiom coding agent and multi-file code editing server.',
   },
 
-  draymond: {
-    identity: {
-      slug: 'draymond',
-      name: 'Draymond Orchestrator',
-      category: 'repair',
-      transport: 'http',
-      host: '127.0.0.1',
-      port: 3444,
-    },
-    versionSpec: {
-      type: 'http',
-      endpointOrArgs: '/',
-    },
-    liveness: {
-      type: 'http',
-      path: '/',
-      timeoutMs: 3000,
-    },
-    readiness: {
-      type: 'http',
-      path: '/',
-      timeoutMs: 3000,
-    },
-    operations: [
-      { id: 'orchestrate.workflow', name: 'Orchestrate Workflow', description: 'Top-level autonomous orchestration pipeline', kind: 'mutation', endpoint: '/api/workflows' },
-    ],
-    documentation: 'Fleet orchestration Next.js application.',
-  },
-
   grader: {
     identity: {
       slug: 'grader',
@@ -261,64 +232,6 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     documentation: 'The Deep audit engine backing the deep scorer.',
   },
 
-  'vibe-reality': {
-    identity: {
-      slug: 'vibe-reality',
-      name: 'Vibe-Reality Code Auditor',
-      category: 'audit',
-      transport: 'http',
-      host: '127.0.0.1',
-      port: 3202,
-    },
-    versionSpec: {
-      type: 'http',
-      endpointOrArgs: '/api/health',
-    },
-    liveness: {
-      type: 'http',
-      path: '/api/health',
-      timeoutMs: 2500,
-    },
-    readiness: {
-      type: 'http',
-      path: '/api/health',
-      timeoutMs: 2500,
-    },
-    operations: [
-      { id: 'code.audit', name: 'Vibe Check Audit', description: 'Check runtime behavior and consistency assertions', kind: 'query', endpoint: '/api/check' },
-    ],
-    documentation: 'Vibe-Reality agent code auditor.',
-  },
-
-  mutly: {
-    identity: {
-      slug: 'mutly',
-      name: 'Mutly Indexer & Daemon',
-      category: 'audit',
-      transport: 'http',
-      host: '127.0.0.1',
-      port: 4000,
-    },
-    versionSpec: {
-      type: 'http',
-      endpointOrArgs: '/api/health',
-    },
-    liveness: {
-      type: 'http',
-      path: '/api/health',
-      timeoutMs: 2500,
-    },
-    readiness: {
-      type: 'http',
-      path: '/api/health',
-      timeoutMs: 2500,
-    },
-    operations: [
-      { id: 'index.query', name: 'Query Code Index', description: 'Fast semantic and lexical index query across repos', kind: 'query', endpoint: '/api/search' },
-    ],
-    documentation: 'Mutly repository daemon and code indexer.',
-  },
-
   'deterministic-brain': {
     identity: {
       slug: 'deterministic-brain',
@@ -359,16 +272,16 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     },
     versionSpec: {
       type: 'http',
-      endpointOrArgs: '/health',
+      endpointOrArgs: '/health/liveliness',
     },
     liveness: {
       type: 'http',
-      path: '/health',
+      path: '/health/liveliness',
       timeoutMs: 2500,
     },
     readiness: {
       type: 'http',
-      path: '/health',
+      path: '/health/liveliness',
       timeoutMs: 2500,
     },
     operations: [
@@ -446,16 +359,16 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     },
     versionSpec: {
       type: 'http',
-      endpointOrArgs: '/api/v1/health',
+      endpointOrArgs: '/api/recourse/scheduler',
     },
     liveness: {
       type: 'http',
-      path: '/api/v1/health',
+      path: '/api/recourse/scheduler',
       timeoutMs: 2500,
     },
     readiness: {
       type: 'http',
-      path: '/api/v1/health',
+      path: '/api/recourse/scheduler',
       timeoutMs: 2500,
     },
     operations: [

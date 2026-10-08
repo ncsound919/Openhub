@@ -9,12 +9,9 @@ import {
 } from '../src/services/serviceManager';
 
 describe('serviceManager', () => {
-  it('defines all required coding, audit, and repair services', () => {
+  it('defines the audit-suite services; retired tools are absent', () => {
     expect(MANAGED_SERVICES.axiom).toBeDefined();
     expect(MANAGED_SERVICES.axiom.port).toBe(3198);
-
-    expect(MANAGED_SERVICES.draymond).toBeDefined();
-    expect(MANAGED_SERVICES.draymond.port).toBe(3444);
 
     expect(MANAGED_SERVICES.grader).toBeDefined();
     expect(MANAGED_SERVICES.grader.port).toBe(3201);
@@ -26,6 +23,14 @@ describe('serviceManager', () => {
 
     expect(MANAGED_SERVICES['claw-protect']).toBeDefined();
     expect(MANAGED_SERVICES['claw-protect'].port).toBe(3300);
+
+    expect(MANAGED_SERVICES['the-deep']).toBeDefined();
+    expect(MANAGED_SERVICES['the-deep'].port).toBe(3100);
+
+    // Retired 2026-10-08 (Draymond orchestrator replaced by Paperclip).
+    expect(MANAGED_SERVICES.draymond).toBeUndefined();
+    expect(MANAGED_SERVICES.mutly).toBeUndefined();
+    expect(MANAGED_SERVICES['vibe-reality']).toBeUndefined();
   });
 
   it('reports a free high port as not listening', async () => {
@@ -48,7 +53,8 @@ describe('serviceManager', () => {
   });
 
   it('never allows stopping protected ports (Keywire / OpenHub)', () => {
-    expect(isProtectedPort(3000)).toBe(true); // Keywire
+    expect(isProtectedPort(4700)).toBe(true); // Keywire (auth authority)
+    expect(isProtectedPort(3000)).toBe(false); // Grafana — not a fleet service
     expect(isProtectedPort(3010)).toBe(true); // OpenHub control plane
     expect(isProtectedPort(3198)).toBe(false); // Axiom is a managed worker
     expect(isProtectedPort(3201)).toBe(false); // Grader is a managed worker
