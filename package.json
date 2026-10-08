@@ -50,7 +50,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-force-graph-3d": "^1.29.1",
+    "react-force-graph-3d": "^1.29.2",
     "react-hook-form": "^7.74.0",
     "react-is": "^19.3.0",
     "react-router-dom": "^7.15.0",
