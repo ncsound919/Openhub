@@ -58,4 +58,28 @@ describe('probeProviderHealth', () => {
     expect(axiom?.up).toBe(false);
     expect(axiom?.detail).toContain('ECONNREFUSED');
   });
+
+  it('includes the opencode engine probe and reports it down when nothing listens', async () => {
+    const d = deps({
+      fetchImpl: vi.fn(async () => { throw new Error('connect ECONNREFUSED'); }) as unknown as typeof fetch,
+    });
+    const report = await probeProviderHealth({}, d);
+    const opencode = report.providers.find((p) => p.id === 'opencode');
+    expect(opencode).toBeDefined();
+    expect(opencode?.name).toContain('opencode');
+    expect(opencode?.up).toBe(false);
+    expect(opencode?.detail).toContain('ECONNREFUSED');
+  });
+
+  it('probes the opencode engine at /global/health', async () => {
+    const seen: string[] = [];
+    const d = deps({
+      fetchImpl: vi.fn(async (url: string | URL) => {
+        seen.push(String(url));
+        return new Response('{}', { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    await probeProviderHealth({}, d);
+    expect(seen.some((u) => u.endsWith('/global/health'))).toBe(true);
+  });
 });

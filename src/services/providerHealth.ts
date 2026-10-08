@@ -1,5 +1,6 @@
 import { keywireSecretNames, keywireProject } from './keywire.js';
 import { probeVaultGitHubCredentials, type VaultCredentialHealth } from './githubVaultAuth.js';
+import { OPENCODE_BASE } from './opencodeEngine.js';
 
 /**
  * Real provider health for the Integrations surface.
@@ -107,12 +108,14 @@ export async function probeProviderHealth(
   };
 
   const axiomUrl = env.OPENHUB_AXIOM_URL || env.AXIOM_URL || 'http://127.0.0.1:3198';
+  const opencodeUrl = env.OPENCODE_BASE_URL || OPENCODE_BASE;
   const recourseUrl = env.RECOURSE_URL || 'http://127.0.0.1:3050';
   const llmUrl = env.OPENHUB_LLM_BASE_URL || 'http://127.0.0.1:4100';
   const browserUrl = env.OPENHUB_AGENTBROWSER_URL || 'http://127.0.0.1:3700';
 
-  const [axiom, recourse, llm, browser] = await Promise.all([
+  const [axiom, opencode, recourse, llm, browser] = await Promise.all([
     probeHttp(axiomUrl, '/api/health', deps),
+    probeHttp(opencodeUrl, '/global/health', deps),
     probeHttp(recourseUrl, '/api/recourse/status', deps),
     probeHttp(llmUrl, '/health', deps),
     probeHttp(browserUrl, '/api/system/health', deps),
@@ -138,6 +141,7 @@ export async function probeProviderHealth(
       github,
       keywire,
       httpProvider('axiom', 'Axiom Harness', 'core', axiom, axiomUrl),
+      httpProvider('opencode', 'opencode Engine', 'core', opencode, opencodeUrl),
       httpProvider('recourse', 'Recourse', 'memory', recourse, recourseUrl),
       httpProvider('llm', 'LLM Gateway', 'llm', llm, llmUrl, 'OPENHUB_LLM_BASE_URL'),
       httpProvider('agentbrowser', 'AgentBrowser', 'browser', browser, browserUrl, 'AGENTBROWSER_API_KEY'),
