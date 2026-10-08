@@ -29,6 +29,23 @@ export interface Finding {
   dimension: Dimension;
   /** Machine category: cwe-79 | npe | cve | secret | coverage-gap | … */
   category: string;
+  /**
+   * Optional stable, source-namespaced identity. When set, it replaces the
+   * `dimension|category|file|line` tuple as the dedup key, so a finding from a
+   * knowledge namespace (e.g. the Coding-lessons corpus) keeps its own record
+   * even when another tool reports the same file+line+category.
+   *
+   * Why this exists rather than folding `source` into every key: cross-tool
+   * dedup is a *feature* for scanners — the same secret seen by claw, sca and
+   * deep is meant to collapse into one corroborated finding. But two producers
+   * can name the same location for genuinely different reasons (a lesson's
+   * recorded history vs a live scanner hit), and folding `source` in
+   * unconditionally would destroy corroboration. `identity` makes the
+   * namespace opt-in. It also removes the fingerprint's dependence on a
+   * tag-derived `dimension`, which changed a finding's identity — and reset its
+   * lifecycle to `new` — whenever a label was edited.
+   */
+  identity?: string;
   severity: Severity;
   /** 0..1 — how sure the analyzer is. Corroboration raises this. */
   confidence: number;
@@ -84,19 +101,25 @@ function normalizeText(input: string): string {
 }
 
 /** Stable per-tool id so a finding can be referenced/cached across runs. */
-export function findingId(f: Pick<Finding, 'source' | 'category' | 'location' | 'evidence'>): string {
+export function findingId(f: Pick<Finding, 'source' | 'category' | 'location' | 'evidence' | 'identity'>): string {
   const file = f.location?.file ?? '';
   const line = f.location?.line ?? '';
+  // A namespaced finding's id is stable against evidence rewording too: the
+  // identity already carries the namespace, so hashing the mutable evidence
+  // text would only make the id churn when a lesson's prose is edited.
+  if (f.identity) return sha1(['identity', f.identity, f.source, f.category, file, line].join('|'));
   return sha1([f.source, f.category, file, line, normalizeText(f.evidence ?? '')].join('|'));
 }
 
 /**
  * Cross-tool dedup key. Two findings collapse when they describe the same
  * issue at the same place regardless of which analyzer found them:
+ *  - a namespaced finding keeps its own identity (see `Finding.identity`),
  *  - CVEs dedup by CVE id,
  *  - otherwise by dimension|category|file|line (or evidence when no line).
  */
 export function dedupKey(f: Finding): string {
+  if (f.identity) return `id:${f.identity.toLowerCase()}`;
   if (f.cve) return `cve:${f.cve.toLowerCase()}`;
   const file = f.location?.file ?? '';
   const line = f.location?.line ?? '';
@@ -233,6 +256,8 @@ export interface FindingInput {
   remediation?: string;
   cwe?: string;
   cve?: string;
+  /** Opt-in stable identity; see `Finding.identity`. */
+  identity?: string;
 }
 
 /** Build a normalized, fingerprinted finding from an analyzer's raw output. */
@@ -242,6 +267,7 @@ export function createFinding(input: FindingInput): Finding {
     source: input.source,
     dimension: input.dimension,
     category: input.category,
+    ...(input.identity ? { identity: input.identity } : {}),
     severity: severityFromString(input.severity),
     confidence: clamp01(input.confidence ?? 0.7),
     determinism: input.determinism ?? 'static',

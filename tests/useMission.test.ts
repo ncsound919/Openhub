@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   parseEventFrame,
   normalizeFileDiff,
@@ -9,6 +11,8 @@ import {
   revertLastStep,
   subscribeMission,
   sessionToMission,
+  isTopLevelSession,
+  normalizeSessionTelemetry,
 } from '../src/mission/useMission.js';
 import type { MissionEvent } from '../src/lib/missionStore.js';
 
@@ -204,5 +208,93 @@ describe('sessionToMission defaults', () => {
   it('returns null without an id', () => {
     expect(sessionToMission({ title: 'no id' })).toBeNull();
     expect(sessionToMission(null)).toBeNull();
+  });
+});
+
+describe('parseEventFrame permissions', () => {
+  it('extracts a pending permission from permission.updated', () => {
+    const ev = parseEventFrame(JSON.stringify({
+      type: 'permission.updated',
+      properties: { id: 'per_1', sessionID: 'ses_1', type: 'bash', title: 'Run: rm -rf build' },
+    })) as unknown as { sessionId?: string; permission?: { id: string; title: string; type: string } };
+    expect(ev.sessionId).toBe('ses_1');
+    expect(ev.permission).toEqual({ id: 'per_1', title: 'Run: rm -rf build', type: 'bash' });
+  });
+  it('ignores a permission event without an id and reads permission.replied', () => {
+    const none = parseEventFrame(JSON.stringify({ type: 'permission.updated', properties: { sessionID: 's' } })) as unknown as { permission?: unknown };
+    expect(none.permission).toBeUndefined();
+    const replied = parseEventFrame(JSON.stringify({
+      type: 'permission.replied',
+      properties: { sessionID: 's', permissionID: 'per_1', response: 'once' },
+    })) as unknown as { permissionReplied?: string };
+    expect(replied.permissionReplied).toBe('per_1');
+  });
+});
+
+describe('real engine session shape (captured from opencode 1.18.35)', () => {
+  const top = {
+    id: 'ses_ee65062e5ffeJK96XbaciUUTaq', slug: 'mighty-island', projectID: 'global',
+    directory: 'C:\\Users\\User\\Downloads\\BUSINESS', summary: { additions: 0, deletions: 0, files: 0 },
+    cost: 0.228689178, tokens: { input: 1062095, output: 27293, reasoning: 33585, cache: { read: 10949376, write: 0 } },
+    title: 'OpenHub as main ecosystem controller', agent: 'build',
+    model: { id: 'deepseek-v4.1-flash', providerID: 'opencode-go', variant: 'high' },
+    version: '1.18.35', time: { created: 1791432301850, updated: 1791435727447 },
+  };
+  it('maps to a mission and telemetry', () => {
+    expect(sessionToMission(top)?.id).toBe(top.id);
+    expect(normalizeSessionTelemetry(top)).toMatchObject({ cost: 0.228689178, model: 'deepseek-v4.1-flash', tokens: { input: 1062095, output: 27293 } });
+  });
+  it('treats subagent sessions (parentID) as non-missions', () => {
+    expect(isTopLevelSession(top)).toBe(true);
+    expect(isTopLevelSession({ ...top, parentID: 'ses_parent', permission: [{ permission: 'task', pattern: '*', action: 'deny' }] })).toBe(false);
+  });
+});
+
+describe('robustness fixes', () => {
+  it('revertLastStep accepts a Session object as success', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) =>
+      String(url).includes('/messages')
+        ? jsonRes({ ok: true, data: [{ info: { id: 'msg_1' } }] })
+        : jsonRes({ ok: true, data: { id: 'ses_1', revert: { messageID: 'msg_1' } } })));
+    await expect(revertLastStep('ses_1')).resolves.toBe(true);
+  });
+
+  it('reconnects after a clean end-of-stream with no terminal event', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const enc = new TextEncoder();
+    const mk = () => new ReadableStream<Uint8Array>({ start(c) { c.enqueue(enc.encode(': ping\n\n')); c.close(); } });
+    const fetchMock = vi.fn(async () => new Response(mk(), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const cleanup = subscribeMission('ses_1', () => {});
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(1_100);
+    await vi.waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+    cleanup();
+    vi.useRealTimers();
+  });
+});
+
+describe('live engine event capture (opencode 1.18.35, tests/fixtures/opencode-events.live.txt)', () => {
+  const frames = readFileSync(join(process.cwd(), 'tests', 'fixtures', 'opencode-events.live.txt'), 'utf8')
+    .split('\n\n').map((f) => f.trim()).filter(Boolean);
+  const parsed = frames.map((f) => parseEventFrame(f) as unknown as { kind: string; text: string; sessionId?: string });
+  it('parses every captured frame', () => {
+    expect(parsed).toHaveLength(4);
+    expect(parsed.every(Boolean)).toBe(true);
+  });
+  it('session.created carries its session id and title', () => {
+    const ev = parsed.find((e) => e.kind === 'session.created')!;
+    expect(ev.sessionId).toBe('ses_ee506078affeGOfLBX3MAHA1Rm');
+    expect(ev.text).toBe('openhub contract capture (safe to delete)');
+  });
+  it('session.error surfaces the real reason, not just the event name', () => {
+    const ev = parsed.find((e) => e.kind === 'session.error')!;
+    expect(ev.sessionId).toBe('ses_ee506078affeGOfLBX3MAHA1Rm');
+    expect(ev.text).toBe('ProviderNoProvidersError: No providers are available');
+  });
+  it('global events (connected, heartbeat) have no session and are filtered out of missions', () => {
+    for (const k of ['server.connected', 'server.heartbeat']) {
+      expect(parsed.find((e) => e.kind === k)?.sessionId).toBeUndefined();
+    }
   });
 });

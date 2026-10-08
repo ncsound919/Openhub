@@ -23,6 +23,7 @@ import { allowedRepoRoots } from "./src/lib/reviewTarget.js";
 import { isSubpath } from "./src/lib/pathGuard.js";
 import { safeChildEnv } from "./src/services/binResolve.js";
 import { runAuditCore, runRulesForRepo, makeCoreCompleter, makeTextCompleter } from "./src/services/auditCore.js";
+import { resolveLessonsConfig, loadLessonsFindings, summarizeLessons } from "./src/services/lessonsBridge.js";
 import { generateAutofixes, parseFixResponse, type FixGenerator } from "./src/core/autofix.js";
 import {
   listRegistry,
@@ -106,6 +107,10 @@ export const TOOLS: ToolDef[] = [
           type: "boolean",
           description: "Run the shared audit core over the findings (validation/lifecycle/gate) and attach it as report.core. Recommended for actionable runs.",
         },
+        lessons: {
+          type: "boolean",
+          description: "When core is on, route the Coding-lessons corpus (known history for this repo) into it. Defaults to the repo's openhub.yaml lessons.enabled; set false to skip.",
+        },
       },
       required: ["target_dir"],
       additionalProperties: false,
@@ -167,6 +172,10 @@ export const TOOLS: ToolDef[] = [
         changed_lines: { type: "number", description: "Changed line count for the gate's max_changed_lines cap." },
         labels: { type: "array", items: { type: "string" }, description: "PR labels for the gate's ignore_labels." },
         persist: { type: "boolean", description: "Persist the reconciled lifecycle (default true)." },
+        lessons: {
+          type: "boolean",
+          description: "Route the Coding-lessons corpus (known history for this repo) into the run. Defaults to the repo's openhub.yaml lessons.enabled; set false to skip. The tool reports routed/stale-citation counts so a skipped or unreadable corpus is never an empty success.",
+        },
       },
       required: ["target_dir"],
       additionalProperties: false,
@@ -338,6 +347,10 @@ function summarizeReport(report: AuditReport): Record<string, unknown> {
           gate: report.core.gate,
         }
       : null,
+    // Coding-lessons corpus routed into the core (present only when core ran).
+    // Reported even when it could not run, so an absent/unreadable corpus is a
+    // named state rather than an empty success.
+    lessons: report.lessons ? summarizeLessons(report.lessons) : null,
     counts: {
       total: report.findings.length,
       returned: findings.length,
@@ -512,6 +525,7 @@ async function dispatchTool(name: string, args: Record<string, unknown>): Promis
         ...(typeof args.preset === "string" ? { preset: args.preset as AuditPresetName } : {}),
         ...(typeof args.stage === "string" ? { stage: args.stage as AuditStageName } : {}),
         ...(args.core === true ? { core: true } : {}),
+        ...(args.lessons === false ? { lessons: false } : {}),
       });
       return summarizeReport(report);
     }
@@ -587,13 +601,25 @@ async function dispatchTool(name: string, args: Record<string, unknown>): Promis
     case "openhub_core_run": {
       const target = requireTarget(args);
       const findings = Array.isArray(args.findings) ? (args.findings as Record<string, unknown>[]) : [];
-      return runAuditCore({
+      // Route the Coding-lessons corpus before the core runs, so recorded
+      // history joins this repo's findings in one lifecycle/gate pass. The
+      // corpus is namespaced via `identity`, so it never collides with a live
+      // scanner finding on the same file. Citations are fs-verified here; stale
+      // ones are reported as counts, never silently dropped.
+      const lessonsCfg = loadAuditConfig(target).config.lessons;
+      const resolvedLessons = resolveLessonsConfig(
+        target,
+        args.lessons === false ? { ...lessonsCfg, enabled: false } : lessonsCfg,
+      );
+      const lessons = await loadLessonsFindings(resolvedLessons, target);
+      const core = runAuditCore({
         rootDir: target,
-        findings: findings as never,
+        findings: [...findings, ...lessons.findings] as never,
         ...(typeof args.changed_lines === "number" ? { changedLines: args.changed_lines } : {}),
         ...(Array.isArray(args.labels) ? { labels: args.labels.map(String) } : {}),
         ...(args.persist === false ? { persist: false } : {}),
       });
+      return { ...core, lessons: summarizeLessons(lessons) };
     }
 
     case "openhub_core_rules": {

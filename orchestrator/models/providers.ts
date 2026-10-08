@@ -20,14 +20,17 @@ export class OpenCodeGoProvider implements Provider {
     this.name = name;
     this.tier = config.tier;
     this.supportsReasoning = config.supportsReasoning ?? false;
-    this.host = config.host || 'https://api.opencode.com';
+    // OpenCode Go's documented OpenAI-compatible base URL (docs.docker.com/ai/docker-agent/providers/opencode-go).
+    // The previous default, api.opencode.com, is not it: it sent the API key to a host nobody verified.
+    this.host = (config.host || process.env.OPENCODE_GO_BASE_URL || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '');
     this.apiKey = config.apiKey || process.env.OPENCODE_API_KEY || '';
   }
 
   async call(messages: ProviderMessage[]): Promise<ProviderResult> {
     const startTime = Date.now();
-    
-    const response = await fetch(`${this.host}/v1/chat/completions`, {
+    if (!this.apiKey) throw new Error('OPENCODE_API_KEY is not set');
+
+    const response = await fetch(`${this.host}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +62,8 @@ export class OpenCodeGoProvider implements Provider {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.host}/v1/models`, {
+      if (!this.apiKey) return false;
+      const response = await fetch(`${this.host}/models`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,

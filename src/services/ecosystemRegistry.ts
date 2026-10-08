@@ -7,6 +7,7 @@ import {
   type FleetCapabilitiesSnapshot,
 } from './capabilityProbe.js';
 import type { ScorerResult } from './evidence.js';
+import { ensureCapability, onDemandEnabled } from './serviceGateway.js';
 
 /**
  * Ecosystem registry — a queryable catalog of the Overlay365 fleet's tools,
@@ -231,7 +232,7 @@ const SEED: EcosystemEntity[] = [
     id: 'keywire', name: 'Keywire Zero-Trust Vault', kind: 'service', pillar: 'security',
     stack: ['TypeScript', 'Node.js', 'SQLite', 'JWT'],
     purpose: 'Zero-trust secret vault and SVID/service-token resolution for every fleet credential.',
-    repo: 'Uplift/Keywire', bridge: null, tags: ['secrets', 'security', 'zero-trust'],
+    repo: 'BUSINESS/INFRASTRUCTURE/Keywire', bridge: null, tags: ['secrets', 'security', 'zero-trust'],
     auditScore: 70, auditSource: ECOSYS_AUDIT, auditAt: '2026-08-25',
     factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
     blockers: ['No git repository at audit time — secrets-critical source unversioned.'],
@@ -822,6 +823,18 @@ export async function auditEntityLive(
 ): Promise<{ score: number | null; grade: string | null; sources: AuditScorerName[]; outcomes: AuditScorerOutcome[] }> {
   const hasInjected = Boolean(deps.reporank || deps.grader || deps.deep);
   const resolved = hasInjected ? deps : await loadDefaultAuditDeps();
+
+  // On-demand: bring the backing services up before dispatching (a no-op unless
+  // OPENHUB_ONDEMAND_SERVICES is enabled, and never when deps are injected in
+  // tests). Without this a cold fleet made every entity report `unavailable`.
+  if (onDemandEnabled() && !hasInjected) {
+    const dir = resolveAuditDir(entityItem);
+    await Promise.all([
+      ...(entityItem.auditRepo ? [ensureCapability('reporank'), ensureCapability('grader')] : []),
+      ...(dir ? [ensureCapability('deep')] : []),
+    ]);
+  }
+
   const tasks: Array<Promise<AuditScorerOutcome>> = [];
 
   if (entityItem.auditRepo && resolved.reporank) {

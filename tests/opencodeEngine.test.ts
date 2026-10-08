@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { OPENCODE_BASE, buildServeArgs, parsePassword, taskkillArgs } from '../src/services/opencodeEngine.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { OPENCODE_BASE, buildServeArgs, parsePassword, taskkillArgs, opencodeEngineHealth } from '../src/services/opencodeEngine.js';
 
 describe('opencodeEngine', () => {
   it('targets a dedicated loopback port', () => {
@@ -15,4 +15,11 @@ describe('opencodeEngine', () => {
   it('builds a Windows tree-kill command', () => {
     expect(taskkillArgs(1234)).toEqual(['/pid', '1234', '/T', '/F']);
   });
+  it('health probe sends basic auth (engine 401s unauthenticated calls)', async () => {
+    const fetchMock = vi.fn(async (_u: string | URL, _i?: RequestInit) => new Response('{"healthy":true}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect((await opencodeEngineHealth()).available).toBe(true);
+    expect((fetchMock.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toMatch(/^Basic /);
+  });
 });
+afterEach(() => vi.unstubAllGlobals());

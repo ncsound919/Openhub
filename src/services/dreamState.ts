@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '../auth/db.js';
-import { withBusyRetrySync } from '../lib/sqliteRetry.js';
+import { isBusyError, withBusyRetrySync } from '../lib/sqliteRetry.js';
 import { getAgentReadouts, buildWorkOrder } from './agentReadouts.js';
 
 /**
@@ -134,7 +134,13 @@ export function analyzeRepo(repo: RepoRow): DreamEntry {
 }
 
 export function dreamTick(): number {
-  ensureTable();
+  // ensureTable() issues DDL, which is a WRITE. It sits above the upsert's
+  // retry block, so before this guard a tick that landed during a competing
+  // write lock threw SQLITE_BUSY here, was swallowed by startDreamLoop's bare
+  // catch, and never reached the retry -- measured 2026-10-05 by tests/
+  // dbLockDrill.mjs: 30s lock, zero [sqlite] retries logged, dream state frozen
+  // with no error anywhere. A guard below a throw site protects nothing.
+  withBusyRetrySync('dream-ensure-table', () => ensureTable());
   const db = getDb();
   const repos = db.prepare('SELECT id, name, description, full_path, language FROM repositories').all() as RepoRow[];
   const upsert = db.prepare(`
@@ -200,17 +206,40 @@ export function startDreamLoop(intervalMs = 120_000): NodeJS.Timeout {
   //     at dreamTick (dreamState.ts:150)
   //     at startDreamLoop (dreamState.ts:188)   <- this line
   // `openhub-status-ledger` runs every 15 minutes against this same
-  // data/openhub.db (ecosystem.config.json:22-24) and holds a write lock for a
-  // ~60s sweep, so a boot landing in that window throws here. The rejection was
-  // swallowed by the global handler in server.ts, which meant the dream state
-  // silently stopped updating with nothing in the log but this line.
+  // data/openhub.db (ecosystem.config.json) and holds a write lock for a
+  // sweep, so a boot landing in that window throws here.
   //
-  // The `try/catch` one line down proves the intent was for a failing tick not
-  // to matter; the startup call was simply missed. dreamTick is synchronous
-  // (`(): number`), so a plain try/catch is the correct guard — no promise to
-  // await.
-  try { dreamTick(); } catch { /* a locked DB must not stop the loop */ }
-  return setInterval(() => {
-    try { dreamTick(); } catch { /* a repo failing must not kill the loop */ }
-  }, intervalMs);
+  // The try/catch proves the intent was for a failing tick not to matter, but a
+  // BARE catch hides the failure: a second drill showed the loop swallowing
+  // SQLITE_BUSY with nothing in the log, which reads as "dream state is simply
+  // never updated" rather than "the tick failed". dreamTick is synchronous
+  // (`(): number`), so a plain try/catch is the correct guard -- no promise to
+  // await -- but it must report. Silent degradation is the failure mode this
+  // whole hardening pass exists to remove.
+  let inFlight = false;
+  const tickSafely = (when: string): void => {
+    // Single-flight. dreamTick blocks the event loop while it writes, so an
+    // interval shorter than one tick used to queue more blocked work behind the
+    // lock instead of skipping cleanly. Skipping is the correct behaviour for a
+    // best-effort monitor: the next tick sees current state.
+    if (inFlight) {
+      if (process.env.OPENHUB_VERBOSE === '1') console.log(`[dream] tick skipped (${when}): previous tick still running`);
+      return;
+    }
+    inFlight = true;
+    try {
+      const n = dreamTick();
+      if (process.env.OPENHUB_VERBOSE === '1') console.log(`[dream] ${when}: analyzed ${n} repo(s)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[dream] tick failed (${when}): ${msg}`);
+      if (isBusyError(err)) {
+        console.warn('[dream] lock contention -- skipped, not fatal; the next tick retries');
+      }
+    } finally {
+      inFlight = false;
+    }
+  };
+  tickSafely('startup');
+  return setInterval(() => tickSafely('interval'), intervalMs);
 }

@@ -12,6 +12,9 @@ import {
   steer,
   subscribeMission,
   normalizeSessionTelemetry,
+  respondToPermission,
+  type ParsedMissionEvent,
+  type PendingPermission,
   type SessionTelemetry,
 } from './useMission.js';
 import { EngineStatusBar, useEngineStatus } from './EngineStatusBar';
@@ -59,6 +62,7 @@ export function MissionControlPage() {
   const [telemetryError, setTelemetryError] = useState<string | null>(null);
   const [steerText, setSteerText] = useState('');
   const [steering, setSteering] = useState(false);
+  const [pendingPerms, setPendingPerms] = useState<PendingPermission[]>([]);
   // A single token that forces the inspector to re-read. It is bumped only for
   // a same-session status change (see below); selecting another mission already
   // re-reads via its sessionId, so bumping there would double-fetch.
@@ -79,10 +83,17 @@ export function MissionControlPage() {
 
   const subscribeTo = (id: string) => {
     unsubscribeRef.current?.();
+    setPendingPerms([]);
     unsubscribeRef.current = subscribeMission(
       id,
       (event) => {
         useMissionStore.getState().addEvent(id, event);
+        const { permission, permissionReplied } = event as ParsedMissionEvent;
+        if (permission) {
+          setPendingPerms((cur) => (cur.some((p) => p.id === permission.id) ? cur : [...cur, permission]));
+        } else if (permissionReplied) {
+          setPendingPerms((cur) => cur.filter((p) => p.id !== permissionReplied));
+        }
       },
       (message) => {
         setError(message);
@@ -319,6 +330,35 @@ export function MissionControlPage() {
           </div>
 
           <MissionTimeline events={events} />
+
+          {/* The agent is blocked on these until answered. */}
+          {pendingPerms.length > 0 && steerSessionId && (
+            <div role="alert" className="shrink-0 border-t border-[var(--color-border-muted)] px-4 py-2 text-xs">
+              {pendingPerms.map((p) => (
+                <div key={p.id} className="flex items-center gap-2 py-1">
+                  <span className="min-w-0 flex-1 truncate text-[var(--color-text-primary)]" title={p.title}>
+                    Agent needs approval{p.type ? ` (${p.type})` : ''}: {p.title}
+                  </span>
+                  {(['once', 'always', 'reject'] as const).map((verdict) => (
+                    <button
+                      key={verdict}
+                      type="button"
+                      onClick={() => {
+                        setPendingPerms((cur) => cur.filter((x) => x.id !== p.id));
+                        respondToPermission(steerSessionId, p.id, verdict).catch((err) => {
+                          setPendingPerms((cur) => [...cur, p]);
+                          setError(err instanceof Error ? err.message : 'Unable to answer the permission request');
+                        });
+                      }}
+                      className="rounded-md border border-[var(--color-border-muted)] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                    >
+                      {verdict === 'once' ? 'Allow once' : verdict === 'always' ? 'Always allow' : 'Deny'}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Steer: send a follow-up while the agent runs (opencode prompt_async). */}
           <div className="shrink-0 border-t border-[var(--color-border-muted)] px-4 py-2">

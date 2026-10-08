@@ -155,6 +155,19 @@ describe('normalizeAuditConfig', () => {
     expect(config.gate).toMatchObject({ threshold: 'critical', alwaysPass: true, maxChangedLines: 100, ignoreLabels: ['skip-review'] });
     expect(DEFAULT_AUDIT_CONFIG.gate.threshold).toBe('high');
   });
+
+  it('defaults the lessons corpus on and parses its block', () => {
+    expect(DEFAULT_AUDIT_CONFIG.lessons).toEqual({ enabled: true, dir: '', repoPath: '' });
+    const { config, warnings } = normalizeAuditConfig({ lessons: { dir: 'C:/x/Coding lessons', enabled: true, repo_path: 'C:/repo' } });
+    expect(config.lessons).toMatchObject({ enabled: true, dir: 'C:/x/Coding lessons', repoPath: 'C:/repo' });
+    expect(warnings.join(' ')).not.toContain('unknown top-level key "lessons"');
+    // An absolute dir is allowed (the corpus lives outside the repo) but flagged.
+    expect(warnings.join(' ')).toMatch(/lessons\.dir is an absolute path/);
+  });
+
+  it('accepts a bare boolean for lessons', () => {
+    expect(normalizeAuditConfig({ lessons: false }).config.lessons.enabled).toBe(false);
+  });
 });
 
 describe('loadAuditConfig', () => {

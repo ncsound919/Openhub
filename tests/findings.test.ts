@@ -72,6 +72,33 @@ describe('finding fingerprints', () => {
   });
 });
 
+describe('stable identity (source-namespaced findings)', () => {
+  it('lets two producers name the same location without collapsing', () => {
+    // The cross-tool test above is the intended behaviour for scanners: the same
+    // secret seen by claw and sca corroborates into one finding. But a knowledge
+    // namespace (a recorded lesson) and a live scanner hit are different claims
+    // about the same file — `identity` keeps them apart.
+    const a = finding({ source: 'lessons', identity: 'lesson/x|src/a.ts|10' });
+    const b = finding({ source: 'sca', identity: 'lesson/x|src/a.ts|10' });
+    expect(dedupKey(a)).toBe(dedupKey(b)); // same identity => same claim
+    const c = finding({ source: 'lessons', identity: 'lesson/y|src/a.ts|10' });
+    expect(dedupKey(c)).not.toBe(dedupKey(a));
+  });
+
+  it('is independent of the mutable dimension and of evidence wording', () => {
+    const a = finding({ dimension: 'tests', identity: 'lesson/x|src/a.ts|10', evidence: 'before' });
+    const b = finding({ dimension: 'security', identity: 'lesson/x|src/a.ts|10', evidence: 'rewritten much later' });
+    expect(dedupKey(a)).toBe(dedupKey(b));
+    expect(a.id).toBe(b.id); // per-tool id is stable too
+  });
+
+  it('does not collapse a namespaced finding with an ordinary one at the same spot', () => {
+    const plain = finding({ source: 'sca', location: { file: 'src/a.ts', line: 10 } });
+    const named = finding({ source: 'lessons', identity: 'lesson/x|src/a.ts|10', location: { file: 'src/a.ts', line: 10 } });
+    expect(dedupKey(named)).not.toBe(dedupKey(plain));
+  });
+});
+
 describe('dedupeFindings', () => {
   it('collapses corroborating sources and raises confidence', () => {
     const sources = ['claw-protect', 'sca', 'ocr', 'deep'];

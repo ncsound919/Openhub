@@ -67,17 +67,26 @@ export async function withBusyRetry<T>(
 }
 
 /**
- * Sync twin for contexts that cannot await. Retries immediately: the per-statement
- * wait already happened inside busy_timeout, so sleeping here would only stall the
- * event loop to no benefit. Same contract otherwise -- BUSY-only retries, bounded
- * attempts, anything else throws at once.
+ * Sync twin for contexts that cannot await.
+ *
+ * Retries immediately, with a deliberately small default attempt count. This
+ * variant BLOCKS the event loop: better-sqlite3 is synchronous, so each attempt
+ * can burn a full busy_timeout with nothing else served. Measured 2026-10-05 by
+ * tests/dbLockDrill.mjs -- 5 attempts against a 30s lock held the event loop
+ * long enough that /api/health timed out on every sample while pm2 still
+ * reported `online`. Callers on this path must pair a short busy_timeout
+ * (src/auth/db.ts uses 1s) with a bounded count, and must not use it from a
+ * high-frequency interval. For anything that can await, use withBusyRetry: its
+ * backoff sleeps instead of spinning, so the server keeps serving.
+ *
+ * Same contract otherwise -- BUSY-only retries, anything else throws at once.
  */
 export function withBusyRetrySync<T>(
   label: string,
   fn: () => T,
   opts: BusyRetryOptions = {},
 ): T {
-  const attempts = Math.max(1, Math.floor(opts.attempts ?? DEFAULT_ATTEMPTS));
+  const attempts = Math.max(1, Math.floor(opts.attempts ?? 3));
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
     try {

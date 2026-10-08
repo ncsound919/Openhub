@@ -5,7 +5,7 @@ import path from 'path';
 const AX = 'http://127.0.0.1:3198';
 
 function getSigningSecret() {
-  const keysFile = process.env.KEYWIRE_KEYS_FILE || path.join('C:', 'Users', 'User', 'Downloads', 'Uplift', 'Keywire', 'data', 'keywire-keys.json');
+  const keysFile = process.env.KEYWIRE_KEYS_FILE || path.join('C:', 'Users', 'User', 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'Keywire', 'data', 'keywire-keys.json');
   if (fs.existsSync(keysFile)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(keysFile, 'utf8').replace(/^\uFEFF/, ''));

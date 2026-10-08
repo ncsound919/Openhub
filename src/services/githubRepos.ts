@@ -177,6 +177,8 @@ export interface FleetSyncResult {
   syncedAt: string;
   accounts: Array<{ owner: string; count: number; error?: string }>;
   total: number;
+  /** Repos removed from the index because they no longer exist upstream. */
+  removed: number;
 }
 
 /** Fetch + index both fleet accounts. Never throws — per-account failures are recorded. */
@@ -184,6 +186,7 @@ export async function syncFleetRepos(env: NodeJS.ProcessEnv = process.env): Prom
   const { value: token } = await resolveSecret('GITHUB_TOKEN', env);
   const syncedAt = new Date().toISOString();
   const accounts: FleetSyncResult['accounts'] = [];
+  let anyError = false;
 
   for (const login of FLEET_ACCOUNTS) {
     try {
@@ -196,8 +199,25 @@ export async function syncFleetRepos(env: NodeJS.ProcessEnv = process.env): Prom
       await withBusyRetry(`fleet-sync:${login}`, () => upsertRepos(repos, syncedAt));
       accounts.push({ owner: login, count: repos.length });
     } catch (err) {
+      anyError = true;
       const message = err instanceof Error ? err.message : String(err);
       accounts.push({ owner: login, count: 0, error: message });
+    }
+  }
+
+  // Sweep: a repo deleted on GitHub must not linger in the index. Every row
+  // refreshed this pass carries `syncedAt`, so any row with an older stamp is
+  // gone upstream. Prune ONLY when every account fetched cleanly — otherwise a
+  // failed fetch would delete the repos it could not return. Best-effort: a
+  // BUSY lock leaves it for the next cycle.
+  let removed = 0;
+  if (!anyError) {
+    try {
+      removed = await withBusyRetry('fleet-prune', () =>
+        Number(getDb().prepare('DELETE FROM github_repo_index WHERE synced_at <> ?').run(syncedAt).changes) || 0,
+      );
+    } catch {
+      /* prune is best-effort; the next cycle retries */
     }
   }
 
@@ -205,6 +225,7 @@ export async function syncFleetRepos(env: NodeJS.ProcessEnv = process.env): Prom
     syncedAt,
     accounts,
     total: accounts.reduce((n, a) => n + a.count, 0),
+    removed,
   };
 }
 

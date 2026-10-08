@@ -57,8 +57,9 @@ afterEach(() => {
 
 describe('serviceManager coverage', () => {
   it('classifies protected control-plane / auth ports only', () => {
-    expect(isProtectedPort(3000)).toBe(true);
-    expect(isProtectedPort(3010)).toBe(true);
+    expect(isProtectedPort(4700)).toBe(true); // Keywire auth authority
+    expect(isProtectedPort(3000)).toBe(false); // Grafana — not a fleet service
+    expect(isProtectedPort(3010)).toBe(true); // OpenHub control plane
     expect(isProtectedPort(3198)).toBe(false);
     expect(isProtectedPort(59999)).toBe(false);
   });

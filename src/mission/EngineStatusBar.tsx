@@ -6,6 +6,8 @@ export interface EngineStatus {
   available: boolean;
   error?: string;
   version?: string;
+  /** Configured model providers; null/undefined = unknown. 0 means every prompt will fail. */
+  providerCount?: number | null;
 }
 
 const POLL_MS = 10_000;
@@ -37,7 +39,7 @@ export function useEngineStatus(): EngineStatus | null {
         if (cancelled) return;
         const data = json.data;
         if (json.ok && data && typeof data.available === 'boolean') {
-          setStatus({ available: data.available, error: data.error, version: data.version });
+          setStatus({ available: data.available, error: data.error, version: data.version, providerCount: data.providerCount });
         } else {
           setStatus({ available: false, error: json.error || `status request failed (HTTP ${res.status})` });
         }
@@ -78,6 +80,18 @@ function EngineStatusChip({ status }: { status: EngineStatus | null }) {
       <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)]">
         <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm bg-[var(--color-surface-overlay)] motion-safe:animate-pulse" />
         checking opencode…
+      </span>
+    );
+  }
+
+  if (status.available && status.providerCount === 0) {
+    return (
+      <span
+        title="The engine is running but has no model providers, so every prompt fails with ProviderNoProvidersError. Run `opencode auth login` or set the provider key in OpenHub's environment."
+        className="inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-warning)]"
+      >
+        <AlertTriangle className="h-3.5 w-3.5" />
+        opencode up — no model providers
       </span>
     );
   }

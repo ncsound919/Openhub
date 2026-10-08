@@ -7,7 +7,7 @@ import { reportIncident, type IncidentSeverity, type IncidentSource } from './in
  *
  * Two producers append AlertEnvelope lines (interfaces §1):
  *   - Draymond scheduled jobs → <draymond>/.draymond/security-alerts.jsonl
- *   - Keywire scheduled scan  → <uplift>/06_Resources/Keywire/data/security/alerts.jsonl
+ *   - Keywire scheduled scan  → <keywire>/data/security/alerts.jsonl
  * This loop tails both and reports each new envelope as an incident, flowing
  * through the existing rails: repair auto-dispatch, `alert.raised` webhooks,
  * ntfy channel, dedupe.
@@ -24,7 +24,7 @@ function pollFiles(): string[] {
     path.join(upliftRoot, 'Draymond-Orchestrator', '.draymond');
   const keywireAlerts =
     process.env.OPENHUB_KEYWIRE_ALERTS_FILE ||
-    path.join(upliftRoot, '06_Resources', 'Keywire', 'data', 'security', 'alerts.jsonl');
+    path.join(process.env.KEYWIRE_ROOT || 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Keywire', 'data', 'security', 'alerts.jsonl');
   return [path.join(draymondDir, 'security-alerts.jsonl'), keywireAlerts];
 }
 

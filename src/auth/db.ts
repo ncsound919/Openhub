@@ -20,12 +20,19 @@ export function getDb(): Database.Database {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     db = new Database(pathToDb);
     db.pragma('journal_mode = WAL');
-    // Without this, any second process holding the same file -- the repo status
-    // ledger, which runs on a cron -- makes writes fail immediately with
-    // "database is locked" instead of waiting. That surfaced as an unhandled
-    // rejection that killed the server, which looks like a crash in the sampler
-    // but is the opposite: the sampler was fine and the server was the victim.
-    db.pragma('busy_timeout = 10000');
+    // Keep this SHORT. better-sqlite3 is synchronous, so a contended write
+    // blocks the event loop for the whole busy_timeout -- during which the
+    // server accepts no requests at all. That is not theoretical: measured
+    // 2026-10-05 by tests/dbLockDrill.mjs, a 10s timeout plus a 5s dream tick
+    // interval left the process `online` in pm2 while /api/health timed out on
+    // every sample. The process was up and the service was down.
+    //
+    // So the policy is: fail fast (1s), let the caller's retry helper decide,
+    // and never block request serving waiting on another process. Background
+    // loops retry across ticks; the external status-ledger sampler keeps its own
+    // much longer 30s timeout because it is a separate process where blocking
+    // costs nothing (see repo-status-ledger.mjs).
+    db.pragma('busy_timeout = 1000');
     db.pragma('foreign_keys = ON');
   }
   return db;

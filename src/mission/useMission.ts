@@ -20,8 +20,18 @@ import { useMissionStore, type Mission, type MissionEvent, type MissionStatus } 
  * must filter by session, so the id is attached at runtime. This is structurally
  * a `MissionEvent`, so callers typed against `MissionEvent` are unaffected.
  */
-interface ParsedMissionEvent extends MissionEvent {
+export interface PendingPermission {
+  id: string;
+  title: string;
+  type: string;
+}
+
+export interface ParsedMissionEvent extends MissionEvent {
   sessionId?: string;
+  /** Set on `permission.updated`: the agent is blocked until this is answered. */
+  permission?: PendingPermission;
+  /** Set on `permission.replied`: the id of the permission that was answered. */
+  permissionReplied?: string;
 }
 
 /** A nested object field, or undefined when it is absent / not a plain object. */
@@ -107,12 +117,40 @@ export function parseEventFrame(raw: string): ParsedMissionEvent | null {
   const text =
     typeof textSource === 'string' ? textSource : textSource == null ? '' : String(textSource);
 
-  const event: ParsedMissionEvent = { at: Date.now(), kind, text };
+  // Live capture (opencode 1.18.35): `session.error` carries its reason at
+  // `properties.error.data.message` (first line is the message, the rest is a
+  // stack). Without this the timeline only ever said "session.error".
+  let finalText = text;
+  if (kind === 'session.error') {
+    const errObj = properties ? nestedObject(properties, 'error') : undefined;
+    const errData = errObj ? nestedObject(errObj, 'data') : undefined;
+    const msg = typeof errData?.message === 'string' ? errData.message : typeof errObj?.message === 'string' ? errObj.message : '';
+    const first = msg.split('\n')[0].trim();
+    if (first) finalText = first;
+  }
+  const event: ParsedMissionEvent = { at: Date.now(), kind, text: finalText };
   if (data?.taskId != null) {
     event.taskId = typeof data.taskId === 'string' ? data.taskId : String(data.taskId);
   }
   const sessionId = pickSessionId(rec);
   if (sessionId) event.sessionId = sessionId;
+  // Permission prompts (UNVERIFIED shape: opencode puts the Permission under
+  // `properties`). Read defensively; without an id we cannot answer it.
+  const permSrc = properties ?? data;
+  if (kind === 'permission.updated' || kind === 'permission.asked') {
+    const id = typeof permSrc?.id === 'string' ? permSrc.id : '';
+    if (id) {
+      event.permission = {
+        id,
+        title: typeof permSrc?.title === 'string' && permSrc.title ? permSrc.title : 'Permission requested',
+        type: typeof permSrc?.type === 'string' ? permSrc.type : '',
+      };
+      if (!text || text === type) event.text = event.permission.title;
+    }
+  } else if (kind === 'permission.replied') {
+    const id = permSrc?.permissionID ?? permSrc?.requestID;
+    if (typeof id === 'string' && id) event.permissionReplied = id;
+  }
   return event;
 }
 
@@ -288,10 +326,12 @@ export function subscribeMission(
       const decoder = new TextDecoder();
       let buffer = '';
       let dropped = false;
+      let gotData = false;
       try {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (value && value.length) gotData = true;
           buffer += decoder.decode(value, { stream: true });
           // Normalize CRLF so frames split the same way on every platform.
           buffer = buffer.replace(/\r\n/g, '\n');
@@ -331,8 +371,13 @@ export function subscribeMission(
 
       if (controller.signal.aborted) return;
       if (ended) return; // terminal event seen — do not reconnect
-      if (!dropped) return; // clean end-of-stream: the engine ended it
-      // Otherwise fall through to the next reconnect attempt.
+      // A clean end WITHOUT a terminal event is not completion: the proxy ends
+      // every client when the engine stream drops or the engine restarts, so the
+      // old "clean end = done" rule left missions stuck in `running` forever.
+      // Reconnect instead. A connection that delivered data resets the retry
+      // budget, so a long mission survives more than three drops in its lifetime.
+      if (!dropped) lastError = 'event stream ended before the mission finished';
+      if (gotData) attempt = 0;
     }
 
     if (!controller.signal.aborted) onError?.(lastError);
@@ -468,13 +513,25 @@ export async function fetchSessions(): Promise<unknown[]> {
   });
   const json = await readEnvelope(res);
   const data = json.data;
-  if (Array.isArray(data)) return data;
+  let list: unknown[] = [];
+  if (Array.isArray(data)) list = data;
   // Tolerate a wrapped `{ sessions: [...] }` payload.
-  if (data && typeof data === 'object') {
+  else if (data && typeof data === 'object') {
     const inner = (data as Record<string, unknown>).sessions;
-    if (Array.isArray(inner)) return inner;
+    if (Array.isArray(inner)) list = inner;
   }
-  return [];
+  return list.filter(isTopLevelSession);
+}
+
+/**
+ * Subagent runs are separate sessions with a `parentID` (captured from a live
+ * engine: 70 of 100 sessions were children). They are steps of a mission, not
+ * missions, so they must not fill the missions rail.
+ */
+export function isTopLevelSession(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return true;
+  const parent = (raw as Record<string, unknown>).parentID;
+  return !(typeof parent === 'string' && parent.length > 0);
 }
 
 /** GET one opencode session (telemetry source) through the OpenHub proxy. */
@@ -619,13 +676,23 @@ export async function revertLastStep(id: string): Promise<boolean> {
   const messageID = pickMessageId(last);
   if (!messageID) throw new Error('no message to revert');
   const json = await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/revert`, { messageID });
-  return json.data === true;
+  return engineSucceeded(json.data);
+}
+
+/**
+ * opencode's revert/unrevert return the updated Session object (not `true`), so
+ * the old `data === true` check reported every successful revert as a failure.
+ * Accept either shape; still UNVERIFIED until a live capture lands.
+ */
+function engineSucceeded(data: unknown): boolean {
+  if (data === true) return true;
+  return !!data && typeof data === 'object' && !Array.isArray(data) && typeof (data as Record<string, unknown>).id === 'string';
 }
 
 /** Undo the most recent revert for the session. Returns whether it succeeded. */
 export async function unrevertSession(id: string): Promise<boolean> {
   const json = await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/unrevert`, {});
-  return json.data === true;
+  return engineSucceeded(json.data);
 }
 
 /**
@@ -637,4 +704,16 @@ export async function steer(id: string, text: string): Promise<void> {
   await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/prompt_async`, {
     parts: [{ type: 'text', text }],
   });
+}
+
+/** Answer an agent permission prompt. The agent stays blocked until this lands. */
+export async function respondToPermission(
+  sessionId: string,
+  permissionId: string,
+  response: 'once' | 'always' | 'reject',
+): Promise<void> {
+  await postJson(
+    `/api/opencode/sessions/${encodeURIComponent(sessionId)}/permissions/${encodeURIComponent(permissionId)}`,
+    { response },
+  );
 }

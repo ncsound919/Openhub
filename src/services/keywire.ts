@@ -45,7 +45,7 @@ const SVID_TTL_SECONDS = 300;
 // ---------------------------------------------------------------------------
 
 export function keywireBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return (env.OPENHUB_KEYWIRE_URL || env.KEYWIRE_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '');
+  return (env.OPENHUB_KEYWIRE_URL || env.KEYWIRE_URL || 'http://127.0.0.1:4700').replace(/\/+$/, '');
 }
 
 export function keywireProject(env: NodeJS.ProcessEnv = process.env): string {
@@ -61,9 +61,8 @@ export function keywireEnvName(env: NodeJS.ProcessEnv = process.env): string {
 export function keywireKeysFile(env: NodeJS.ProcessEnv = process.env): string {
   const explicit = env.OPENHUB_KEYWIRE_KEYS_FILE || env.KEYWIRE_KEYS_FILE;
   if (explicit) return explicit;
-  const upliftRoot = env.UPLIFT_ROOT;
-  if (upliftRoot) return path.join(upliftRoot, 'Keywire', 'data', 'keywire-keys.json');
-  return path.join(os.homedir(), 'Downloads', 'Uplift', 'Keywire', 'data', 'keywire-keys.json');
+  const keywireRoot = env.KEYWIRE_ROOT || path.join(os.homedir(), 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'Keywire');
+  return path.join(keywireRoot, 'data', 'keywire-keys.json');
 }
 
 function keywireServiceTokenFile(env: NodeJS.ProcessEnv = process.env): string {

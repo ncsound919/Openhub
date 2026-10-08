@@ -14,8 +14,9 @@ describe('Service Lifecycle Guardrails (C4)', () => {
     clearActiveProcesses();
   });
 
-  it('protects Keywire (3000) and OpenHub (3010) from being killed', () => {
-    expect(isProtectedPort(3000)).toBe(true);
+  it('protects Keywire (4700) and OpenHub (3010) from being killed', () => {
+    expect(isProtectedPort(4700)).toBe(true);
+    expect(isProtectedPort(3000)).toBe(false); // 3000 is Grafana, not a fleet service
     expect(isProtectedPort(3010)).toBe(true);
     expect(isProtectedPort(3198)).toBe(false);
     expect(isProtectedPort(3201)).toBe(false);

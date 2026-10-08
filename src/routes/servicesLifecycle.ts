@@ -11,6 +11,7 @@ import {
   SERVICE_CATEGORIES,
   type ServiceCategory,
 } from '../services/serviceManager.js';
+import { ensureCapability, onDemandEnabled } from '../services/serviceGateway.js';
 
 export function createServicesLifecycleRouter(deps: { authMiddleware: express.RequestHandler }): express.Router {
   const router = express.Router();
@@ -22,6 +23,18 @@ export function createServicesLifecycleRouter(deps: { authMiddleware: express.Re
     try {
       const services = await getAllServicesStatus();
       res.json({ ok: true, services, categories: SERVICE_CATEGORIES });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // One choke point for consumers: ensure a capability's backing service is up.
+  // Honest 503 when it cannot come up (and when on-demand activation is off).
+  router.post('/lifecycle/ensure/:capability', async (req, res) => {
+    try {
+      const result = await ensureCapability(req.params.capability);
+      // 200 when available; 503 when down/unknown (never a fabricated success).
+      res.status(result.available ? 200 : 503).json({ ok: result.available, onDemand: onDemandEnabled(), ...result });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err.message });
     }

@@ -11,9 +11,7 @@ export const AXIOM_BASE = process.env.AXIOM_URL || `http://127.0.0.1:${process.e
  *  with "bad signature". */
 function getSigningSecret(): string {
   const keysFile = process.env.KEYWIRE_KEYS_FILE
-    || (process.env.UPLIFT_ROOT
-      ? path.join(process.env.UPLIFT_ROOT, 'Keywire', 'data', 'keywire-keys.json')
-      : path.join('C:', 'Users', 'User', 'Downloads', 'Uplift', 'Keywire', 'data', 'keywire-keys.json'));
+    || path.join(process.env.KEYWIRE_ROOT || path.join('C:', 'Users', 'User', 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'Keywire'), 'data', 'keywire-keys.json');
   if (keysFile && fs.existsSync(keysFile)) {
     try {
       const parsed = JSON.parse(fs.readFileSync(keysFile, 'utf8').replace(/^\uFEFF/, ''));

@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAllServicesStatus } from './serviceManager.js';
+import { getAllServicesStatus, reapIdleServices } from './serviceManager.js';
+import { onDemandEnabled } from './serviceGateway.js';
 import { buildInsights, type InsightsReport } from './insights.js';
 import { recordEvent, summarizeEvents, type TelemetrySummary } from './telemetry.js';
 import { listRuns, resumeSupervision } from './supervisor.js';
@@ -51,6 +52,8 @@ export interface AutonomySnapshot {
   telemetry: TelemetrySummary | null;
   insights: InsightsReport | null;
   resumedRuns: number;
+  /** Services reaped this tick (only when on-demand activation is enabled). */
+  reapedServices: string[];
   degraded: string[];
 }
 
@@ -59,6 +62,8 @@ export interface AutonomyDeps {
   gatherInsights: () => Promise<InsightsReport>;
   summarize: () => TelemetrySummary;
   resumeStuck: () => Promise<number>;
+  /** Idle-reap services OpenHub started (defaults to `reapIdleServices`). */
+  reap?: () => Promise<string[]>;
   emit: (event: Parameters<typeof recordEvent>[0]) => unknown;
   persist: (snapshot: AutonomySnapshot) => void;
   now: () => Date;
@@ -116,6 +121,7 @@ function defaultDeps(): AutonomyDeps {
     gatherInsights: () => buildInsights(),
     summarize: () => summarizeEvents(),
     resumeStuck: resumeStuckRuns,
+    reap: () => reapIdleServices(),
     emit: (event) => recordEvent(event),
     persist: persistSnapshot,
     now: () => new Date(),
@@ -179,6 +185,19 @@ export function createAutonomyLoop(overrides: Partial<AutonomyDeps> = {}): Auton
       degraded.push('supervisor');
     }
 
+    // Idle reap: stop services OpenHub started that have gone quiet. This is the
+    // demand-triggered counterpart to ensureCapability — it never spawns, and it
+    // runs only when on-demand activation is enabled, so the heartbeat's default
+    // "never stops services" posture is preserved.
+    let reapedServices: string[] = [];
+    if (onDemandEnabled()) {
+      try {
+        reapedServices = deps.reap ? await deps.reap() : [];
+      } catch {
+        degraded.push('reap');
+      }
+    }
+
     let insights: InsightsReport | null = null;
     try {
       insights = await deps.gatherInsights();
@@ -213,6 +232,7 @@ export function createAutonomyLoop(overrides: Partial<AutonomyDeps> = {}): Auton
       telemetry,
       insights,
       resumedRuns,
+      reapedServices,
       degraded: [...new Set(degraded)],
     };
 

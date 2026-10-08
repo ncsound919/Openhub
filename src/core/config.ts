@@ -113,6 +113,17 @@ export interface AuditConfig {
   tools: AuditToolToggles;
   gate: AuditGateConfig;
   /**
+   * The Coding-lessons knowledge corpus, routed into the audit core so a repo
+   * audit surfaces what is already known about the files it is about to judge.
+   *
+   * The corpus is a separate folder that records falsifiable `file:line`
+   * findings with severity, confidence and resolution status. Without this the
+   * audit re-derives the same defect shapes from scratch and knows nothing about
+   * that history. Off is a valid choice (`enabled: false`), but it must be
+   * stated, never assumed from the absence of a `dir`.
+   */
+  lessons: AuditLessonsConfig;
+  /**
    * Commands the `local_qa` scorer runs INSTEAD of discovering and running every
    * test runner it finds. Each is `{ command, args?, cwd?, label? }`.
    *
@@ -124,6 +135,24 @@ export interface AuditConfig {
   testCommands: AuditTestCommand[];
   /** Hard cap on one test command. Default 600s; raise it deliberately. */
   testTimeoutMs: number;
+}
+
+export interface AuditLessonsConfig {
+  /** Route the corpus into the core run. Default true when a dir resolves. */
+  enabled: boolean;
+  /**
+   * The lessons folder holding `lessons-to-openhub.mjs` and the `*.md` entries.
+   * Absolute, or repo-relative. Empty means "fall back to the environment"
+   * (`OPENHUB_LESSONS_DIR`); if that is also unset the corpus is simply absent
+   * and the run records that fact rather than silently skipping it.
+   */
+  dir: string;
+  /**
+   * The `repo_path` whose lessons apply to this repo. Empty means "this repo's
+   * own root", which is correct for the common case where the corpus cites the
+   * repo it is auditing.
+   */
+  repoPath: string;
 }
 
 export interface AuditTestCommand {
@@ -157,6 +186,7 @@ export const DEFAULT_AUDIT_CONFIG: AuditConfig = {
   pathFilters: { include: [], exclude: [], respectGitIgnore: true, allowLargeFiles: [] },
   tools: { enabled: [], disabled: [] },
   gate: { threshold: 'high', alwaysPass: false, drafts: false, maxChangedLines: 5000, ignoreLabels: [] },
+  lessons: { enabled: true, dir: '', repoPath: '' },
   testCommands: [],
   testTimeoutMs: 600_000,
 };
@@ -376,10 +406,32 @@ function parseAllowLargeFiles(raw: unknown, errors: string[]): Array<{ path: str
   return out;
 }
 
+/**
+ * Parse the `lessons:` block. Accepts a bare boolean (`lessons: false`) or an
+ * object with `dir` and `repoPath`. A dir is NOT required: an unset dir means
+ * "resolve from OPENHUB_LESSONS_DIR at run time", and if neither is set the run
+ * reports the corpus as absent rather than silently skipping it.
+ */
+function parseLessons(raw: unknown, warnings: string[]): AuditLessonsConfig {
+  if (raw === undefined || raw === null) return { ...DEFAULT_AUDIT_CONFIG.lessons };
+  if (typeof raw === 'boolean') return { ...DEFAULT_AUDIT_CONFIG.lessons, enabled: raw };
+  const o = asRecord(raw);
+  const enabled = pick(o, 'enabled') === undefined ? DEFAULT_AUDIT_CONFIG.lessons.enabled : pick(o, 'enabled') !== false;
+  const dir = String(pick(o, 'dir', 'path', 'folder') ?? '').trim();
+  const repoPath = String(pick(o, 'repo_path', 'repoPath', 'repo') ?? '').trim();
+  if (dir && /^([a-zA-Z]:[\\/]|[\\/])/.test(dir)) {
+    // Absolute dirs are allowed (the corpus lives outside the repo), but record
+    // it so a reviewer sees the audit reading a path outside the checkout.
+    warnings.push(`lessons.dir is an absolute path outside the repo: ${dir}`);
+  }
+  return { enabled, dir, repoPath };
+}
+
 const KNOWN_TOP_LEVEL = new Set([
   'version', 'sensitivity', 'rules', 'custom_rules', 'customRules',
   'path_instructions', 'pathInstructions', 'path_filters', 'pathFilters',
   'tools', 'gate', 'reviews', 'maxActiveRules', 'max_active_rules',
+  'lessons', 'knowledge',
   'tests', 'test_commands', 'testCommands',
 ]);
 
@@ -475,6 +527,7 @@ export function normalizeAuditConfig(raw: unknown): { config: AuditConfig; error
         maxChangedLines,
         ignoreLabels: asStringArray(pick(gateRaw, 'ignore_labels', 'ignoreLabels')),
       },
+      lessons: parseLessons(pick(scope, 'lessons', 'knowledge'), warnings),
       testCommands: parseTestCommands(
         pick(scope, 'tests', 'test_commands', 'testCommands'),
         errors,

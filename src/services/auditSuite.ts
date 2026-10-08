@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { fetchOssReview, countFindings, type OssReviewReport } from './ossReview.js';
+import { ensureCapability, onDemandEnabled } from './serviceGateway.js';
 import {
   DIMENSIONS,
   DIMENSION_META,
@@ -24,6 +25,7 @@ import {
   type Finding,
 } from './findings.js';
 import { runAuditCore, type AuditCoreResult } from './auditCore.js';
+import { resolveLessonsConfig, loadLessonsFindings, type LessonsLoadResult } from './lessonsBridge.js';
 import {
   SUPPORTED_EXTENSIONS,
   collectSourceFiles,
@@ -112,6 +114,12 @@ export interface AuditRunParams {
    * configured PR/release gate. Off by default so existing runs are unchanged.
    */
   core?: boolean;
+  /**
+   * Route the Coding-lessons corpus into the core run. Defaults to the repo's
+   * `openhub.yaml` `lessons.enabled` (and is off entirely when `core` is off).
+   * Set false to skip the corpus for one run.
+   */
+  lessons?: boolean;
   /**
    * Optional progress hook, called before each scorer runs (and once more with
    * `index === total` when the sweep finishes). Lets a background job surface
@@ -245,6 +253,8 @@ export interface AuditReport {
   delta: AuditDelta | null;
   /** Validation + lifecycle + gate from the shared audit core (opt-in via params.core). */
   core?: AuditCoreResult;
+  /** Coding-lessons corpus routed into the core (opt-in via params.lessons). */
+  lessons?: LessonsLoadResult;
   /** Lifecycle stage this run was recorded under (absent for ad-hoc runs). */
   stage?: AuditStageName;
   /** Gate verdict when a stage was requested (absent otherwise). */
@@ -665,7 +675,23 @@ async function pollRepoRankScan(scanId: string, auth: Record<string, string>, ki
  * runs the same static/vibe/deep analyzers and defaults to `privateMode` so no
  * hosted AI key is required (`REPORANK_LOCAL_PRIVATE_MODE=0` enables AI grading).
  */
+/**
+ * On-demand: bring a scorer's backing service up before we call it. A no-op
+ * unless OPENHUB_ONDEMAND_SERVICES is enabled, so default behaviour is
+ * unchanged. Best-effort — the scorer still reports its own honest failure if
+ * the service refuses to start.
+ */
+async function ensureScorerService(service: string): Promise<void> {
+  if (!onDemandEnabled()) return;
+  try {
+    await ensureCapability(service);
+  } catch {
+    /* best-effort: the scorer's own probe/error is the source of truth */
+  }
+}
+
 export async function runRepoRankScorer(input: string | LocalScoreInput): Promise<ScorerResult> {
+  await ensureScorerService('reporank');
   const { repoUrl, targetDir } = scoreInput(input);
   const repo = normalizeRepoUrl(repoUrl);
   const local = !repo && !!targetDir;
@@ -714,6 +740,7 @@ export async function runRepoRankScorer(input: string | LocalScoreInput): Promis
 // ---------------------------------------------------------------------------
 
 export async function runGraderScorer(input: string | LocalScoreInput): Promise<ScorerResult> {
+  await ensureScorerService('grader');
   const { repoUrl, targetDir } = scoreInput(input);
   const repo = normalizeRepoUrl(repoUrl);
   const local = !repo && !!targetDir;
@@ -860,6 +887,7 @@ function collectScannableFiles(targetDir: string, gitIgnore?: GitIgnoreMatcher):
 export async function runClawProtectScorer(
   params: { repoUrl?: string; targetDir?: string; gitIgnore?: GitIgnoreMatcher },
 ): Promise<ScorerResult> {
+  await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
   if (!apiKey) return honest('claw-protect', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — SCA scan skipped');
 
@@ -1089,6 +1117,7 @@ export async function runDeepScorer(
 ): Promise<ScorerResult> {
   if (!targetDir || !fs.existsSync(targetDir)) return honest('deep', 'The Deep needs a local targetDir');
   if (!deepUrl()) return honest('deep', 'DEEP_URL not set — point it at The Deep server to enable this scorer');
+  await ensureScorerService('deep');
 
   const files = collectDeepFiles(targetDir, opts);
   if (!files.length) {
@@ -1298,6 +1327,7 @@ function codeNexusFindings(json: unknown): Finding[] {
 }
 
 export async function runCodeNexusScorer(params: { repoUrl?: string; targetDir?: string }): Promise<ScorerResult> {
+  await ensureScorerService('codenexus');
   let serviceUp = false;
   try {
     const res = await fetch(`${codenexusUrl()}/health`, { signal: AbortSignal.timeout(3000) });
@@ -2249,6 +2279,7 @@ export async function runLintScorer(
 // ---------------------------------------------------------------------------
 
 export async function runScaScorer(targetDir?: string): Promise<ScorerResult> {
+  await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
   if (!apiKey) return honest('sca', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — dependency CVE scan skipped');
   if (!targetDir || !fs.existsSync(targetDir)) {
@@ -3019,7 +3050,21 @@ async function executeAuditSuiteInner(params: AuditRunParams, receiptRunId: stri
   // de-duplicated backlog instead of a fresh dump every run.
   if (params.core === true) {
     try {
-      report.core = runAuditCore({ rootDir: target, findings: report.findings });
+      // Route the Coding-lessons corpus first. Its citations are verified
+      // against the filesystem here, NOT left to the core's 800-file-bounded
+      // reachability walk, which reports real files stale on large repos. Only
+      // verified citations are merged; the rest are reported on `lessons.stale`.
+      const lessonsCfg = loadAuditConfig(target).config.lessons;
+      const resolvedLessons = resolveLessonsConfig(
+        target,
+        params.lessons === false ? { ...lessonsCfg, enabled: false } : lessonsCfg,
+      );
+      const lessons = await loadLessonsFindings(resolvedLessons, target);
+      report.lessons = lessons;
+      report.core = runAuditCore({
+        rootDir: target,
+        findings: [...report.findings, ...lessons.findings],
+      });
     } catch (err) {
       report.core = {
         configSource: null,

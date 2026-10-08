@@ -1,6 +1,6 @@
 import { keywireSecretNames, keywireProject } from './keywire.js';
 import { probeVaultGitHubCredentials, type VaultCredentialHealth } from './githubVaultAuth.js';
-import { OPENCODE_BASE } from './opencodeEngine.js';
+import { OPENCODE_BASE, basicAuthHeader } from './opencodeEngine.js';
 
 /**
  * Real provider health for the Integrations surface.
@@ -50,12 +50,13 @@ interface HttpProbe {
   error?: string;
 }
 
-async function probeHttp(url: string, path: string, deps: ProviderHealthDeps): Promise<HttpProbe> {
+async function probeHttp(url: string, path: string, deps: ProviderHealthDeps, headers?: Record<string, string>): Promise<HttpProbe> {
   const base = url.replace(/\/+$/, '');
   const target = `${base}${path}`;
   try {
     const res = await deps.fetchImpl(target, {
       method: 'GET',
+      ...(headers ? { headers } : {}),
       signal: AbortSignal.timeout(deps.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
     return { up: res.ok, status: res.status };
@@ -115,9 +116,9 @@ export async function probeProviderHealth(
 
   const [axiom, opencode, recourse, llm, browser] = await Promise.all([
     probeHttp(axiomUrl, '/api/health', deps),
-    probeHttp(opencodeUrl, '/global/health', deps),
+    probeHttp(opencodeUrl, '/global/health', deps, { Authorization: basicAuthHeader() }),
     probeHttp(recourseUrl, '/api/recourse/status', deps),
-    probeHttp(llmUrl, '/health', deps),
+    probeHttp(llmUrl, '/health/liveliness', deps),
     probeHttp(browserUrl, '/api/system/health', deps),
   ]);
 

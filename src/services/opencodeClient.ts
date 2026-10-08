@@ -1,8 +1,17 @@
-import { OPENCODE_BASE, getEnginePassword } from './opencodeEngine.js';
+import { OPENCODE_BASE, getEnginePassword, basicAuthHeader } from './opencodeEngine.js';
 
 export function authHeader(pw: string = getEnginePassword()): string {
-  const user = process.env.OPENCODE_SERVER_USERNAME || 'opencode';
-  return 'Basic ' + Buffer.from(`${user}:${pw}`).toString('base64');
+  return basicAuthHeader(pw);
+}
+
+/**
+ * Opt-in project scoping: set OPENHUB_OPENCODE_DIRECTORY so sessions run in that
+ * directory instead of wherever `opencode serve` happened to start (UNVERIFIED
+ * header name against a live engine; unset = previous behaviour).
+ */
+function dirHeaders(): Record<string, string> {
+  const dir = process.env.OPENHUB_OPENCODE_DIRECTORY;
+  return dir ? { 'x-opencode-directory': encodeURIComponent(dir) } : {};
 }
 
 export async function ocFetch(
@@ -12,6 +21,7 @@ export async function ocFetch(
   const { timeoutMs, headers, ...rest } = init;
   const method = (rest.method || 'GET').toUpperCase();
   const merged = new Headers(headers);
+  for (const [k, v] of Object.entries(dirHeaders())) if (!merged.has(k)) merged.set(k, v);
   if (!merged.has('Authorization')) merged.set('Authorization', authHeader());
   if (method !== 'GET' && rest.body != null && !merged.has('Content-Type')) {
     merged.set('Content-Type', 'application/json');
@@ -31,6 +41,23 @@ export async function ocFetch(
 
 export function getEngineStatus(): Promise<any> {
   return ocFetch('/global/health');
+}
+
+/**
+ * How many model providers the engine has configured, or null if it cannot be
+ * determined. An engine with zero fails every prompt with ProviderNoProvidersError
+ * (seen live), so the UI warns before a mission is started. The route
+ * (`/config/providers`) is UNVERIFIED against a live engine: any error or odd
+ * shape yields null, never a false 0.
+ */
+export async function providerCount(): Promise<number | null> {
+  try {
+    const body = await ocFetch('/config/providers', { timeoutMs: 3000 });
+    const list = Array.isArray(body?.providers) ? body.providers
+      : body?.providers && typeof body.providers === 'object' ? Object.keys(body.providers)
+      : null;
+    return list ? list.length : null;
+  } catch { return null; }
 }
 
 export function listProjects(): Promise<any> {
@@ -54,10 +81,15 @@ export function createSession(title?: string): Promise<any> {
   return ocFetch('/session', { method: 'POST', body: JSON.stringify({ title }) });
 }
 
-export function promptSessionAsync(id: string, parts: unknown[]): Promise<any> {
+export interface PromptOptions {
+  model?: { providerID: string; modelID: string };
+  agent?: string;
+}
+
+export function promptSessionAsync(id: string, parts: unknown[], opts: PromptOptions = {}): Promise<any> {
   return ocFetch(`/session/${encodeURIComponent(id)}/prompt_async`, {
     method: 'POST',
-    body: JSON.stringify({ parts }),
+    body: JSON.stringify({ parts, ...(opts.model ? { model: opts.model } : {}), ...(opts.agent ? { agent: opts.agent } : {}) }),
   });
 }
 
@@ -97,6 +129,6 @@ export function respondPermission(id: string, permissionID: string, response: un
   );
 }
 
-export function eventsRaw(): Promise<Response> {
-  return fetch(`${OPENCODE_BASE}/event`, { headers: { Authorization: authHeader() } });
+export function eventsRaw(signal?: AbortSignal): Promise<Response> {
+  return fetch(`${OPENCODE_BASE}/event`, { headers: { Authorization: authHeader(), ...dirHeaders() }, signal });
 }
