@@ -88,4 +88,52 @@ describe('MissionInspector', () => {
     const revertCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/revert'))!;
     expect(JSON.parse(String(revertCall[1]?.body))).toEqual({ messageID: 'msg_1' });
   });
+
+  it('enables Unrevert only when the engine confirms the revert (true)', async () => {
+    mockFetch();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const view = render(React.createElement(MissionInspector, { sessionId: 'ses_1' }));
+    await view.findByText('src/a.ts');
+    expect((view.getByRole('button', { name: /unrevert/i }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: /revert last step/i }));
+    await waitFor(() => {
+      expect((view.getByRole('button', { name: /unrevert/i }) as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
+
+  it('does not enable Unrevert and says so when the engine does not confirm (false)', async () => {
+    const fn = vi.fn(async (url: string | URL, _init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/diff')) return jsonRes({ ok: true, data: diffData });
+      if (u.includes('/todos')) return jsonRes({ ok: true, data: todoData });
+      if (u.includes('/messages')) return jsonRes({ ok: true, data: [{ info: { id: 'msg_1' } }] });
+      if (u.includes('/revert')) return jsonRes({ ok: true, data: false });
+      return jsonRes({ ok: true, data: {} });
+    });
+    vi.stubGlobal('fetch', fn);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const view = render(React.createElement(MissionInspector, { sessionId: 'ses_1' }));
+    await view.findByText('src/a.ts');
+    fireEvent.click(view.getByRole('button', { name: /revert last step/i }));
+    expect(await view.findByText(/did not confirm/i)).toBeTruthy();
+    expect((view.getByRole('button', { name: /unrevert/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('does not enable Unrevert when the revert response shape is unrecognized', async () => {
+    const fn = vi.fn(async (url: string | URL, _init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/diff')) return jsonRes({ ok: true, data: diffData });
+      if (u.includes('/todos')) return jsonRes({ ok: true, data: todoData });
+      if (u.includes('/messages')) return jsonRes({ ok: true, data: [{ info: { id: 'msg_1' } }] });
+      if (u.includes('/revert')) return jsonRes({ ok: true, data: { weird: 1 } });
+      return jsonRes({ ok: true, data: {} });
+    });
+    vi.stubGlobal('fetch', fn);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const view = render(React.createElement(MissionInspector, { sessionId: 'ses_1' }));
+    await view.findByText('src/a.ts');
+    fireEvent.click(view.getByRole('button', { name: /revert last step/i }));
+    expect(await view.findByText(/did not confirm/i)).toBeTruthy();
+    expect((view.getByRole('button', { name: /unrevert/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });

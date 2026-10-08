@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OPENCODE_BASE, buildServeArgs, parsePassword } from '../src/services/opencodeEngine.js';
+import { OPENCODE_BASE, buildServeArgs, parsePassword, taskkillArgs } from '../src/services/opencodeEngine.js';
 
 describe('opencodeEngine', () => {
   it('targets a dedicated loopback port', () => {
@@ -11,5 +11,8 @@ describe('opencodeEngine', () => {
   it('trims a trailing newline from the password', () => {
     expect(parsePassword('secret\n')).toBe('secret');
     expect(parsePassword(undefined)).toBe('');
+  });
+  it('builds a Windows tree-kill command', () => {
+    expect(taskkillArgs(1234)).toEqual(['/pid', '1234', '/T', '/F']);
   });
 });

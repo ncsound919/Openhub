@@ -17,8 +17,13 @@ interface MissionInspectorProps {
   sessionId: string | null;
   /** Best-effort telemetry; unknown fields render as `—`. */
   telemetry?: SessionTelemetry | null;
-  /** Bump to force a re-fetch (e.g. when mission status changes). */
-  refreshKey?: number;
+  /**
+   * A single explicit refresh token. Bumping it re-reads the diff/todos exactly
+   * once (e.g. when the active mission's status changes). A session change
+   * already re-reads via `sessionId`, so this is only nudged for same-session
+   * transitions to avoid a double fetch.
+   */
+  refreshToken?: number;
   /** Override the tab rail (primarily for tests). */
   tabs?: string[];
 }
@@ -58,7 +63,7 @@ const TODO_STATUS: Record<string, { color: string; mark: string }> = {
  * are UNVERIFIED against a live engine, so every read is defensive and empty
  * states are shown rather than fabricated rows.
  */
-export function MissionInspector({ sessionId, telemetry = null, refreshKey = 0, tabs = DEFAULT_TABS }: MissionInspectorProps) {
+export function MissionInspector({ sessionId, telemetry = null, refreshToken = 0, tabs = DEFAULT_TABS }: MissionInspectorProps) {
   const [active, setActive] = useState(tabs[0] ?? '');
   const [diff, setDiff] = useState<FileDiff[]>([]);
   const [todos, setTodos] = useState<MissionTodo[]>([]);
@@ -103,13 +108,12 @@ export function MissionInspector({ sessionId, telemetry = null, refreshKey = 0, 
     }
   }, [sessionId]);
 
+  // Re-read on a session change (the loaders change identity with `sessionId`)
+  // or on an explicit refresh token — exactly one fetch per change, never both.
   useEffect(() => {
     void loadDiff();
-  }, [loadDiff, refreshKey]);
-
-  useEffect(() => {
     void loadTodos();
-  }, [loadTodos, refreshKey]);
+  }, [loadDiff, loadTodos, refreshToken]);
 
   // A new session cannot inherit a prior session's un-done revert.
   useEffect(() => setCanUnrevert(false), [sessionId]);
@@ -120,7 +124,13 @@ export function MissionInspector({ sessionId, telemetry = null, refreshKey = 0, 
     setBusy(true);
     setError(null);
     try {
-      await revertLastStep(sessionId);
+      const confirmed = await revertLastStep(sessionId);
+      if (!confirmed) {
+        // The engine returns a success boolean; a false / unrecognized response
+        // must not be reported as a revert that happened.
+        setError('Engine did not confirm the revert; nothing was changed.');
+        return;
+      }
       setCanUnrevert(true);
       await loadDiff();
       await loadTodos();
@@ -136,7 +146,11 @@ export function MissionInspector({ sessionId, telemetry = null, refreshKey = 0, 
     setBusy(true);
     setError(null);
     try {
-      await unrevertSession(sessionId);
+      const confirmed = await unrevertSession(sessionId);
+      if (!confirmed) {
+        setError('Engine did not confirm the unrevert; nothing was changed.');
+        return;
+      }
       setCanUnrevert(false);
       await loadDiff();
       await loadTodos();

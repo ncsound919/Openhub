@@ -7,13 +7,52 @@ import {
   fetchDiff,
   fetchTodos,
   revertLastStep,
+  subscribeMission,
+  sessionToMission,
 } from '../src/mission/useMission.js';
+import type { MissionEvent } from '../src/lib/missionStore.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
 function jsonRes(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
+
+/** An SSE body that emits the given frames then closes (a clean end). */
+function sseBody(frames: string[]): ReadableStream<Uint8Array> {
+  const enc = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const f of frames) controller.enqueue(enc.encode(f));
+      controller.close();
+    },
+  });
+}
+
+/** Enqueue the frame JSON for an event and terminate it with a blank line. */
+function frame(obj: Record<string, unknown>): string {
+  return `data: ${JSON.stringify(obj)}\n\n`;
+}
+
+/** Run subscribeMission against a mock stream and collect its callbacks. */
+async function runSubscribe(frames: string[]): Promise<{ events: MissionEvent[]; ends: string[]; errors: string[] }> {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(sseBody(frames), { status: 200 })));
+  const events: MissionEvent[] = [];
+  const ends: string[] = [];
+  const errors: string[] = [];
+  const cleanup = subscribeMission(
+    'ses_1',
+    (e) => events.push(e),
+    (m) => errors.push(m),
+    (r) => ends.push(r),
+  );
+  // Give the async reader loop a chance to drain the closed stream.
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+  await new Promise((r) => setTimeout(r, 20));
+  cleanup();
+  return { events, ends, errors };
+}
+
 
 describe('parseEventFrame', () => {
   it('parses a session-scoped text event', () => {
@@ -115,5 +154,55 @@ describe('fetchDiff / fetchTodos / revertLastStep', () => {
     const revertCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/revert'));
     expect(revertCall).toBeTruthy();
     expect(JSON.parse(String(revertCall![1]?.body))).toEqual({ messageID: 'msg_1' });
+  });
+});
+
+describe('subscribeMission terminal events', () => {
+  it('calls onEnd(done) exactly once for session.idle, even with repeats', async () => {
+    const { events, ends, errors } = await runSubscribe([
+      frame({ type: 'session.updated.1', sessionID: 'ses_1', data: { text: 'working' } }),
+      frame({ type: 'session.idle', sessionID: 'ses_1' }),
+      frame({ type: 'session.idle', sessionID: 'ses_1' }),
+    ]);
+    expect(ends).toEqual(['done']);
+    expect(errors).toEqual([]);
+    expect(events.map((e) => e.text)).toContain('working');
+  });
+
+  it('treats session.completed as done too', async () => {
+    const { ends } = await runSubscribe([frame({ type: 'session.completed', sessionID: 'ses_1' })]);
+    expect(ends).toEqual(['done']);
+  });
+
+  it('calls onEnd(failed) for session.error', async () => {
+    const { ends, errors } = await runSubscribe([frame({ type: 'session.error', sessionID: 'ses_1' })]);
+    expect(ends).toEqual(['failed']);
+    expect(errors).toEqual([]);
+  });
+
+  it('ignores a terminal event for a different session', async () => {
+    const { ends } = await runSubscribe([frame({ type: 'session.idle', sessionID: 'ses_other' })]);
+    expect(ends).toEqual([]);
+  });
+});
+
+describe('sessionToMission defaults', () => {
+  it('defaults an unknown status to the neutral planned and omits createdAt when absent', () => {
+    const m = sessionToMission({ id: 'ses_x', title: 'a session', status: 'weird' });
+    expect(m).not.toBeNull();
+    expect(m!.status).toBe('planned');
+    expect(m!.createdAt).toBeUndefined();
+    expect(m!.goal).toBe('a session');
+  });
+
+  it('keeps a known status and parses a provided timestamp', () => {
+    const m = sessionToMission({ id: 'ses_y', status: 'running', time: { created: 1_700_000_000_000 } });
+    expect(m!.status).toBe('running');
+    expect(m!.createdAt).toBe(new Date(1_700_000_000_000).toISOString());
+  });
+
+  it('returns null without an id', () => {
+    expect(sessionToMission({ title: 'no id' })).toBeNull();
+    expect(sessionToMission(null)).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GitBranch, Loader2 } from 'lucide-react';
 import { useStore } from '../store';
-import { useMissionStore } from '../lib/missionStore.js';
+import { useMissionStore, type MissionEvent } from '../lib/missionStore.js';
 import {
   abortMission,
   createMission,
@@ -23,6 +23,12 @@ import { MissionStatusHeader, useElapsed } from './MissionStatusHeader';
 
 const TELEMETRY_POLL_MS = 5_000;
 
+/**
+ * Stable empty array so the events selector never returns a fresh reference —
+ * `useStore` treats a new snapshot on every call as an infinite render loop.
+ */
+const EMPTY_EVENTS: MissionEvent[] = [];
+
 /** Render an unknown count as `—` (mono numbers only). */
 function fmtNum(n: number | undefined): string {
   return n == null ? '—' : n.toLocaleString('en-US');
@@ -43,19 +49,25 @@ export function MissionControlPage() {
   const missions = useMissionStore((s) => s.missions);
   const activeId = useMissionStore((s) => s.activeId);
   const activeMission = useMissionStore((s) => s.missions.find((m) => m.id === s.activeId) ?? null);
-  const events = useMissionStore((s) => (s.activeId ? s.events[s.activeId] ?? [] : []));
+  const events = useMissionStore((s) => (s.activeId ? (s.events[s.activeId] ?? EMPTY_EVENTS) : EMPTY_EVENTS));
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [telemetry, setTelemetry] = useState<SessionTelemetry | null>(null);
+  const [telemetryError, setTelemetryError] = useState<string | null>(null);
   const [steerText, setSteerText] = useState('');
   const [steering, setSteering] = useState(false);
-  // Bumped whenever the active mission or its status changes, so the inspector
-  // re-reads the diff/todos as a run progresses.
-  const [inspectorRefreshKey, setInspectorRefreshKey] = useState(0);
+  // A single token that forces the inspector to re-read. It is bumped only for
+  // a same-session status change (see below); selecting another mission already
+  // re-reads via its sessionId, so bumping there would double-fetch.
+  const [inspectorRefreshToken, setInspectorRefreshToken] = useState(0);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  // Track the last session/status the inspector was told about, so only a
+  // same-session transition nudges a re-read.
+  const lastInspectorSessionRef = useRef<string | null>(null);
+  const lastInspectorStatusRef = useRef<string | null>(null);
 
   const elapsed = useElapsed(activeMission?.createdAt);
 
@@ -75,6 +87,12 @@ export function MissionControlPage() {
       (message) => {
         setError(message);
         useMissionStore.getState().setStatus(id, 'failed');
+      },
+      (result) => {
+        // Engine-aligned completion signal. The terminal opencode bus event
+        // names (`session.idle` / `session.completed` / `session.error`) are
+        // UNVERIFIED against a live engine — see `subscribeMission`.
+        useMissionStore.getState().setStatus(id, result);
       },
     );
   };
@@ -111,15 +129,22 @@ export function MissionControlPage() {
   useEffect(() => {
     if (!activeSessionId) {
       setTelemetry(null);
+      setTelemetryError(null);
       return;
     }
     let cancelled = false;
     const poll = async () => {
       try {
         const raw = await fetchSession(activeSessionId);
-        if (!cancelled) setTelemetry(normalizeSessionTelemetry(raw));
-      } catch {
-        if (!cancelled) setTelemetry(null);
+        if (cancelled) return;
+        setTelemetry(normalizeSessionTelemetry(raw));
+        setTelemetryError(null);
+      } catch (err) {
+        // A persistent poll failure must be visible, not silently swallowed
+        // while the engine chip still says "ready". Values stay `—`.
+        if (cancelled) return;
+        setTelemetry(null);
+        setTelemetryError(err instanceof Error ? err.message : 'telemetry unavailable');
       }
     };
     void poll();
@@ -132,10 +157,17 @@ export function MissionControlPage() {
     };
   }, [activeSessionId]);
 
-  // Re-read the inspector whenever the active mission or its status changes.
+  // Nudge the inspector to re-read only when the SAME session's status changes.
   useEffect(() => {
-    setInspectorRefreshKey((k) => k + 1);
-  }, [activeId, activeMission?.status]);
+    const session = activeSessionId ?? null;
+    const status = activeMission?.status ?? null;
+    const sameSession = session !== null && session === lastInspectorSessionRef.current;
+    if (sameSession && lastInspectorStatusRef.current !== status) {
+      setInspectorRefreshToken((k) => k + 1);
+    }
+    lastInspectorSessionRef.current = session;
+    lastInspectorStatusRef.current = status;
+  }, [activeSessionId, activeMission?.status]);
 
   const selectMission = (id: string) => {
     const store = useMissionStore.getState();
@@ -171,8 +203,11 @@ export function MissionControlPage() {
     setError(null);
     try {
       await abortMission(activeId, activeId);
-    } catch {
-      /* best effort — mark done regardless so the control is not stuck */
+    } catch (err) {
+      // The abort did not succeed — keep `running` and surface it. Never report
+      // a stop that did not happen.
+      setError(err instanceof Error ? err.message : 'Unable to stop the mission');
+      return;
     }
     useMissionStore.getState().setStatus(activeId, 'done');
   };
@@ -270,7 +305,7 @@ export function MissionControlPage() {
             </select>
           </div>
 
-          <MissionStatusHeader mission={activeMission} session={telemetry} />
+          <MissionStatusHeader mission={activeMission} session={telemetry} elapsed={elapsed} />
 
           <div className="shrink-0 border-b border-[var(--color-border-muted)]">
             <GoalComposer
@@ -325,7 +360,7 @@ export function MissionControlPage() {
           <MissionInspector
             sessionId={activeSessionId ?? null}
             telemetry={telemetry}
-            refreshKey={inspectorRefreshKey}
+            refreshToken={inspectorRefreshToken}
           />
         </aside>
       </div>
@@ -350,6 +385,11 @@ export function MissionControlPage() {
         <span>
           elapsed <span className="text-[var(--color-text-secondary)]">{elapsed}</span>
         </span>
+        {telemetryError && (
+          <span className="text-[var(--color-warning)]" title={telemetryError}>
+            telemetry unavailable
+          </span>
+        )}
         {busy && (
           <span className="ml-auto inline-flex items-center gap-1.5 text-[var(--color-text-secondary)]">
             <Loader2 className="h-3 w-3 animate-spin" /> starting mission…

@@ -35,6 +35,12 @@ export function useElapsed(createdAt: string | undefined | null): string {
 export interface MissionStatusHeaderProps {
   mission: Mission | null;
   session?: SessionTelemetry | null;
+  /**
+   * Precomputed formatted elapsed time supplied by the page, so only one timer
+   * runs for the mission. When omitted the header falls back to its own ticking
+   * hook (standalone use).
+   */
+  elapsed?: string;
 }
 
 /**
@@ -42,9 +48,11 @@ export interface MissionStatusHeaderProps {
  * and model. With no active mission it renders a calm empty header rather than
  * a blank or an error.
  */
-export function MissionStatusHeader({ mission, session }: MissionStatusHeaderProps) {
-  // Hooks must run unconditionally, before any early return.
-  const elapsed = useElapsed(mission?.createdAt);
+export function MissionStatusHeader({ mission, session, elapsed }: MissionStatusHeaderProps) {
+  // Only tick here when the page did not supply elapsed: a provided prop means
+  // the caller owns the single timer. Hooks must run unconditionally.
+  const ownElapsed = useElapsed(elapsed == null ? mission?.createdAt : undefined);
+  const shownElapsed = elapsed ?? ownElapsed;
 
   if (!mission) {
     return (
@@ -65,7 +73,7 @@ export function MissionStatusHeader({ mission, session }: MissionStatusHeaderPro
       <span className="inline-flex items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">elapsed</span>
         <span className="font-mono text-xs text-[var(--color-text-secondary)]" aria-label="elapsed time">
-          {elapsed}
+          {shownElapsed}
         </span>
       </span>
       <span className="inline-flex items-center gap-1.5">

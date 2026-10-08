@@ -200,10 +200,19 @@ export async function abortMission(id: string, sessionId: string): Promise<void>
  * invokes `onEvent` for each frame whose session id matches. Returns a cleanup
  * that aborts the request and stops reading the stream.
  *
- * `onError` (optional) is invoked with a human message when the stream fails for
- * a non-abort reason: the fetch rejects, the response is not ok, there is no
- * body, or the read loop throws. Abort (cleanup) never calls `onError`, so a
- * deliberately stopped mission is not reported as failed.
+ * `onError` (optional) is invoked with a human message only after the stream
+ * fails for a non-abort reason AND bounded reconnects are exhausted (fetch
+ * rejects, the response is not ok, there is no body, or the read loop throws).
+ * A single dropped stream is a transient network hiccup, not a mission failure,
+ * so up to 3 reconnects are attempted with 1s/2s/4s backoff before giving up.
+ * A clean end-of-stream (the engine closed it) is NOT a failure. Abort by
+ * cleanup never calls `onError` and never retries.
+ *
+ * `onEnd` (optional) is called at most once, when a terminal opencode bus event
+ * is observed for this session. Event names are UNVERIFIED against a live engine
+ * (see the module header); they are matched tolerantly by `kind` (the `type`
+ * with any `.N` version suffix already stripped by the parser):
+ * `session.idle` / `session.completed` => 'done', `session.error` => 'failed'.
  *
  * The request deliberately has no timeout: it is a long-lived stream that ends
  * only when the engine ends it or the caller aborts.
@@ -212,70 +221,121 @@ export function subscribeMission(
   sessionId: string,
   onEvent: (e: MissionEvent) => void,
   onError?: (message: string) => void,
+  onEnd?: (result: 'done' | 'failed') => void,
 ): () => void {
   const controller = new AbortController();
-  const fail = (message: string) => {
-    if (!controller.signal.aborted) onError?.(message);
+  const MAX_ATTEMPTS = 3;
+  const BACKOFF_MS = [1_000, 2_000, 4_000];
+
+  // Fire onEnd at most once: the first terminal event wins.
+  let ended = false;
+  const endOnce = (result: 'done' | 'failed') => {
+    if (ended) return;
+    ended = true;
+    onEnd?.(result);
   };
 
-  void (async () => {
-    let res: Response;
-    try {
-      res = await fetch('/api/opencode/events', {
-        method: 'GET',
-        credentials: 'include',
-        headers: { ...getAuthHeaders() },
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if (controller.signal.aborted) return; // aborted by cleanup — not a failure
-      fail(err instanceof Error ? err.message : 'event stream request failed');
-      return;
-    }
-    if (!res.ok) {
-      fail(`event stream unavailable (HTTP ${res.status})`);
-      return;
-    }
-    if (!res.body) {
-      fail('event stream returned no body');
-      return;
-    }
+  /** Resolve after `ms`, or immediately if the stream is aborted meanwhile. */
+  const delay = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      if (controller.signal.aborted) {
+        resolve();
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        controller.signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      controller.signal.addEventListener('abort', onAbort, { once: true });
+    });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        // Normalize CRLF so frames split the same way on every platform.
-        buffer = buffer.replace(/\r\n/g, '\n');
-        let sep = buffer.indexOf('\n\n');
-        while (sep >= 0) {
-          const frame = buffer.slice(0, sep);
-          buffer = buffer.slice(sep + 2);
-          for (const line of frame.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const payload = trimmed.slice(5).trim();
-            if (!payload) continue;
-            const event = parseEventFrame(payload);
-            if (event && event.sessionId === sessionId) onEvent(event);
+  void (async () => {
+    let lastError = 'event stream dropped';
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (controller.signal.aborted) return;
+      if (attempt > 0) {
+        await delay(BACKOFF_MS[attempt - 1]);
+        if (controller.signal.aborted) return;
+      }
+
+      let res: Response;
+      try {
+        res = await fetch('/api/opencode/events', {
+          method: 'GET',
+          credentials: 'include',
+          headers: { ...getAuthHeaders() },
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (controller.signal.aborted) return; // aborted by cleanup — not a failure
+        lastError = err instanceof Error ? err.message : 'event stream request failed';
+        continue; // transient — retry with backoff
+      }
+      if (!res.ok) {
+        lastError = `event stream unavailable (HTTP ${res.status})`;
+        continue;
+      }
+      if (!res.body) {
+        lastError = 'event stream returned no body';
+        continue;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let dropped = false;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // Normalize CRLF so frames split the same way on every platform.
+          buffer = buffer.replace(/\r\n/g, '\n');
+          let sep = buffer.indexOf('\n\n');
+          while (sep >= 0) {
+            const frame = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            for (const line of frame.split('\n')) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data:')) continue;
+              const payload = trimmed.slice(5).trim();
+              if (!payload) continue;
+              const event = parseEventFrame(payload);
+              if (event && event.sessionId === sessionId) {
+                onEvent(event);
+                if (event.kind === 'session.idle' || event.kind === 'session.completed') {
+                  endOnce('done');
+                } else if (event.kind === 'session.error') {
+                  endOnce('failed');
+                }
+              }
+            }
+            sep = buffer.indexOf('\n\n');
           }
-          sep = buffer.indexOf('\n\n');
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return; // aborted by cleanup — not a failure
+        dropped = true;
+        lastError = err instanceof Error ? err.message : 'event stream dropped';
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released */
         }
       }
-    } catch (err) {
-      if (controller.signal.aborted) return; // aborted by cleanup — not a failure
-      fail(err instanceof Error ? err.message : 'event stream dropped');
-    } finally {
-      try {
-        reader.releaseLock();
-      } catch {
-        /* already released */
-      }
+
+      if (controller.signal.aborted) return;
+      if (ended) return; // terminal event seen — do not reconnect
+      if (!dropped) return; // clean end-of-stream: the engine ended it
+      // Otherwise fall through to the next reconnect attempt.
     }
+
+    if (!controller.signal.aborted) onError?.(lastError);
   })();
 
   return () => controller.abort();
@@ -380,8 +440,11 @@ function isoTime(s: Record<string, unknown>): string | undefined {
 
 /**
  * Map a raw opencode session onto a `Mission`. Returns null when there is no
- * usable id. Status is taken from the session when it is a known status,
- * otherwise `done` (a session that exists in the list is not actively planned).
+ * usable id. Status is taken from the session when it is a known status;
+ * otherwise it defaults to the neutral `planned` — an unknown status must not
+ * claim a finished run. `createdAt` is OMITTED when the session carries no
+ * parseable time, so age renders `—` rather than a fabricated "now"; the store
+ * type marks it required, hence the deliberate cast.
  */
 export function sessionToMission(raw: unknown): Mission | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -389,9 +452,10 @@ export function sessionToMission(raw: unknown): Mission | null {
   const id = str(s.id) ?? str(s.sessionID) ?? str(s.sessionId);
   if (!id) return null;
   const goal = str(s.title) ?? str(s.goal) ?? 'Untitled session';
-  const status = asStatus(s.status) ?? 'done';
-  const createdAt = isoTime(s) ?? new Date().toISOString();
-  return { id, goal, sessionId: id, status, createdAt };
+  const status = asStatus(s.status) ?? 'planned';
+  const createdAt = isoTime(s);
+  const base = { id, goal, sessionId: id, status };
+  return createdAt ? { ...base, createdAt } : (base as Mission);
 }
 
 /** GET the opencode session list through the OpenHub proxy. */

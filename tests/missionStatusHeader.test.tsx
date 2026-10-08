@@ -42,6 +42,16 @@ describe('MissionStatusHeader', () => {
     expect(view.getByText('No active mission')).toBeTruthy();
   });
 
+  it('uses the elapsed prop when provided, so the page owns the only timer', () => {
+    const view = render(
+      React.createElement(MissionStatusHeader, {
+        mission: mk({ status: 'running', createdAt: new Date(Date.now() - 65_000).toISOString() }),
+        elapsed: '12:34',
+      }),
+    );
+    expect(view.getByLabelText('elapsed time').textContent).toBe('12:34');
+  });
+
   it('formats elapsed as mm:ss and h:mm:ss', () => {
     expect(formatElapsed(65_000)).toBe('01:05');
     expect(formatElapsed(3_665_000)).toBe('1:01:05');

@@ -51,6 +51,8 @@ export async function startOpencodeEngine(): Promise<{ started: boolean; error?:
   let spawnError: string | null = null;
   child.on('error', (err) => {
     spawnError = err instanceof Error ? err.message : String(err);
+    // The handle is dead; clear it so a later stop() does not try to kill it.
+    child = null;
   });
   for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 500));
@@ -60,9 +62,38 @@ export async function startOpencodeEngine(): Promise<{ started: boolean; error?:
   return { started: false, error: 'engine did not become healthy in 10s' };
 }
 
+/**
+ * Args that force-kill a process and all of its descendants on Windows.
+ * `taskkill /T` walks the tree; `/F` forces it.
+ */
+export function taskkillArgs(pid: number): string[] {
+  return ['/pid', String(pid), '/T', '/F'];
+}
+
 export async function stopOpencodeEngine(): Promise<{ stopped: boolean }> {
-  if (!child) return { stopped: false };
-  child.kill();
+  const proc = child;
+  if (!proc) return { stopped: false };
   child = null;
+  if (process.platform === 'win32' && proc.pid != null) {
+    // On Windows the engine is spawned through the shell (`shell: true`), so the
+    // direct child is cmd.exe. `proc.kill()` would kill only the shell and orphan
+    // `opencode serve`, which then squats port 4196 (conflicting with the desktop
+    // app). Kill the whole tree with taskkill instead.
+    await new Promise<void>((resolve) => {
+      try {
+        const killer = spawn('taskkill', taskkillArgs(proc.pid as number), { stdio: 'ignore' });
+        killer.on('error', () => resolve());
+        killer.on('close', () => resolve());
+      } catch {
+        resolve();
+      }
+    });
+  } else {
+    try {
+      proc.kill();
+    } catch {
+      /* already exited */
+    }
+  }
   return { stopped: true };
 }
