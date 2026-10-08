@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'tests/e2e.test.ts'],
     // Real-IO suites (git worktrees, spawned CLIs, subprocess QA runs) routinely
     // exceed the 5s default under 55-file parallel load — a false timeout, not a
