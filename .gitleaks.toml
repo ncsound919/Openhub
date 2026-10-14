@@ -1,0 +1,16 @@
+# Gitleaks allowlist for OpenHub.
+#
+# Documented example keys are not leaks (tests and fixtures are scanned like
+# any other path, so a real key pasted into a fixture is still caught). Real
+# secrets elsewhere are still reported; this only suppresses the known noise so
+# the security signal stays meaningful.
+[allowlist]
+description = "OpenHub: documented example keys are not leaks"
+regexes = [
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''(?:sk|pk|rk)_test_''',
+  '''your[_-]?api[_-]?key''',
+  '''SmokeTest''',
+  '''changeme''',
+  '''placeholder''',
+]

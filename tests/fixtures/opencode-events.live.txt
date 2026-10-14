@@ -1,0 +1,8 @@
+data: {"id":"evt_11af9f84c001oLCjtGmKAGfStX","type":"server.connected","properties":{}}
+
+data: {"id":"evt_11af9f87f001kiyI5ZNk091wfL","type":"session.created","properties":{"sessionID":"ses_ee506078affeGOfLBX3MAHA1Rm","info":{"id":"ses_ee506078affeGOfLBX3MAHA1Rm","slug":"kind-garden","version":"1.18.35","projectID":"3aa456bb34b69eacfc499f35bdd865927b1e5923","directory":"C:\\Users\\User\\Downloads\\BUSINESS\\INFRASTRUCTURE\\openhub","path":"","title":"openhub contract capture (safe to delete)","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1791453952118,"updated":1791453952118}}}}
+
+data: {"id":"evt_11afa0b25001P5OQi9dPM7xUS6","type":"session.error","properties":{"sessionID":"ses_ee506078affeGOfLBX3MAHA1Rm","error":{"name":"UnknownError","data":{"message":"ProviderNoProvidersError: No providers are available\n    at <anonymous> (B:/~BUN/root/chunk-dx6f38hh.js:439:97193)\n    at SessionPrompt.prompt (definition) (B:/~BUN/root/chunk-bevzdgga.js:1142:9844)"}}}}
+
+data: {"id":"evt_11afa2008001onTsHX7J7cx5PB","type":"server.heartbeat","properties":{}}
+
