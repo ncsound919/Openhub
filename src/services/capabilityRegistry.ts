@@ -418,6 +418,63 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     ],
     documentation: 'OmniResearch 2 deep-research agent (LiteLLM :4100, MCP at /api/mcp). Port 3012 — 3010 is OpenHub.',
   },
+
+  // Jarvis / OpenJarvis - the fleet's local-first assistant.
+  //
+  // CLI transport, deliberately. Jarvis is a Python application with no
+  // HTTP service of its own: its FastAPI server is how the browser UI talks
+  // to it, and that server's configured port (8000, from
+  // ~/.openjarvis/config.toml `[server] port`) is held by
+  // com.docker.backend.exe on this host, so an HTTP liveness probe would
+  // answer 200 for DOCKER while Jarvis itself is not running. That is the
+  // wrong-service false positive this registry exists to avoid, so the probe
+  // runs the interpreter directly and proves the import works.
+  //
+  // The liveness command is `import openjarvis` rather than `jarvis --version`
+  // because the console script boots the whole CLI (measured 15.4s) while the
+  // import completes in ~0.3s. Importing is also the stronger check: it pulls
+  // in the mandatory openjarvis-rust PyO3 extension, which raises a hard
+  // ImportError when the native build is missing.
+  jarvis: {
+    identity: {
+      slug: 'jarvis',
+      name: 'Jarvis Assistant (OpenJarvis)',
+      category: 'core',
+      transport: 'cli',
+      cliCommand:
+        process.env.OPENHUB_JARVIS_PYTHON ||
+        'C:/Users/User/AppData/Local/OpenJarvis/src/.venv/Scripts/python.exe',
+    },
+    versionSpec: {
+      type: 'cli',
+      endpointOrArgs: ['-c', 'import openjarvis;print(openjarvis.__version__)'],
+    },
+    liveness: {
+      type: 'cli',
+      args: ['-c', 'import openjarvis;print(openjarvis.__version__)'],
+      timeoutMs: 15_000,
+    },
+    readiness: {
+      // Heavy on purpose, and NOT run by probeBridge (which only ever executes
+      // `liveness`). Synthesizing real audio is the only proof that the Kokoro
+      // TTS lane works end to end, and it costs ~20s loading model weights
+      // plus the espeak-ng G2P fallback.
+      type: 'cli',
+      args: [
+        '-c',
+        "from openjarvis.speech.kokoro_tts import KokoroTTSBackend as B; b=B(); print('tts-health', b.health())",
+      ],
+      timeoutMs: 180_000,
+    },
+    operations: [
+      { id: 'agent.ask', name: 'Ask Jarvis', description: 'Ask Jarvis a question on its local llama.cpp lane', kind: 'query', cliArgs: ['ask'] },
+      { id: 'doctor.check', name: 'Environment Doctor', description: 'Python version, engine reachability, speech backend, Node.js', kind: 'query', cliArgs: ['doctor'] },
+      { id: 'speech.synthesize', name: 'Synthesize Speech', description: 'Synthesize speech from text with the local Kokoro TTS backend', kind: 'mutation', cliArgs: ['chat', '--voice'] },
+      { id: 'tool.openhub', name: 'OpenHub Tool Round-Trip', description: 'Jarvis invoking OpenHub audit tools through its own MCP registration', kind: 'query' },
+    ],
+    documentation:
+      'Jarvis (OpenJarvis) local-first assistant: llama.cpp reasoning, Kokoro TTS + faster-whisper voice, OpenHub as an MCP tool provider. Probed over its venv interpreter; no HTTP port of its own.',
+  },
 };
 
 export function getBridgeStatement(slug: string): BridgeCapabilityStatement | undefined {

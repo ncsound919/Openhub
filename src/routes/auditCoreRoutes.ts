@@ -11,6 +11,7 @@ import {
 import { loadAuditConfig } from '../core/config.js';
 import { generateAutofixes, parseFixResponse, type FixGenerator } from '../core/autofix.js';
 import type { Finding } from '../services/findings.js';
+import { reportSecurityFindings } from '../services/securityAlerts.js';
 import { callerId, resolveReviewTarget } from '../lib/reviewTarget.js';
 
 /**
@@ -51,7 +52,7 @@ export function createAuditCoreRouter(deps: { authMiddleware: express.RequestHan
   });
 
   // Validate → lifecycle → gate a set of findings (the main consumer entry).
-  router.post('/audit-core/run', (req, res) => {
+  router.post('/audit-core/run', async (req, res) => {
     const root = resolveTarget(req, req.body?.targetDir);
     if (!root) return res.status(400).json({ ok: false, error: 'targetDir is required, must exist, and must be under an allowed repo root' });
     const findings = Array.isArray(req.body?.findings) ? (req.body.findings as Finding[]) : [];
@@ -62,7 +63,10 @@ export function createAuditCoreRouter(deps: { authMiddleware: express.RequestHan
       ...(Array.isArray(req.body?.labels) ? { labels: req.body.labels.map(String) } : {}),
       ...(req.body?.persist === false ? { persist: false } : {}),
     });
-    res.json({ ok: true, core: result });
+    // Deep audits happen here, so the leak-alert class is produced here too —
+    // security findings flow onto the incident bus instead of Keywire's file.
+    const alerts = await reportSecurityFindings(findings, { repo: root });
+    res.json({ ok: true, core: result, alerts });
   });
 
   // Plain-English rules (needs a configured model; honest 'configured:false' otherwise).

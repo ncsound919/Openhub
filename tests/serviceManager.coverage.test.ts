@@ -106,14 +106,14 @@ describe('serviceManager coverage', () => {
 
   it('returns null for an unknown service and a full status for a known one', async () => {
     expect(await getServiceStatus('does-not-exist')).toBeNull();
-    const axiom = await getServiceStatus('axiom');
-    expect(axiom).not.toBeNull();
-    expect(axiom!.slug).toBe('axiom');
-    expect(axiom!.port).toBe(3198);
-    expect(typeof axiom!.up).toBe('boolean');
+    const brain = await getServiceStatus('deterministic-brain');
+    expect(brain).not.toBeNull();
+    expect(brain!.slug).toBe('deterministic-brain');
+    expect(brain!.port).toBe(3210);
+    expect(typeof brain!.up).toBe('boolean');
     // Not listening → pid stays null even when requested.
-    expect(axiom!.pid).toBeNull();
-    expect(await getServiceStatus('axiom', true)).not.toBeNull();
+    expect(brain!.pid).toBeNull();
+    expect(await getServiceStatus('deterministic-brain', true)).not.toBeNull();
   });
 
   it('reports a probe service as up with a resolved pid when included', async () => {

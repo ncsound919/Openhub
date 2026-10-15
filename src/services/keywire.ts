@@ -2,26 +2,30 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 
 /**
- * Keywire vault client — the zero-trust credential + business-record seam for
- * OpenHub, per the fleet credential gate (AGENTS.md). The vault is the single
- * source of truth: this module never invents a secret, never logs a value, and
- * degrades honestly (`available: false` + an `error`) when the vault is down.
+ * Vault client — the zero-trust credential seam for OpenHub, per the fleet
+ * credential gate (AGENTS.md).
  *
- * Auth resolution order, mirroring Axiom's `src/server/fleet.ts`:
- *   1. OPENHUB_KEYWIRE_TOKEN / KEYWIRE_TOKEN   — an explicit bearer.
- *   2. KEYWIRE_SERVICE_TOKEN (`kw_st_live_*`)  — exchanged for a short-lived JWT.
- *   3. ~/.secrets/opencode/keywire-service-token — a minted vault JWT, used as-is.
- *   4. SVID file-trust — sign an HS256 SVID with Keywire's shared `jwtSecret`
- *      (from keywire-keys.json) and present it as the bearer. This is the path
- *      OpenHub uses when no service token is configured.
+ * 2026-10-15: the fleet's secrets migrated to **Infisical** (project o365,
+ * identity mach1). Resolution order is now Infisical FIRST, Keywire second:
+ *   Infisical  — the primary lane (one client: INFRASTRUCTURE/infisical/
+ *                infisical-client.mjs; credentials in .secrets/mach1.env).
+ *   Keywire    — the legacy/fallback lane (service token, minted JWT, SVID
+ *                file-trust), still needed for anything never migrated.
  *
- * The vault API is project/env scoped. OpenHub defaults to the Overlay365 LLC
- * project (`prj-mt7jrul1` / `production`), overridable via env.
+ * Keywire's two non-vault views were dealt with the same day: the site inventory
+ * moved to the local services/fleetSites.ts (+ data/ecosystem-sites.json), and
+ * keywireCompliance() was deleted as an unused export (nothing rendered it).
+ * Nothing in OpenHub reads Keywire for either view now - the vault fallback lane
+ * is all that remains in this module.
+ *
+ * This module never invents a secret, never logs a value, and degrades honestly
+ * (`available: false` + an `error`) when every lane is down.
  */
 
-export type SecretSource = 'env' | 'keywire' | 'file' | null;
+export type SecretSource = 'env' | 'infisical' | 'keywire' | 'file' | null;
 
 export interface SecretResult {
   value: string | null;
@@ -35,6 +39,8 @@ export interface VaultResult<T = unknown> {
   status?: number;
   data?: T;
   error?: string;
+  /** Which lane answered (additive; the vault UI reports it). */
+  source?: 'infisical' | 'keywire';
 }
 
 const VAULT_TIMEOUT_MS = 6000;
@@ -67,6 +73,87 @@ export function keywireKeysFile(env: NodeJS.ProcessEnv = process.env): string {
 
 function keywireServiceTokenFile(env: NodeJS.ProcessEnv = process.env): string {
   return env.OPENHUB_KEYWIRE_TOKEN_FILE || path.join(os.homedir(), '.secrets', 'opencode', 'keywire-service-token');
+}
+
+// ---------------------------------------------------------------------------
+// Infisical lane (primary) — one shared client, one credential path
+// ---------------------------------------------------------------------------
+
+/** The fleet's Infisical lane client (same module sieve uses). */
+export function infisicalClientPath(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.OPENHUB_INFISICAL_CLIENT ||
+    env.INFISICAL_CLIENT ||
+    path.join('C:', 'Users', 'User', 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'infisical', 'infisical-client.mjs')
+  );
+}
+
+export function infisicalSecretPath(env: NodeJS.ProcessEnv = process.env): string {
+  return env.OPENHUB_INFISICAL_PATH || '/overlay365-fleet/prod';
+}
+
+export function infisicalEnvName(env: NodeJS.ProcessEnv = process.env): string {
+  return env.OPENHUB_INFISICAL_ENV || 'prod';
+}
+
+interface InfisicalLane {
+  resolve(name: string, opts?: { env?: string; secretPath?: string }): Promise<string | null>;
+  withAuth<T>(fn: (token: string) => Promise<T>): Promise<T>;
+  listSecrets(token: string, env: string, secretPath: string, recursive: boolean, values: boolean): Promise<{ status: number; body: unknown }>;
+}
+
+let infisicalLane: Promise<InfisicalLane | null> | null = null;
+/** When the lane fails (vault down, creds missing), skip it for this long so a
+ *  per-secret resolution loop never retries a dead lane hundreds of times. */
+let infisicalDownUntil = 0;
+const INFISICAL_RETRY_MS = 60_000;
+
+async function loadInfisical(env: NodeJS.ProcessEnv): Promise<InfisicalLane | null> {
+  if (env.OPENHUB_DISABLE_INFISICAL === '1') return null;
+  if (Date.now() < infisicalDownUntil) return null;
+  if (!infisicalLane) {
+    infisicalLane = import(pathToFileURL(infisicalClientPath(env)).href)
+      .then((mod) => mod as InfisicalLane)
+      .catch(() => null);
+  }
+  const lane = await infisicalLane;
+  if (!lane) infisicalDownUntil = Date.now() + INFISICAL_RETRY_MS;
+  return lane;
+}
+
+/** One secret value from Infisical. Never throws; null when unavailable. */
+export async function infisicalSecret(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  try {
+    const lane = await loadInfisical(env);
+    if (!lane) return null;
+    const value = await lane.resolve(name, { env: infisicalEnvName(env), secretPath: infisicalSecretPath(env) });
+    return present(value) ? value : null;
+  } catch {
+    infisicalDownUntil = Date.now() + INFISICAL_RETRY_MS;
+    return null;
+  }
+}
+
+/** Secret NAMES from Infisical (values never fetched). Never throws. */
+export async function infisicalSecretNames(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<VaultResult<string[]>> {
+  try {
+    const lane = await loadInfisical(env);
+    if (!lane) return { available: false, error: 'Infisical lane unavailable' };
+    const res = await lane.withAuth((token) =>
+      lane.listSecrets(token, infisicalEnvName(env), infisicalSecretPath(env), false, false),
+    );
+    if (res.status !== 200) return { available: false, status: res.status, error: `Infisical HTTP ${res.status}` };
+    const rows = (res.body as { secrets?: { secretKey?: string }[] }).secrets ?? [];
+    return { available: true, status: 200, data: rows.map((r) => String(r.secretKey)).sort() };
+  } catch {
+    infisicalDownUntil = Date.now() + INFISICAL_RETRY_MS;
+    return { available: false, error: 'Infisical lane unavailable' };
+  }
 }
 
 function present(value: string | null | undefined): value is string {
@@ -220,147 +307,15 @@ export async function keywireBearer(
   return { token: '', source: 'env', error: `no Keywire credential: set KEYWIRE_SERVICE_TOKEN or provide ${keywireKeysFile(env)}` };
 }
 
-// ---------------------------------------------------------------------------
-// Low-level vault calls
-// ---------------------------------------------------------------------------
 
-async function vaultRequest<T>(
-  method: 'GET' | 'POST',
-  apiPath: string,
-  env: NodeJS.ProcessEnv,
-  body?: unknown,
-  timeoutMs: number = VAULT_TIMEOUT_MS,
-): Promise<VaultResult<T>> {
-  const auth = await keywireBearer(env);
-  if (!auth.token) {
-    return { available: false, error: auth.error || 'Keywire credential unavailable' };
-  }
-  try {
-    const res = await fetch(`${keywireBaseUrl(env)}${apiPath}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const data = (await res.json().catch(() => null)) as T;
-    if (!res.ok) {
-      return { available: false, status: res.status, error: `Keywire HTTP ${res.status}` };
-    }
-    return { available: true, status: res.status, data };
-  } catch (err) {
-    return { available: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-export interface KeywireEntity {
-  legalName?: string;
-  type?: string;
-  state?: string;
-  formedAt?: string;
-  sosId?: string;
-  certification?: string;
-  businessReg?: string;
-  county?: string;
-  registeredAgent?: string;
-  member?: string;
-  ownership?: string;
-  einMasked?: string;
-  einNote?: string;
-  taxClassification?: string;
-  [key: string]: string | undefined;
-}
-
-export interface KeywireObligation {
-  id: string;
-  label: string;
-  agency?: string;
-  category?: string;
-  status: string;
-  state: string;
-  cadence?: string;
-  firstDue?: string;
-  recurringMonthDay?: string;
-  feeUsd?: number;
-  dueAt?: string;
-  daysUntilDue?: number;
-  trigger?: string;
-  note?: string;
-  risk?: string;
-  url?: string;
-  actionNeeded: boolean;
-}
-
-export interface KeywireComplianceView {
-  generatedAt: string;
-  registryUpdatedAt: string;
-  entity: KeywireEntity;
-  summary: {
-    total: number;
-    done: number;
-    inProgress: number;
-    pending: number;
-    conditional: number;
-    monitor: number;
-    scheduled: number;
-    dueSoon: number;
-    overdue: number;
-    actionNeeded: string[];
-  };
-  obligations: KeywireObligation[];
-  warnings: string[];
-  note?: string;
-}
-
-export interface KeywireSiteSummary {
-  total: number;
-  up: number;
-  degraded: number;
-  down: number;
-  unknown: number;
-  allUp: boolean;
-  criticalAttention: string[];
-}
-
-export interface KeywireSite {
-  id: string;
-  name: string;
-  tier?: string;
-  kind?: string;
-  publicUrl?: string;
-  domain?: string;
-  edge?: string;
-  repoPath?: string;
-  state?: string;
-  checks?: { total?: number; passed?: number; failed?: number };
-  failures?: unknown[];
-  slow?: boolean;
-}
-
-export interface KeywireSitesView {
-  generatedAt: string;
-  inventoryUpdatedAt: string;
-  summary: KeywireSiteSummary;
-  sites: KeywireSite[];
-}
-
-/** LLC entity + compliance clock (Keywire's read-only obligation view). */
-export function keywireCompliance(env: NodeJS.ProcessEnv = process.env): Promise<VaultResult<KeywireComplianceView>> {
-  return vaultRequest<KeywireComplianceView>('GET', '/api/v1/ecosystem/compliance', env);
-}
-
-/** Live status of every public property in the ecosystem inventory. The vault
- *  performs real HTTP checks here, so it gets a longer bound than other reads. */
-export function keywireSites(
-  env: NodeJS.ProcessEnv = process.env,
-  timeoutMs = 25_000,
-): Promise<VaultResult<KeywireSitesView>> {
-  return vaultRequest<KeywireSitesView>('GET', '/api/v1/ecosystem/sites', env, undefined, timeoutMs);
-}
-
-let cachedSecrets: { key: string; secrets: Record<string, string>; expiresAt: number } | null = null;
+/** Keywire's LLC compliance + site-inventory views � REMOVED 2026-10-15.
+ *
+ *  `keywireCompliance()` was an unused export (no OpenHub code rendered the
+ *  view) and was deleted rather than re-homed. The site inventory moved to the
+ *  local `services/fleetSites.ts` + `data/ecosystem-sites.json`, which removed
+ *  the last *used* non-vault coupling. This module now reads Keywire only for
+ *  the vault fallback lane.
+ */let cachedSecrets: { key: string; secrets: Record<string, string>; expiresAt: number } | null = null;
 
 /** Test seam: drop the cached secret map. */
 export function clearKeywireSecretCache(): void {
@@ -402,11 +357,14 @@ export async function keywireSecrets(
   }
 }
 
-/** Secret names only — the safe shape for presence checks and the UI. */
+/** Secret names only — the safe shape for presence checks and the UI.
+ *  Infisical FIRST (the primary lane), Keywire second (legacy fallback). */
 export async function keywireSecretNames(env: NodeJS.ProcessEnv = process.env): Promise<VaultResult<string[]>> {
+  const infisical = await infisicalSecretNames(env);
+  if (infisical.available && infisical.data?.length) return { ...infisical, source: 'infisical' };
   const result = await keywireSecrets(env);
   if (!result.available || !result.data) return { available: false, status: result.status, error: result.error };
-  return { available: true, status: result.status, data: Object.keys(result.data).sort() };
+  return { available: true, status: result.status, source: 'keywire', data: Object.keys(result.data).sort() };
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +386,7 @@ function emergencyFileValue(name: string, env: NodeJS.ProcessEnv): string | null
 
 /**
  * Zero-trust secret resolution, fleet credential gate order:
- * env -> Keywire vault -> emergency file -> explicit null.
+ * env -> Infisical (primary) -> Keywire (legacy) -> emergency file -> explicit null.
  * Never logs values and never substitutes a fake default.
  */
 export async function resolveSecret(
@@ -437,6 +395,9 @@ export async function resolveSecret(
 ): Promise<SecretResult> {
   const envValue = env[`OPENHUB_SECRET_${name}`] ?? env[name];
   if (present(envValue)) return { value: envValue, source: 'env' };
+
+  const infisicalValue = await infisicalSecret(name, env);
+  if (present(infisicalValue)) return { value: infisicalValue, source: 'infisical' };
 
   const vaultRes = await keywireSecrets(env);
   if (vaultRes.available && vaultRes.data) {

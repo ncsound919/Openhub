@@ -40,6 +40,7 @@ import fs from 'node:fs';
 import { executeAuditSuite, type ScorerName } from '../services/auditSuite.js';
 import { isAllowedRepoDir } from '../lib/reviewTarget.js';
 import { recordEpisode, skillStats } from '../services/selfLearning.js';
+import { listRegistry, summarizeRegistry } from '../services/ecosystemRegistry.js';
 
 function internalSecret(env: NodeJS.ProcessEnv = process.env): string {
   return (env.OPENHUB_INTERNAL_SECRET ?? '').trim();
@@ -85,6 +86,21 @@ function guard(req: express.Request, res: express.Response): boolean {
 
 export function createInternalAuditRouter(): express.Router {
   const router = express.Router();
+
+  /**
+   * GET /internal/ecosystem/registry/summary — the CURRENT fleet view, for
+   * machines. Added 2026-10-15 because the interactive registry routes are
+   * session-guarded (a cron loop / another service has no session, and the
+   * /api/ecosystem/registry* routes answer 403 to a Bearer call), and because
+   * Recourse's fleet dashboard was reading Keywire's `/ecosystem/summary`,
+   * which describes the PRE-Uplift fleet (its control-plane path no longer
+   * exists and its ports now belong to other services). Read-only.
+   */
+  router.get('/internal/ecosystem/registry/summary', (req, res) => {
+    if (!guard(req, res)) return;
+    const snapshot = listRegistry({ limit: 1 });
+    res.json({ ok: true, summary: summarizeRegistry(snapshot), totals: snapshot.totals, ranking: snapshot.ranking });
+  });
 
   /** Is the internal audit surface usable at all? Cheap liveness for callers. */
   router.get('/internal/audit', (req, res) => {

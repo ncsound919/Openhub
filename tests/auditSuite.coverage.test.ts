@@ -47,6 +47,23 @@ function tmpProject(files: Record<string, string>): string {
   return dir;
 }
 
+/**
+ * A fixture inside THIS repo (.e2e/ is gitignored) so `npx --no-install tsc`
+ * resolves this repo's node_modules and actually runs. An os.tmpdir() fixture
+ * cannot run tsc at all — which is why the unavailable tests use tmpProject and
+ * the "tsc ran and found errors" tests use this.
+ */
+function inRepoProject(files: Record<string, string>): string {
+  const dir = fs.mkdtempSync(path.join(process.cwd(), '.e2e', 'tc-'));
+  tmpDirs.push(dir);
+  for (const [rel, content] of Object.entries(files)) {
+    const full = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content, 'utf8');
+  }
+  return dir;
+}
+
 function okJson(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
@@ -625,6 +642,51 @@ describe('typecheck and lint across multiple projects', () => {
     expect(r.status).toBe('unavailable');
     expect(r.error).toContain('no tsconfig.json');
   }, 30_000);
+
+  // 2026-10-15: the runner exit code is not a verdict. `tsc --noEmit` exits 2
+  // when it REPORTS type errors, which is the run working — the old scorer
+  // classified every non-zero exit as "could not run" and dropped the whole
+  // dimension to `unavailable`, so this repo's self-audit passed at 83/B while
+  // `tsc --noEmit` exited 2 on a real TS2322. These three tests pin the three
+  // states apart: ran-and-found, ran-clean, could-not-run.
+  it('scores a project tsc actually ran on and found errors in', async () => {
+    const dir = inRepoProject({
+      'tsconfig.json': '{}',
+      'bad.ts': "const x: number = 'not a number';\n",
+    });
+    const r = await runTypecheckScorer(dir);
+    // NOT unavailable: the check executed and produced findings.
+    expect(r.status).not.toBe('unavailable');
+    expect(r.score).toBe(25);
+    expect(r.summary).toContain('does not compile');
+    expect((r.details as Record<string, unknown>).projectsRan).toBe(1);
+  }, 60_000);
+
+  it('scores 100 for a project tsc ran on cleanly', async () => {
+    const dir = inRepoProject({
+      'tsconfig.json': '{}',
+      'good.ts': 'export const answer: number = 42;\n',
+    });
+    const r = await runTypecheckScorer(dir);
+    expect(r.status).toBe('ok');
+    expect(r.score).toBe(100);
+    expect(r.summary).toContain('no type errors');
+  }, 60_000);
+
+  it('still reports unavailable when tsc cannot run at all', async () => {
+    // A project whose ancestry contains no node_modules/typescript. os.tmpdir()
+    // (%LOCALAPPDATA%\Temp) does NOT qualify on this host: C:\Users\User\
+    // node_modules\typescript resolves from there, so tsc genuinely runs and a
+    // clean file reads clean. C:\Windows\Temp's ancestry has nothing.
+    const base = 'C:\\Windows\\Temp';
+    const dir = fs.mkdtempSync(path.join(base, 'tp-tc-none-'));
+    tmpDirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+    fs.writeFileSync(path.join(dir, 'main.ts'), 'export const x = 1;\n');
+    const r = await runTypecheckScorer(dir);
+    expect(r.status).toBe('unavailable');
+    expect(r.error).toContain('tsc is not installed');
+  }, 60_000);
 
   it('lint finds a config in a subdirectory instead of reporting none detected', async () => {
     const dir = tmpProject({ 'webui/eslint.config.js': 'export default [];' });

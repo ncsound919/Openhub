@@ -8,6 +8,26 @@ import * as auditModule from '../src/services/auditSuite';
 
 type ToolCallResult = { content: Array<{ type: string; text: string }> };
 
+/** The shape openhub_jarvis_status returns, narrowed to what the tests assert on. */
+interface JarvisStatus {
+  declared: boolean;
+  probed: boolean;
+  skipReason?: string;
+  status?: 'online' | 'offline' | 'degraded';
+  latencyMs?: number;
+  reason?: string | null;
+  receiptId?: string | null;
+  endpoint?: string | null;
+  statement: {
+    slug: string;
+    transport: string;
+    command: string | null;
+    operations: Array<{ id: string }>;
+  };
+  registry: (Record<string, unknown> & { id: string; port?: number | null }) | null;
+  auditTarget: { dir: string | null; exists: boolean };
+}
+
 describe('openhub-mcp', () => {
   it('advertises protocol + server info', async () => {
     const res = await handleRequest({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
@@ -69,6 +89,123 @@ describe('openhub-mcp', () => {
     });
     expect(res.error?.message).toContain('unknown tool');
   });
+});
+
+// The Jarvis lane. It is the one entry whose liveness cannot be read off a
+// port, so it gets its own tool and its own tests — including the negative
+// controls that show the tool says "not reachable" instead of inventing one.
+describe('openhub_jarvis_status', () => {
+  const JARVIS = 'openhub_jarvis_status';
+  const call = (arguments_: Record<string, unknown> = {}) =>
+    handleRequest({ jsonrpc: '2.0', id: 60, method: 'tools/call', params: { name: JARVIS, arguments: arguments_ } });
+
+  it('is advertised in tools/list', async () => {
+    const res = await handleRequest({ jsonrpc: '2.0', id: 61, method: 'tools/list', params: {} });
+    const names = (res.result as { tools: Array<{ name: string }> }).tools.map((t) => t.name);
+    expect(names).toContain(JARVIS);
+  });
+
+  // handleRequest does not validate arguments against inputSchema — the schema
+  // is declaration for the host, not a server-side gate. That is deliberate:
+  // `_timeoutMs` is an extra field every tool tolerates and strips. So the
+  // contract worth pinning here is that an unrecognised argument is ignored
+  // rather than mistaken for a real one.
+  it('ignores an unrecognised argument instead of treating it as input', async () => {
+    const withExtra = await call({ skip_probe: true, nope: true });
+    const without = await call({ skip_probe: true });
+    expect(withExtra.error).toBeUndefined();
+    expect((withExtra.result as ToolCallResult).content[0].text)
+      .toBe((without.result as ToolCallResult).content[0].text);
+  });
+
+  it('reports the declaration, the registry entry and the audit target without probing', async () => {
+    const res = await call({ skip_probe: true });
+    expect(res.error).toBeUndefined();
+    const body = JSON.parse((res.result as ToolCallResult).content[0].text) as JarvisStatus;
+    expect(body.declared).toBe(true);
+    expect(body.probed).toBe(false);
+    expect(body.statement.slug).toBe('jarvis');
+    expect(body.statement.transport).toBe('cli');
+    expect(body.statement.command).toMatch(/python\.exe$/);
+    expect(body.statement.operations.map((o) => o.id)).toContain('tool.openhub');
+    expect(body.registry).not.toBeNull();
+    // Narrow once, explicitly, rather than with a non-null assertion that would
+    // pass just as happily if the null guard above stopped working.
+    const registry = body.registry;
+    expect(registry).not.toBeNull();
+    if (!registry) throw new Error('registry entry for jarvis is missing');
+    expect(registry.id).toBe('jarvis');
+    // The port trap: a registry entry whose port answered for Docker would have
+    // made this lane look online. There is no port, so there is no such URL.
+    expect(registry.port).toBeUndefined();
+    expect(body.auditTarget.dir).toBe('C:/Users/User/AppData/Local/OpenJarvis/src');
+    expect(typeof body.auditTarget.exists).toBe('boolean');
+  });
+
+  it('runs a live probe whose outcome is one of the three real states', async () => {
+    const res = await call();
+    expect(res.error).toBeUndefined();
+    const body = JSON.parse((res.result as ToolCallResult).content[0].text) as JarvisStatus;
+    expect(body.declared).toBe(true);
+    expect(body.probed).toBe(true);
+    expect(['online', 'offline', 'degraded']).toContain(body.status);
+    expect(typeof body.latencyMs).toBe('number');
+    // Every probe is receipted; an unreachable bridge still emits evidence.
+    expect(body.receiptId).toBeTruthy();
+  }, 60_000);
+
+  it('reports offline with a reason when the interpreter does not exist', async () => {
+    // The negative control. Point the bridge at a path that cannot run and the
+    // tool must say so — a fabricated "online" here is the whole failure mode
+    // this entry exists to prevent.
+    const prev = process.env.OPENHUB_JARVIS_PYTHON;
+    process.env.OPENHUB_JARVIS_PYTHON = 'C:/definitely/not/python.exe';
+    try {
+      vi.resetModules();
+      const mcp = await import('../openhub-mcp');
+      const res = await mcp.handleRequest({
+        jsonrpc: '2.0', id: 62, method: 'tools/call', params: { name: JARVIS, arguments: {} },
+      });
+      const body = JSON.parse((res.result as { content: Array<{ text: string }> }).content[0].text) as JarvisStatus;
+      expect(body.status).toBe('offline');
+      expect(body.reason).toBeTruthy();
+    } finally {
+      vi.resetModules();
+      if (prev === undefined) delete process.env.OPENHUB_JARVIS_PYTHON;
+      else process.env.OPENHUB_JARVIS_PYTHON = prev;
+      await import('../openhub-mcp');
+    }
+  }, 60_000);
+
+  it('names a conflict between the live probe and the persisted overlay', async () => {
+    // The overlay is whatever the last refresh wrote, so on a host where Jarvis
+    // was once reachable it can still read "online" after the interpreter is
+    // gone. Returning both numbers without relating them is how a stale green
+    // gets read as a current one.
+    const prev = process.env.OPENHUB_JARVIS_PYTHON;
+    process.env.OPENHUB_JARVIS_PYTHON = 'C:/definitely/not/python.exe';
+    try {
+      vi.resetModules();
+      const mcp = await import('../openhub-mcp');
+      const res = await mcp.handleRequest({
+        jsonrpc: '2.0', id: 63, method: 'tools/call', params: { name: JARVIS, arguments: {} },
+      });
+      const body = JSON.parse((res.result as { content: Array<{ text: string }> }).content[0].text) as JarvisStatus & {
+        disagreement: { live: string; persisted: string; note: string } | null;
+      };
+      expect(body.status).toBe('offline');
+      if (body.disagreement) {
+        expect(body.disagreement.live).toBe('offline');
+        expect(body.disagreement.persisted).not.toBe('offline');
+        expect(body.disagreement.note).toMatch(/refresh|re-probe/i);
+      }
+    } finally {
+      vi.resetModules();
+      if (prev === undefined) delete process.env.OPENHUB_JARVIS_PYTHON;
+      else process.env.OPENHUB_JARVIS_PYTHON = prev;
+      await import('../openhub-mcp');
+    }
+  }, 60_000);
 });
 
 describe('tool deadlines', () => {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
 import {
   MANAGED_SERVICES,
   isPortListening,
@@ -10,8 +11,12 @@ import {
 
 describe('serviceManager', () => {
   it('defines the audit-suite services; retired tools are absent', () => {
-    expect(MANAGED_SERVICES.axiom).toBeDefined();
-    expect(MANAGED_SERVICES.axiom.port).toBe(3198);
+    // Axiom was removed 2026-10-15: its only checkout was archived to
+    // BUSINESS/_archive/from-uplift/06_Resources/Axiom Agent and can no longer
+    // start. A catalog entry that can only answer "Directory not found" is a
+    // lie the Fleet UI keeps telling; its capability-bridge row still probes
+    // :3198 and honestly reports offline.
+    expect(MANAGED_SERVICES.axiom).toBeUndefined();
 
     expect(MANAGED_SERVICES.grader).toBeDefined();
     expect(MANAGED_SERVICES.grader.port).toBe(3201);
@@ -31,6 +36,16 @@ describe('serviceManager', () => {
     expect(MANAGED_SERVICES.draymond).toBeUndefined();
     expect(MANAGED_SERVICES.mutly).toBeUndefined();
     expect(MANAGED_SERVICES['vibe-reality']).toBeUndefined();
+  });
+
+  // 2026-10-15: three catalog cwds pointed at directories the 2026-09 dedupe
+  // had deleted, so they could never start. Every managed cwd must exist on
+  // disk — this is the test that would have caught the rot before the audit.
+  it('points every managed service at a directory that exists', () => {
+    const missing = Object.entries(MANAGED_SERVICES)
+      .filter(([, cfg]) => !fs.existsSync(cfg.cwd))
+      .map(([slug, cfg]) => `${slug}: ${cfg.cwd}`);
+    expect(missing).toEqual([]);
   });
 
   it('reports a free high port as not listening', async () => {
@@ -73,11 +88,11 @@ describe('serviceManager', () => {
   });
 
   it('retrieves formatted status for a registered service', async () => {
-    const status = await getServiceStatus('axiom');
+    const status = await getServiceStatus('deterministic-brain');
     expect(status).not.toBeNull();
     if (status) {
-      expect(status.slug).toBe('axiom');
-      expect(status.port).toBe(3198);
+      expect(status.slug).toBe('deterministic-brain');
+      expect(status.port).toBe(3210);
       expect(status.category).toBe('core');
       expect(typeof status.up).toBe('boolean');
       // PID is not resolved on the status path (deferred to the stop path).

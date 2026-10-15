@@ -1,4 +1,4 @@
-import { keywireSecretNames, keywireProject } from './keywire.js';
+import { keywireSecretNames, keywireProject, type VaultResult } from './keywire.js';
 import { probeVaultGitHubCredentials, type VaultCredentialHealth } from './githubVaultAuth.js';
 import { OPENCODE_BASE, basicAuthHeader } from './opencodeEngine.js';
 
@@ -26,7 +26,7 @@ export interface ProviderHealth {
 export interface ProviderHealthReport {
   ok: boolean;
   checkedAt: string;
-  vault: { reachable: boolean; secretCount: number | null; project: string };
+  vault: { reachable: boolean; secretCount: number | null; project: string; source?: string };
   providers: ProviderHealth[];
   githubCredentials: VaultCredentialHealth[];
 }
@@ -72,7 +72,7 @@ export async function probeProviderHealth(
   const checkedAt = new Date().toISOString();
 
   const [names, credentials] = await Promise.all([
-    deps.secretNames(env).catch((): { available: boolean; data?: string[]; error?: string } => ({ available: false, error: 'Keywire unreachable' })),
+    deps.secretNames(env).catch(((): VaultResult<string[]> => ({ available: false, error: 'vault unreachable' }))),
     deps.probeGitHub(env).catch(() => [] as VaultCredentialHealth[]),
   ]);
 
@@ -81,6 +81,7 @@ export async function probeProviderHealth(
     reachable: names.available === true,
     secretCount,
     project: keywireProject(env),
+    source: names.source ?? 'unknown',
   };
 
   const validGithub = credentials.filter((c) => c.valid);
@@ -100,13 +101,19 @@ export async function probeProviderHealth(
 
   const keywire: ProviderHealth = {
     id: 'keywire',
-    name: 'Keywire Vault',
+    name: 'Keywire Vault (legacy lane)',
     category: 'security',
     configured: true,
-    up: vault.reachable,
-    detail: vault.reachable ? `${secretCount ?? 0} secrets · ${vault.project}` : 'unreachable',
-    requires: 'KEYWIRE_KEYS_FILE',
+    up: vault.reachable && vault.source === 'keywire',
+    detail: !vault.reachable
+      ? 'unreachable'
+      : vault.source === 'keywire'
+        ? `${secretCount ?? 0} secrets · ${vault.project}`
+        : 'legacy lane idle — Infisical answered',
+    requires: 'KEYWIRE_SERVICE_TOKEN',
   };
+
+  const infisicalUrl = env.OPENHUB_INFISICAL_URL || env.INFISICAL_URL || 'http://localhost:8081';
 
   const axiomUrl = env.OPENHUB_AXIOM_URL || env.AXIOM_URL || 'http://127.0.0.1:3198';
   const opencodeUrl = env.OPENCODE_BASE_URL || OPENCODE_BASE;
@@ -114,12 +121,13 @@ export async function probeProviderHealth(
   const llmUrl = env.OPENHUB_LLM_BASE_URL || 'http://127.0.0.1:4100';
   const browserUrl = env.OPENHUB_AGENTBROWSER_URL || 'http://127.0.0.1:3700';
 
-  const [axiom, opencode, recourse, llm, browser] = await Promise.all([
+  const [axiom, opencode, recourse, llm, browser, infisical] = await Promise.all([
     probeHttp(axiomUrl, '/api/health', deps),
     probeHttp(opencodeUrl, '/global/health', deps, { Authorization: basicAuthHeader() }),
     probeHttp(recourseUrl, '/api/recourse/status', deps),
     probeHttp(llmUrl, '/health/liveliness', deps),
     probeHttp(browserUrl, '/api/system/health', deps),
+    probeHttp(infisicalUrl, '/api/status', deps),
   ]);
 
   const httpProvider = (
@@ -141,6 +149,7 @@ export async function probeProviderHealth(
     providers: [
       github,
       keywire,
+      httpProvider('infisical', 'Infisical Vault (primary)', 'security', infisical, infisicalUrl, 'MACH1 credentials (.secrets/mach1.env)'),
       httpProvider('axiom', 'Axiom Harness', 'core', axiom, axiomUrl),
       httpProvider('opencode', 'opencode Engine', 'core', opencode, opencodeUrl),
       httpProvider('recourse', 'Recourse', 'memory', recourse, recourseUrl),

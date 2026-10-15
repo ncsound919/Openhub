@@ -30,12 +30,16 @@ import {
   refreshRegistry,
   auditRegistry,
   summarizeRegistry,
-  SEED_ENTITIES,
   resolveAuditDir,
+  directoryExists,
+  SEED_ENTITIES,
   type EntityKind,
   type HealthStatus,
+  type RegistryEntry,
   type RegistryQuery,
 } from "./src/services/ecosystemRegistry.js";
+import { getBridgeStatement, type BridgeCapabilityStatement } from "./src/services/capabilityRegistry.js";
+import { probeBridge } from "./src/services/capabilityProbe.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "openhub-audit";
@@ -250,6 +254,21 @@ export const TOOLS: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "openhub_jarvis_status",
+    description:
+      "The Jarvis (OpenJarvis) lane, end to end in one call: the declared capability statement, a LIVE probe of it, its ecosystem registry entry, and whether its local audit target is actually on disk. Probed over its venv interpreter rather than an HTTP port, because Jarvis's configured server port is held by another service on this host — an HTTP probe would answer 200 for the wrong process. Reports `probed: false` with a reason when it cannot be reached, never a fabricated online.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        skip_probe: {
+          type: "boolean",
+          description: "Return only the declared statement and registry entry, without running the live probe (which costs ~0.3s).",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 function configured(name: string): boolean {
@@ -264,6 +283,60 @@ function serviceStatus(): Record<string, unknown> {
     sonarqube: { configured: configured("SONAR_URL") && configured("SONAR_TOKEN"), url: process.env.SONAR_URL || "not configured" },
     pr_agent: { configured: configured("PR_AGENT_CMD"), command: process.env.PR_AGENT_CMD || null },
     reviewdog: { configured: configured("REVIEWDOG_CMD"), command: process.env.REVIEWDOG_CMD || null },
+  };
+}
+
+/**
+ * The Jarvis bridge slug, in one place. Both the capability registry and the
+ * ecosystem registry key off this same id, which is what lets
+ * `openhub_jarvis_status` join the declaration, the probe and the registry entry
+ * without a name-matching guess.
+ */
+const JARVIS_BRIDGE_SLUG = "jarvis";
+
+/** The declared capability statement, projected to plain JSON for the wire. */
+function statementToJson(statement: BridgeCapabilityStatement): Record<string, unknown> {
+  return {
+    slug: statement.identity.slug,
+    name: statement.identity.name,
+    category: statement.identity.category,
+    transport: statement.identity.transport,
+    command: statement.identity.cliCommand ?? null,
+    liveness: {
+      type: statement.liveness.type,
+      args: statement.liveness.args ?? null,
+      path: statement.liveness.path ?? null,
+      timeoutMs: statement.liveness.timeoutMs ?? null,
+    },
+    operations: statement.operations.map((o) => ({ id: o.id, name: o.name, kind: o.kind, description: o.description })),
+    documentation: statement.documentation ?? null,
+  };
+}
+
+/**
+ * The registry entry for a bridge. `null` is a distinct answer from "offline":
+ * an entity absent from the registry has no measured deployability at all,
+ * rather than a zero that would read as a bad score.
+ */
+function registryEntryToJson(entry: RegistryEntry | undefined): Record<string, unknown> | null {
+  if (!entry) return null;
+  return {
+    id: entry.id,
+    name: entry.name,
+    kind: entry.kind,
+    pillar: entry.pillar,
+    stack: entry.stack,
+    purpose: entry.purpose,
+    repo: entry.repo,
+    auditScore: entry.auditScore,
+    auditGrade: entry.auditGrade,
+    auditSource: entry.auditSource,
+    deployability: entry.deployability,
+    health: entry.health,
+    healthDetail: entry.healthDetail,
+    healthCheckedAt: entry.healthCheckedAt,
+    blockers: entry.blockers,
+    evidence: entry.evidence,
   };
 }
 
@@ -703,6 +776,77 @@ async function dispatchTool(name: string, args: Record<string, unknown>): Promis
         audited: result.audited,
         skipped: result.skipped,
         ranking: result.snapshot.ranking,
+      };
+    }
+
+    case "openhub_jarvis_status": {
+      // The Jarvis lane is the one entry a caller cannot get from a GitHub API
+      // or an HTTP port, so it gets its own tool rather than being inferred from
+      // the ecosystem list. Every part of the reply is either a declaration read
+      // off disk or the result of a probe that actually ran.
+      const statement = getBridgeStatement(JARVIS_BRIDGE_SLUG);
+      const snapshot = listRegistry({ search: "jarvis", limit: 10 });
+      const entry = snapshot.entries.find((e) => e.id === JARVIS_BRIDGE_SLUG);
+
+      const auditDir = entry ? resolveAuditDir(entry) : null;
+      const auditTarget = auditDir
+        ? { dir: auditDir, exists: directoryExists(auditDir), auditRepo: entry?.auditRepo ?? null }
+        : { dir: null, exists: false, auditRepo: entry?.auditRepo ?? null, reason: "no auditDir configured" };
+
+      if (!statement) {
+        // A declared-but-missing bridge would otherwise read identically to an
+        // unreachable one. Keeping them distinct is what makes the registry
+        // entry's `health: unknown` honest.
+        return {
+          declared: false,
+          error: `bridge "${JARVIS_BRIDGE_SLUG}" is not declared in FLEET_BRIDGES`,
+          registry: entry ? { id: entry.id, name: entry.name, health: entry.health, deployability: entry.deployability } : null,
+          auditTarget,
+        };
+      }
+
+      if (args.skip_probe === true) {
+        return {
+          declared: true,
+          probed: false,
+          skipReason: "skip_probe was set",
+          statement: statementToJson(statement),
+          registry: registryEntryToJson(entry),
+          auditTarget,
+        };
+      }
+
+      const probe = await probeBridge(statement);
+      const registryJson = registryEntryToJson(entry);
+      // The persisted overlay says what the LAST refresh saw; the probe says
+      // what is true now. Reporting both without relating them invites a reader
+      // to take the stale `health: 'online'` as current, so name the conflict
+      // rather than leaving the two timestamps to be compared by eye.
+      const persistedHealth = typeof registryJson?.health === "string" ? registryJson.health : null;
+      const disagreement =
+        persistedHealth && persistedHealth !== probe.status && probe.status !== "degraded"
+          ? {
+              live: probe.status,
+              persisted: persistedHealth,
+              persistedAt: registryJson?.healthCheckedAt ?? null,
+              note:
+                "The persisted overlay is from an earlier probe. Either run openhub_ecosystem_refresh to update it, or re-run this tool to re-probe now.",
+            }
+          : null;
+      return {
+        declared: true,
+        probed: true,
+        probedAt: probe.lastChecked,
+        status: probe.status,
+        latencyMs: probe.latencyMs,
+        version: probe.version ?? null,
+        reason: probe.reason ?? null,
+        endpoint: probe.endpoint ?? null,
+        receiptId: probe.lastReceiptId ?? null,
+        disagreement,
+        operations: probe.operations,
+        registry: registryJson,
+        auditTarget,
       };
     }
 

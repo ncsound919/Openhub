@@ -1926,6 +1926,43 @@ export function discoverProjects(
   return out;
 }
 
+/**
+ * Can this project dir actually run tsc? `npx --no-install tsc` exits 0 with
+ * NO output when typescript is not resolvable from the project (measured
+ * 2026-10-15 from an os.tmpdir() fixture), and tsc's legitimate success signal
+ * is also exit 0 with no output — so exit codes alone cannot tell "ran clean"
+ * from "never ran". Resolve typescript the way Node does (walking node_modules
+ * upward) and only spawn when it is really there.
+ */
+function hasTypeScript(projectDir: string): boolean {
+  let dir = path.resolve(projectDir);
+  for (let i = 0; i < 20; i++) {
+    const candidate = path.join(dir, 'node_modules', 'typescript', 'package.json');
+    if (fs.existsSync(candidate)) return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
+}
+
+/**
+ * Did a typecheck project actually produce a result? A non-zero exit is NOT a
+ * failed run: `tsc --noEmit` exits 2 precisely when it reports type errors,
+ * which is the run working. Only "non-zero exit, or empty output with no
+ * resolvable tsc" means the check never executed (missing runner, crash
+ * before output). The distinction is load-bearing — see the `ran.every` guard
+ * in runTypecheckScorer.
+ */
+function typecheckDidNotRun(run: { ok: boolean; timedOut: boolean; output: string }, parsed: number, ran: boolean): boolean {
+  if (run.ok && parsed === 0 && !ran) return true; // silent npx no-op: tsc is not resolvable
+  if (parsed > 0) return false;
+  return !run.ok;
+}
+
+/** Output shapes that mean "the runner never started" rather than "it reported". */
+const RUNNER_MISSING_RE = /not recognized|ENOENT|Cannot find module 'typescript'|command not found|No module named|Cannot find module/i;
+
 export async function runTypecheckScorer(
   targetDir?: string,
   opts: { includeFiles?: Set<string>; gitIgnore?: GitIgnoreMatcher } = {},
@@ -1944,21 +1981,24 @@ export async function runTypecheckScorer(
     return honest('typecheck', 'no tsconfig.json, mypy.ini or pyrightconfig.json detected');
   }
 
-  const ran: Array<{ project: string; runner: string; errors: number; timedOut: boolean; ok: boolean }> = [];
+  const ran: Array<{ project: string; runner: string; errors: number; timedOut: boolean; ok: boolean; didNotRun: boolean }> = [];
   const allFindings: Finding[] = [];
   const scopedElsewhere: number[] = [];
   const outputs: string[] = [];
 
   for (const p of tsProjects) {
-    const run = await runLocalCommand('npx', ['--no-install', 'tsc', '--noEmit', '--pretty', 'false'], p.dir, TYPECHECK_TIMEOUT_MS);
+    const runnable = hasTypeScript(p.dir);
+    const run = runnable
+      ? await runLocalCommand('npx', ['--no-install', 'tsc', '--noEmit', '--pretty', 'false'], p.dir, TYPECHECK_TIMEOUT_MS)
+      : { ok: false, timedOut: false, output: '', code: null };
     // Paths are rebased to the REPO root, not the project dir, so a merged
     // finding is locatable in the file map the rest of the audit builds.
     const all = parseTscOutput(run.output, p.dir).map((f) => rebaseFinding(f, p.dir, targetDir));
     const kept = scopeFindings(all, opts.includeFiles);
     if (all.length > kept.length) scopedElsewhere.push(all.length - kept.length);
     allFindings.push(...kept);
-    outputs.push(run.output);
-    ran.push({ project: p.rel || '.', runner: 'tsc', errors: all.length, timedOut: run.timedOut, ok: run.ok });
+    outputs.push(run.output || (runnable ? '' : 'tsc is not installed (no node_modules/typescript resolves from the project dir)'));
+    ran.push({ project: p.rel || '.', runner: 'tsc', errors: all.length, timedOut: run.timedOut, ok: run.ok, didNotRun: typecheckDidNotRun(run, all.length, runnable) });
   }
 
   for (const p of pyOnly) {
@@ -1968,14 +2008,21 @@ export async function runTypecheckScorer(
     if (all.length > kept.length) scopedElsewhere.push(all.length - kept.length);
     allFindings.push(...kept);
     outputs.push(run.output);
-    ran.push({ project: p.rel || '.', runner: 'mypy', errors: all.length, timedOut: run.timedOut, ok: run.ok });
+    ran.push({ project: p.rel || '.', runner: 'mypy', errors: all.length, timedOut: run.timedOut, ok: run.ok, didNotRun: typecheckDidNotRun(run, all.length, true) });
   }
 
   const totalErrors = allFindings.length + scopedElsewhere.reduce((a, b) => a + b, 0);
   const projectCount = tsProjects.length + pyOnly.length;
   const projectNote = projectCount === 1 ? '' : ` across ${projectCount} projects`;
   const timedOutProjects = ran.filter((r) => r.timedOut).map((r) => r.project);
-  const failedProjects = ran.filter((r) => !r.ok && !r.timedOut).map((r) => r.project);
+  // "Did not run" and "ran and found errors" are different states, and only the
+  // first is `unavailable`. tsc exits 2 when it REPORTS type errors — a
+  // non-zero exit is its success signal, not a failure. Treating exit != 0 as
+  // "could not run" made a red compiler report `unavailable` and drop out of
+  // the score entirely: measured 2026-10-15, this repo's own self-audit
+  // reported pass/83/B while `tsc --noEmit` exited 2 on a real TS2322.
+  const didNotRunProjects = ran.filter((r) => r.didNotRun).map((r) => r.project);
+  const incompleteProjects = [...new Set([...timedOutProjects, ...didNotRunProjects])];
 
   const details = {
     runner: tsProjects.length > 0 ? 'tsc' : 'mypy',
@@ -1986,17 +2033,15 @@ export async function runTypecheckScorer(
     projects: ran,
   };
 
-  // A project that timed out or could not run did not typecheck. If that was
-  // every project, this is `unavailable`, not a clean 100: reporting "no type
-  // errors" for a run that never executed is the exact overclaim this scorer
-  // exists to avoid.
-  if (ran.every((r) => !r.ok)) {
-    const missing = /not recognized|ENOENT|Cannot find module 'typescript'|command not found|No module named/i.test(outputs.join('\n'));
+  // Unavailable only when every project either timed out or produced no
+  // parseable output at all. A project that ran and found errors is scored.
+  if (ran.every((r) => r.timedOut || r.didNotRun)) {
+    const missing = RUNNER_MISSING_RE.test(outputs.join('\n'));
     const reason = timedOutProjects.length === projectCount
       ? `typecheck timed out after ${TYPECHECK_TIMEOUT_MS}ms in ${timedOutProjects.join(', ')}`
       : missing
-        ? `${tsProjects.length > 0 ? 'tsc' : 'mypy'} is not installed in ${failedProjects.join(', ') || 'this project'}`
-        : outputTail(outputs.join('\n')) || `${failedProjects.join(', ') || 'the typechecker'} produced no parseable output`;
+        ? `${tsProjects.length > 0 ? 'tsc' : 'mypy'} is not installed in ${didNotRunProjects.join(', ') || 'this project'}`
+        : outputTail(outputs.join('\n')) || `${didNotRunProjects.join(', ') || 'the typechecker'} produced no parseable output`;
     return honest('typecheck', reason, '', details);
   }
 
@@ -2005,26 +2050,32 @@ export async function runTypecheckScorer(
     : '';
 
   if (allFindings.length > 0) {
-    const score = Math.max(0, 100 - Math.min(80, allFindings.length * 2));
+    // A compile error is not a cosmetic penalty: one error and one hundred
+    // errors both mean "this does not build", and a curve that scores one
+    // error at 98 is the same overclaim in smaller type. The count lives in
+    // the summary and in the findings; the score's job is the gate.
     return attach(
-      { scorer: 'typecheck', score, summary: `${details.runner}: ${allFindings.length} type error${allFindings.length === 1 ? '' : 's'}${projectNote}${scoped}`, details },
+      { scorer: 'typecheck', score: 25, summary: `${details.runner}: ${allFindings.length} type error${allFindings.length === 1 ? '' : 's'}${projectNote} — project does not compile${scoped}`, details },
       { findings: allFindings, dimensions: ['build_ci', 'correctness'], analyzers: [details.runner] },
     );
   }
   if (totalErrors > 0 && opts.includeFiles) {
+    // Diff-scoped and clean in scope — but the tree still does not compile
+    // elsewhere. `partial` marks the dimension as not fully examined, so a
+    // 100 here can never be read as "the repo typechecks".
     return attach(
-      { scorer: 'typecheck', score: 100, summary: `${details.runner}: no type errors in changed files (${totalErrors} elsewhere)`, details },
-      { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: [details.runner] },
+      { scorer: 'typecheck', score: 100, status: 'partial', summary: `${details.runner}: no type errors in changed files (${totalErrors} elsewhere — tree does not compile)`, details },
+      { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: [details.runner], status: 'partial' },
     );
   }
   // Some projects ran and some did not: a partial result is `partial`, and the
   // summary names which, so 100 is not read as "the whole repo typechecks".
-  const status: ScorerResult['status'] = failedProjects.length || timedOutProjects.length ? 'partial' : 'ok';
+  const status: ScorerResult['status'] = incompleteProjects.length ? 'partial' : 'ok';
   const caveat = status === 'partial'
-    ? ` — ${[...failedProjects, ...timedOutProjects].join(', ')} did not complete`
+    ? ` — ${incompleteProjects.join(', ')} did not complete`
     : '';
   return attach(
-    { scorer: 'typecheck', score: 100, summary: `${details.runner} --noEmit: no type errors in ${ran.length} of ${projectCount} project${projectCount === 1 ? '' : 's'}${caveat}`, details, status },
+    { scorer: 'typecheck', score: 100, summary: `${details.runner} --noEmit: no type errors in ${ran.length - incompleteProjects.length} of ${projectCount} project${projectCount === 1 ? '' : 's'}${caveat}`, details, status },
     { findings: [], dimensions: ['build_ci', 'correctness'], analyzers: [details.runner], status },
   );
 }
@@ -2251,9 +2302,13 @@ export async function runLintScorer(
     );
   }
   if (totalProblems > 0 && opts.includeFiles) {
+    // Diff-scoped and clean in scope, but the tree has real problems
+    // elsewhere (measured on this repo, 2026-10-15: 100 over 714). `partial`
+    // marks the dimension as not fully examined so the 100 reads as "no NEW
+    // problems", never as "this repo is clean".
     return attach(
-      { scorer: 'lint', score: 100, summary: `${runner}: no problems in changed files (${totalProblems} elsewhere)`, details },
-      { findings: [], dimensions: ['maintainability'], analyzers: [runner] },
+      { scorer: 'lint', score: 100, status: 'partial', summary: `${runner}: no problems in changed files (${totalProblems} elsewhere — tree not clean)`, details },
+      { findings: [], dimensions: ['maintainability'], analyzers: [runner], status: 'partial' },
     );
   }
   const status: ScorerResult['status'] = failedProjects.length || timedOutProjects.length || unparsed.length ? 'partial' : 'ok';

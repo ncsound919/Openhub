@@ -32,7 +32,15 @@ export interface Episode {
   targetDir?: string;
   action?: string;
   skills?: string[];
-  outcome: EpisodeOutcome;
+  /**
+   * A stored episode's outcome is whatever string the caller wrote — the
+   * machine-to-machine route documents "the enum stays the caller's
+   * responsibility", and `readEpisodes` validates only `typeof === 'string'`.
+   * `EpisodeOutcome` stays the set the skill fold counts; anything outside it
+   * is stored but not counted. Widened 2026-10-15 so the honest route
+   * compiles instead of being cast into shape at the call site.
+   */
+  outcome: EpisodeOutcome | (string & {});
   signals?: Record<string, unknown>;
   systems?: string[];
 }
@@ -72,7 +80,19 @@ export interface SelfLearningState {
 
 export interface EpisodeInput {
   kind: string;
-  outcome: EpisodeOutcome;
+  /**
+   * Widened from EpisodeOutcome on 2026-10-15. The internal M2M route
+   * (POST /internal/selflearn/outcome) is machine-to-machine: its documented
+   * contract is "string kind + outcome required; an outcome outside
+   * EpisodeOutcome is stored but the skill fold does not count it — the enum
+   * stays the caller's responsibility". `recordEpisode` has always validated
+   * only that outcome is a non-empty string (line 157) and stored whatever it
+   * got; the narrow type made the honest route a compile error while the
+   * tolerant runtime was never the problem. Widening the input type matches
+   * the documented contract instead of casting at the call site, so a future
+   * caller cannot reintroduce the lie that only enums are storable.
+   */
+  outcome: EpisodeOutcome | (string & {});
   goal?: string;
   targetDir?: string;
   action?: string;

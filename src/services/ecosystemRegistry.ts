@@ -105,6 +105,14 @@ export interface RegistrySnapshot {
     byKind: Record<string, number>;
     byHealth: Record<string, number>;
     averageDeployability: number;
+    /**
+     * Newest `healthCheckedAt` across the entries, or null when nothing has
+     * ever been probed. Health is a snapshot, not a property — without this a
+     * persisted overlay read as current (measured 2026-10-15: the registry
+     * said 4 online while only one port was actually listening). The summary
+     * line prints it so no reader can take the counts as live.
+     */
+    healthAsOf: string | null;
   };
   entries: RegistryEntry[];
   ranking: Array<{ rank: number; id: string; name: string; auditScore: number; deployability: number }>;
@@ -145,17 +153,37 @@ export function gradeFor(score: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Seed catalog. Scores are grounded in the reports cited in `evidence`:
-//   reports/2026-08-16-agentops-readiness-matrix.md   (live/buildable/demoable)
-//   reports/2026-08-25-ecosystem-output-grading.md    (component PASS/INFO/DOWN)
-//   reports/2026-08-25-full-ecosystem-audit.md        (VC / wiring / health)
-//   reports/ecosystem-work-audit.md                   (per-repo commit state)
+// Seed catalog. The audit sources below were recorded when the fleet lived
+// under Uplift/. Measured 2026-10-15: NONE of these cited artifacts exist
+// anywhere on this host — the tree moved in the 2026-09 dedupe and only
+// AXIOM_FLEET_INTEGRATION.md survives, in
+// BUSINESS/_archive/from-uplift/06_Resources/Axiom Agent. A score may be
+// right; a score nothing can check is not evidence. entity() therefore
+// demotes every unverifiable source to `seed-unverified` with the original
+// citation preserved in `evidence` — never a fabricated number, never a lost
+// one. The only sources that survive with a score are `live:*` outcomes from
+// a real audit run and explicit re-derivations.
 // ---------------------------------------------------------------------------
 
 const AGENTOPS = 'reports/2026-08-16-agentops-readiness-matrix.md';
 const GRADING = 'reports/2026-08-25-ecosystem-output-grading.md';
 const ECOSYS_AUDIT = 'reports/2026-08-25-full-ecosystem-audit.md';
 const VC_AUDIT = 'reports/ecosystem-work-audit.md';
+
+/**
+ * Sources a seed score may NOT claim: the artifact is not on disk. Two shapes
+ * — the Uplift-era report constants, and the literal citations that crept in
+ * as strings ('AXIOM_FLEET_INTEGRATION.md Phase N', and a test file that
+ * indexes a folder which is also absent, so it produces no score at all).
+ */
+const PROVENANCE_LOST: ReadonlySet<string> = new Set([
+  AGENTOPS, GRADING, ECOSYS_AUDIT, VC_AUDIT,
+  'ecosystemKnowledge.test.ts',
+]);
+
+function isProvenanceLost(source: string): boolean {
+  return PROVENANCE_LOST.has(source) || source.startsWith('AXIOM_FLEET_INTEGRATION.md');
+}
 
 function f(partial: Partial<DeployFactors>): DeployFactors {
   return {
@@ -174,21 +202,40 @@ function entity(input: Partial<EcosystemEntity> & Pick<EcosystemEntity, 'id' | '
   const port = input.port ?? null;
   const bridge = input.bridge ?? null;
   const url = input.url ?? (bridge && port ? `http://127.0.0.1:${port}` : null);
+  const evidence = input.evidence ?? [];
+
+  // Provenance gate. A seeded number whose cited artifact is absent cannot be
+  // verified, so it is demoted to null with the original citation kept in
+  // `evidence` — a future session can re-derive it, but nothing may treat it
+  // as a measured score today. Registered through one helper rather than 30
+  // call sites so a new bad citation cannot slip past a per-entry edit.
+  const claimedSource = input.auditSource ?? (auditScore == null ? 'not-yet-ranked' : 'seed');
+  const verified = auditScore != null && !isProvenanceLost(claimedSource);
+  const effectiveScore = verified ? auditScore : null;
+  const effectiveSource = verified
+    ? claimedSource
+    : auditScore != null
+      ? `seed-unverified (original: ${claimedSource})`
+      : claimedSource;
+  if (!verified && !evidence.some((ev) => ev.includes(claimedSource))) {
+    evidence.push(claimedSource);
+  }
+
   return {
     repo: input.repo ?? null,
     port,
     url,
     bridge,
     tags: input.tags ?? [],
-    auditScore,
-    auditGrade: auditScore == null ? null : gradeFor(auditScore),
-    auditSource: input.auditSource ?? (auditScore == null ? 'not-yet-ranked' : 'seed'),
+    auditScore: effectiveScore,
+    auditGrade: effectiveScore == null ? null : gradeFor(effectiveScore),
+    auditSource: effectiveSource,
     auditAt: input.auditAt ?? null,
     auditRepo: input.auditRepo ?? null,
     auditDir: input.auditDir ?? null,
     factors: input.factors ?? f({}),
     blockers: input.blockers ?? [],
-    evidence: input.evidence ?? [],
+    evidence,
     stack: input.stack ?? [],
     ...(input.notes !== undefined ? { notes: input.notes } : {}),
     id: input.id,
@@ -220,6 +267,31 @@ const SEED: EcosystemEntity[] = [
     evidence: ['AXIOM_FLEET_INTEGRATION.md'],
   }),
   entity({
+    id: 'jarvis', name: 'Jarvis Assistant (OpenJarvis)', kind: 'service', pillar: 'platform',
+    stack: ['Python', 'FastAPI', 'llama.cpp', 'Kokoro TTS', 'faster-whisper', 'PyO3', 'React', 'Tauri', 'MCP'],
+    purpose: 'Local-first personal assistant: llama.cpp reasoning, Kokoro TTS and faster-whisper for voice, and OpenHub registered as an MCP tool provider for fleet audits.',
+    // auditRepo/auditDir are set by AUDIT_TARGETS below; repo is the canonical
+    // upstream so the two cannot drift.
+    repo: 'open-jarvis/OpenJarvis', port: null, bridge: 'jarvis',
+    tags: ['assistant', 'voice', 'local-first', 'mcp-client', 'platform'],
+    auditScore: null, auditSource: 'not-yet-ranked',
+    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: true, integrated: true, documented: true }),
+    evidence: [
+      // Measured 2026-10-14. `jarvis doctor` on this host: 14 passed / 18 warnings / 0 failures.
+      'jarvis doctor 2026-10-14 (14 passed, 18 warnings, 0 failures)',
+      'git rev-parse --short HEAD -> 7d16cd7, matching the installed 1.0.5.dev136+g7d16cd7 release',
+      // The wiring itself: 9 OpenHub tools registered and executed through
+      // Jarvis's MCP adapter, not just declared.
+      'openhub_ecosystem_state executed through Jarvis -> 43 entities, avg deployability 65',
+    ],
+    blockers: [
+      'No HTTP port of its own on this host: ~/.openjarvis/config.toml sets [server] port 8000, which com.docker.backend.exe (PID 95240) holds. The browser UI lane cannot bind until that is resolved.',
+      'Windows installer (deploy/windows/install.ps1) syncs `--extra desktop`, which omits the `voice` extra, so kokoro/TTS is absent on a stock install. Installed and verified on this host 2026-10-14.',
+      'Python 3.13 caps kokoro at 0.7.4 and misaki at 0.7.4 (both declare Requires-Python <3.13 above that), so the PyPI-working 0.9.x stack needs Python 3.12 plus a rebuilt openjarvis-rust extension.',
+      'The 3.8B Phi-4-mini model does not emit tool calls, so the registered OpenHub tools are reachable but not usable by the local model.',
+    ],
+  }),
+  entity({
     id: 'draymond', name: 'Draymond Orchestrator', kind: 'service', pillar: 'orchestration',
     stack: ['TypeScript', 'Node.js', 'Next.js', 'Python', 'SQLite'],
     purpose: 'Fleet orchestration, scheduling and repair dispatch hub with .draymond brain state.',
@@ -228,15 +300,39 @@ const SEED: EcosystemEntity[] = [
     factors: f({ deployed: true, buildable: true, verified: true, versionControlled: true, integrated: true, documented: true }),
     evidence: [ECOSYS_AUDIT],
   }),
+  // ---- Security / secrets sector -----------------------------------------
   entity({
-    id: 'keywire', name: 'Keywire Zero-Trust Vault', kind: 'service', pillar: 'security',
+    id: 'infisical', name: 'Infisical Vault (primary)', kind: 'service', pillar: 'security',
+    stack: ['Docker', 'PostgreSQL', 'Redis', 'TypeScript'],
+    purpose: 'Primary secrets vault since 2026-10-15: all 253 live Keywire secrets migrated byte-equal, LITELLM_MASTER_KEY backfilled; universal-auth identity mach1.',
+    repo: 'BUSINESS/INFRASTRUCTURE/infisical', port: 8081, bridge: null,
+    tags: ['secrets', 'security', 'vault', 'primary'],
+    auditScore: null, auditSource: 'not-yet-ranked',
+    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
+    blockers: ['Deployment directory is not version-controlled and its .env holds ENCRYPTION_KEY — must never be committed; back up .env WITH the Postgres volume (no DR job yet).'],
+    evidence: ['INFRASTRUCTURE/infisical/MIGRATION.md', 'migrate --verify-only: 253/253, 0 mismatches'],
+    notes: 'Secrets live at /<keywire-project>/<env>/KEY (prod|staging|dev). Lane: infisical-lane.mjs (login/get/list/env) + infisical MCP server.',
+  }),
+  entity({
+    id: 'infisical-lane', name: 'Infisical Lane (CLI + MCP)', kind: 'tool', pillar: 'security',
+    stack: ['Node.js', 'MCP'],
+    purpose: 'The one credential-resolution path: infisical_secret_get/list over MCP, infisical-lane.mjs over CLI; consumed by sieve (eco.mjs fleetSecretValue) and OpenHub (keywire.ts Infisical-first).',
+    repo: 'BUSINESS/INFRASTRUCTURE/infisical', bridge: null,
+    tags: ['secrets', 'cli', 'mcp', 'lane'],
+    auditScore: null, auditSource: 'not-yet-ranked',
+    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
+    blockers: ['mach1 identity has lockoutEnabled threshold 3 / 300s — malformed login attempts lock it; the lane validates creds before calling.'],
+    evidence: ['registered in opencode.jsonc as the infisical MCP server', 'lane handshake tested: tools/list + list + get'],
+  }),
+  entity({
+    id: 'keywire', name: 'Keywire Zero-Trust Vault (legacy)', kind: 'service', pillar: 'security',
     stack: ['TypeScript', 'Node.js', 'SQLite', 'JWT'],
-    purpose: 'Zero-trust secret vault and SVID/service-token resolution for every fleet credential.',
-    repo: 'BUSINESS/INFRASTRUCTURE/Keywire', bridge: null, tags: ['secrets', 'security', 'zero-trust'],
+    purpose: 'Legacy vault — fallback lane since the 2026-10-15 migration. Also carries the fleet control plane (ecosystem/*, 40 routes) and the LLC compliance + site views with no Infisical equivalent.',
+    repo: 'BUSINESS/INFRASTRUCTURE/Keywire', bridge: null, tags: ['secrets', 'security', 'zero-trust', 'legacy'],
     auditScore: 70, auditSource: ECOSYS_AUDIT, auditAt: '2026-08-25',
     factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
-    blockers: ['No git repository at audit time — secrets-critical source unversioned.'],
-    evidence: [ECOSYS_AUDIT, '§1 leaked keys', '§4 no version control'],
+    blockers: ['No git repository at audit time — secrets-critical source unversioned.', 'Admin JWT has no RBAC binding on prj-mucq4tw9 (openhub) / prj-mukcq2ve (uncle-rays-kitchen) — API enumeration hides 7 real secrets.', 'data/ holds the only copy of the audit chain, keywire-keys.json and alerts.jsonl — never delete.'],
+    evidence: [ECOSYS_AUDIT, '§1 leaked keys', '§4 no version control', 'plans/2026-10-15-keywire-elements-infisical-cannot-replace.md'],
   }),
 
   // ---- Audit / review tools (bridged) -----------------------------------
@@ -661,6 +757,15 @@ const SEED: EcosystemEntity[] = [
 const AUDIT_TARGETS: Record<string, { auditRepo?: string; auditDir?: string }> = {
   axiom: { auditDir: '06_Resources/Axiom Agent' },
   openhub: { auditDir: '06_Resources/Axiom Agent/openhub' },
+  // Jarvis / OpenJarvis. Installed by the native Windows installer at
+  // %LOCALAPPDATA%\OpenJarvis (see src/deploy/windows/install.ps1), so the local
+  // audit target is the checkout, not the venv. Both a local dir and the
+  // canonical upstream are declared, so The Deep and RepoRank/Grader each score
+  // what they can actually reach.
+  jarvis: {
+    auditDir: 'C:/Users/User/AppData/Local/OpenJarvis/src',
+    auditRepo: 'open-jarvis/OpenJarvis',
+  },
   draymond: { auditDir: 'Draymond-Orchestrator' },
   'dev-brain': { auditDir: 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Dev-Brain' },
   'deterministic-brain': { auditRepo: 'ncsound919/deterministic-brain' },
@@ -1178,7 +1283,13 @@ function totalsOf(entries: RegistryEntry[]): RegistrySnapshot['totals'] {
   const averageDeployability = entries.length
     ? Math.round(entries.reduce((sum, e) => sum + e.deployability, 0) / entries.length)
     : 0;
-  return { total: entries.length, byKind, byHealth, averageDeployability };
+  // Newest probe timestamp, so consumers can tell a fresh snapshot from a
+  // persisted one. ISO strings sort lexicographically, so a simple max works.
+  const healthAsOf = entries.reduce<string | null>(
+    (newest, e) => (e.healthCheckedAt && (!newest || e.healthCheckedAt > newest) ? e.healthCheckedAt : newest),
+    null,
+  );
+  return { total: entries.length, byKind, byHealth, averageDeployability, healthAsOf };
 }
 
 /** Read the registry (persisted overlay + seed), with optional filtering. */
@@ -1195,7 +1306,11 @@ export function listRegistry(query: RegistryQuery = {}): RegistrySnapshot {
     live: true,
     generatedAt: new Date().toISOString(),
     probedAt: null,
-    totals: totalsOf(entries),
+    // Totals describe the FILTERED set, not the paginated slice: computing them
+    // from `entries` made `listRegistry({limit:1})` report `total: 1`, which the
+    // registry summary routes then published as the fleet size (found 2026-10-15
+    // when Recourse's fleet view read the summary and saw one entity).
+    totals: totalsOf(filtered),
     entries,
     ranking,
   };
@@ -1280,11 +1395,15 @@ export async function refreshRegistry(options: {
 
 /** One-line human summary (dashboards/CLI). */
 export function summarizeRegistry(snapshot: RegistrySnapshot): string {
-  const { total, byHealth, averageDeployability } = snapshot.totals;
+  const { total, byHealth, averageDeployability, healthAsOf } = snapshot.totals;
   const online = byHealth.online ?? 0;
   const offline = byHealth.offline ?? 0;
   const unknown = byHealth.unknown ?? 0;
-  return `Ecosystem registry: ${total} entities · avg deployability ${averageDeployability}% · health online ${online} / offline ${offline} / unknown ${unknown}`;
+  // Health is only ever a snapshot: name when it was taken, or say it never
+  // was. A bare count of "online 4" is a claim about now that the data cannot
+  // support (see totals.healthAsOf).
+  const asOf = healthAsOf ? `health as of ${healthAsOf}` : 'health never probed';
+  return `Ecosystem registry: ${total} entities · avg deployability ${averageDeployability}% · health online ${online} / offline ${offline} / unknown ${unknown} (${asOf})`;
 }
 
 /** Reset the persisted overlay (tests / operator). */

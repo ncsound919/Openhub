@@ -1,4 +1,5 @@
-import { keywireSecrets, keywireSites } from './keywire.js';
+import { keywireSecrets } from './keywire.js';
+import { fleetSites } from './fleetSites.js';
 import { fetchWithUrlGuard } from './webhooks.js';
 
 /**
@@ -295,7 +296,7 @@ function emptyAudit(url: string, findings: SeoFinding[], error: string): SiteAud
 
 /** Audit every public property in the Keywire inventory (bounded, best-effort). */
 export async function auditFleetSites(env: NodeJS.ProcessEnv = process.env, perSiteTimeoutMs = 15_000): Promise<{ audits: SiteAudit[]; error?: string }> {
-  const inv = await keywireSites(env);
+  const inv = await fleetSites(env);
   if (!inv.available || !inv.data) return { audits: [], error: inv.error || 'site inventory unavailable' };
   const targets = inv.data.sites
     .map((s) => ({ id: s.id, url: s.publicUrl }))

@@ -18,6 +18,7 @@ beforeEach(() => { __setSsrfTestHooks({ lookup: async () => [{ address: '93.184.
 afterEach(() => { __setSsrfTestHooks({}); });
 
 const KEYS_FILE = path.join(os.tmpdir(), `openhub-seo-keys-${process.pid}.json`);
+const SITES_FILE = path.join(os.tmpdir(), `openhub-seo-sites-${process.pid}.json`);
 
 function page(body: string, status = 200): Response {
   return new Response(body, { status, headers: { 'Content-Type': 'text/html' } });
@@ -31,18 +32,18 @@ const HTML = `<!doctype html><html><head>
 <meta property="og:description" content="Launch products faster.">
 </head><body><h1>Ship it</h1><p>hi</p></body></html>`;
 
+// The site inventory is LOCAL since 2026-10-15 (re-homed from Keywire), so the
+// fixture is a file the service reads, not a stubbed HTTP response.
 const SITES = {
-  generatedAt: '2026-09-17T00:00:00.000Z',
-  inventoryUpdatedAt: '2026-09-16',
-  summary: { total: 1, up: 1, degraded: 0, down: 0, unknown: 0, allUp: true, criticalAttention: [] },
-  sites: [{ id: 'overlay365', name: 'Overlay365 Hub', state: 'up', publicUrl: 'https://overlay365.com' }],
+  version: 1,
+  updatedAt: '2026-09-16',
+  sites: [{ id: 'overlay365', name: 'Overlay365 Hub', tier: 'critical', publicUrl: 'https://overlay365.com' }],
 };
 
 function stubFetch() {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/v1/workload/fetch-secrets')) return new Response(JSON.stringify({ secrets: {} }), { status: 200 });
-    if (url.includes('/api/v1/ecosystem/sites')) return new Response(JSON.stringify(SITES), { status: 200 });
     if (url.includes('/api/health')) return new Response('down', { status: 503 });
     if (url === 'https://example.com/robots.txt') return new Response('User-agent: *\nDisallow: /private/\nSitemap: https://example.com/sitemap.xml', { status: 200 });
     if (url === 'https://example.com/sitemap.xml') return new Response('<urlset><url><loc>https://example.com/a</loc></url><url><loc>https://example.com/b</loc></url></urlset>', { status: 200 });
@@ -57,6 +58,8 @@ function stubFetch() {
 
 beforeEach(() => {
   fs.writeFileSync(KEYS_FILE, JSON.stringify({ jwtSecret: 'test-secret' }));
+  fs.writeFileSync(SITES_FILE, JSON.stringify(SITES));
+  vi.stubEnv('OPENHUB_SITES_FILE', SITES_FILE);
   vi.stubEnv('OPENHUB_KEYWIRE_KEYS_FILE', KEYS_FILE);
   vi.stubEnv('OPENHUB_KEYWIRE_URL', 'http://keywire.test');
   vi.stubEnv('OPENHUB_OPENSEO_URL', 'http://seo.test');

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import {
@@ -33,6 +33,66 @@ describe('Capability Registry (C1)', () => {
     const redis = getBridgeStatement('redis');
     expect(redis?.identity.transport).toBe('tcp');
     expect(redis?.identity.port).toBe(6379);
+  });
+});
+
+// The Jarvis bridge is the fleet's only CLI-transported service, and it is that
+// way for a reason worth pinning down: Jarvis's own server port is held by an
+// unrelated process on this host, so an HTTP liveness probe would return 200
+// for the wrong service. These assertions make "probe it over HTTP instead"
+// fail rather than quietly reintroducing the false positive.
+describe('Capability Registry (jarvis bridge)', () => {
+  const jarvis = () => getBridgeStatement('jarvis')!;
+
+  it('is declared as a core, CLI-transported bridge', () => {
+    expect(jarvis()).toBeDefined();
+    expect(jarvis().identity.slug).toBe('jarvis');
+    expect(jarvis().identity.category).toBe('core');
+    expect(jarvis().identity.transport).toBe('cli');
+  });
+
+  it('never probes an HTTP port, because none of them is Jarvis', () => {
+    // No port and no host: probeBridge's HTTP arm requires both, so this bridge
+    // physically cannot answer for another listener.
+    expect(jarvis().identity.port).toBeUndefined();
+    expect(jarvis().identity.host).toBeUndefined();
+    expect(jarvis().liveness.type).toBe('cli');
+    expect(jarvis().liveness.path).toBeUndefined();
+    expect(jarvis().versionSpec.type).toBe('cli');
+  });
+
+  it('points at a real interpreter and imports the package in liveness', () => {
+    expect(jarvis().identity.cliCommand).toMatch(/python\.exe$/);
+    expect(jarvis().liveness.args).toEqual(['-c', 'import openjarvis;print(openjarvis.__version__)']);
+    // The timeout has to exceed the measured ~15s that the full CLI console
+    // script takes; `import openjarvis` is ~0.3s, so 15s is generous headroom
+    // that still fails fast on a broken venv.
+    expect(jarvis().liveness.timeoutMs).toBeGreaterThanOrEqual(15_000);
+  });
+
+  it('honours OPENHUB_JARVIS_PYTHON before the baked-in default', async () => {
+    // FLEET_BRIDGES is a module-level const, so the override is only visible
+    // through a fresh module instance. Without resetModules this test would
+    // read the already-evaluated default and pass for the wrong reason.
+    const prev = process.env.OPENHUB_JARVIS_PYTHON;
+    process.env.OPENHUB_JARVIS_PYTHON = 'C:/elsewhere/python.exe';
+    try {
+      vi.resetModules();
+      const reloaded = await import('../src/services/capabilityRegistry');
+      expect(reloaded.getBridgeStatement('jarvis')?.identity.cliCommand).toBe('C:/elsewhere/python.exe');
+    } finally {
+      vi.resetModules();
+      if (prev === undefined) delete process.env.OPENHUB_JARVIS_PYTHON;
+      else process.env.OPENHUB_JARVIS_PYTHON = prev;
+    }
+  });
+
+  it('declares the OpenHub round-trip as an operation', () => {
+    const ids = jarvis().operations.map((o) => o.id);
+    expect(ids).toContain('agent.ask');
+    expect(ids).toContain('doctor.check');
+    expect(ids).toContain('speech.synthesize');
+    expect(ids).toContain('tool.openhub');
   });
 });
 

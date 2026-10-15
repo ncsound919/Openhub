@@ -97,12 +97,103 @@ describe('ecosystemRegistry — seed', () => {
     for (const e of SEED_ENTITIES) {
       if (e.auditScore !== null) {
         expect(e.auditSource).not.toBe('not-yet-ranked');
+        expect(e.auditSource).not.toMatch(/^seed-unverified/);
         expect(e.auditScore).toBeGreaterThanOrEqual(0);
         expect(e.auditScore).toBeLessThanOrEqual(100);
       } else {
-        expect(e.auditSource).toBe('not-yet-ranked');
+        // Two honest nulls: never ranked, and ranked-but-unverifiable. Both
+        // carry no score; only the second keeps its claimed citation in
+        // `evidence` so a future run can re-derive it.
+        expect(e.auditSource === 'not-yet-ranked' || /^seed-unverified \(original: .+\)$/.test(e.auditSource)).toBe(true);
       }
     }
+  });
+
+  // 2026-10-15 audit: every Uplift-era report the seed cited was absent from
+  // disk (the tree moved in the 2026-09 dedupe), and four pack scores cited a
+  // test file that produces no scores at all. A score nothing can check is not
+  // evidence, so entity() demotes them — and these tests pin the demotion so a
+  // later session cannot re-add an unverifiable number to look complete.
+  describe('provenance gate (seed-unverified)', () => {
+    it('demotes a score whose cited report is not on disk', () => {
+      const reporank = SEED_ENTITIES.find((e) => e.id === 'reporank')!;
+      expect(reporank.auditScore).toBeNull();
+      expect(reporank.auditSource).toMatch(/^seed-unverified \(original: reports\//);
+      // The original citation survives in evidence — demoted, not erased.
+      expect(reporank.evidence.some((ev) => ev.includes('2026-08-16-agentops-readiness-matrix'))).toBe(true);
+    });
+
+    it('demotes the two entries that cited ecosystemKnowledge.test.ts', () => {
+      // ecosystem-skills (85) and get-shit-done (80). That test is the
+      // Ecosystem-folder indexer, pointed at an absent folder; it produces no
+      // scores, so it can never be an audit source for anything.
+      for (const id of ['ecosystem-skills', 'get-shit-done']) {
+        const e = SEED_ENTITIES.find((x) => x.id === id)!;
+        expect(e.auditScore, `${id} must not carry an unverifiable score`).toBeNull();
+        expect(e.auditSource).toContain('ecosystemKnowledge.test.ts');
+      }
+    });
+
+    it('demotes the six entries citing AXIOM_FLEET_INTEGRATION.md phases', () => {
+      for (const id of ['dev-brain', 'recourse', 'ecosystem-agents', 'ecosystem-commands', 'ecosystem-plugins', 'ecosystem-rules']) {
+        const e = SEED_ENTITIES.find((x) => x.id === id)!;
+        expect(e.auditScore, `${id} must not carry an unverifiable score`).toBeNull();
+        expect(e.auditSource).toContain('AXIOM_FLEET_INTEGRATION.md Phase');
+      }
+    });
+
+    it('keeps a score that a live audit actually produced', () => {
+      // Negative control: the gate must only demote unverifiable sources, or
+      // it becomes a scoring floor. `live:*` rows come from real audit runs.
+      const live = SEED_ENTITIES.find((e) => /^live:/.test(e.auditSource));
+      if (live) {
+        expect(live.auditScore).not.toBeNull();
+        expect(live.auditGrade).not.toBeNull();
+      }
+    });
+
+    it('still honestly nulls not-yet-ranked entities without inventing an unverified label', () => {
+      const jarvis = SEED_ENTITIES.find((e) => e.id === 'jarvis')!;
+      expect(jarvis.auditScore).toBeNull();
+      expect(jarvis.auditSource).toBe('not-yet-ranked');
+    });
+  });
+
+  // The Jarvis entry is the one whose port cannot be taken at face value: the
+  // port its own config declares is held by an unrelated process, so declaring
+  // it here would have produced a URL that answers for something else. These
+  // assertions exist so a later session cannot "fix" the blank port by filling
+  // it in.
+  describe('jarvis (OpenJarvis)', () => {
+    const jarvis = () => SEED_ENTITIES.find((e) => e.id === 'jarvis')!;
+
+    it('is registered as a platform service wired to its bridge', () => {
+      expect(jarvis()).toBeTruthy();
+      expect(jarvis().kind).toBe('service');
+      expect(jarvis().bridge).toBe('jarvis');
+      expect(jarvis().tags).toContain('voice');
+    });
+
+    it('declares no port, and therefore no url that could answer for another process', () => {
+      expect(jarvis().port).toBeNull();
+      expect(jarvis().url).toBeNull();
+    });
+
+    it('carries both a local audit dir and the canonical upstream repo', () => {
+      expect(jarvis().auditDir).toBe('C:/Users/User/AppData/Local/OpenJarvis/src');
+      expect(jarvis().auditRepo).toBe('open-jarvis/OpenJarvis');
+      expect(resolveAuditDir(jarvis())).toBe(jarvis().auditDir);
+    });
+
+    it('is honestly unranked rather than seeded with a number', () => {
+      expect(jarvis().auditScore).toBeNull();
+      expect(jarvis().auditSource).toBe('not-yet-ranked');
+    });
+
+    it('records its blockers rather than hiding them', () => {
+      expect(jarvis().blockers.length).toBeGreaterThanOrEqual(3);
+      expect(jarvis().blockers.join(' ')).toMatch(/8000/);
+    });
   });
 });
 
@@ -123,6 +214,20 @@ describe('ecosystemRegistry — query', () => {
       expect(snapshot.ranking[i - 1].auditScore).toBeGreaterThanOrEqual(snapshot.ranking[i].auditScore);
     }
     expect(typeof summarizeRegistry(snapshot)).toBe('string');
+  });
+
+  // 2026-10-15: the summary printed "health online 4" with no timestamp, so a
+  // persisted overlay read as a live probe (only one port was actually
+  // listening). The summary now names the probe time or its absence.
+  it('the summary names when health was probed, or that it never was', () => {
+    const snapshot = listRegistry({});
+    const summary = summarizeRegistry(snapshot);
+    expect(summary).toMatch(/\((health as of .+|health never probed)\)$/);
+    expect(snapshot.totals.healthAsOf).toBe(snapshot.entries
+      .map((e) => e.healthCheckedAt)
+      .filter((t): t is string => Boolean(t))
+      .sort()
+      .at(-1) ?? null);
   });
 
   it('filters by kind, search, and minimum deployability', () => {
