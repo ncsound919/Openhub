@@ -324,17 +324,6 @@ const SEED: EcosystemEntity[] = [
     blockers: ['mach1 identity has lockoutEnabled threshold 3 / 300s — malformed login attempts lock it; the lane validates creds before calling.'],
     evidence: ['registered in opencode.jsonc as the infisical MCP server', 'lane handshake tested: tools/list + list + get'],
   }),
-  entity({
-    id: 'keywire', name: 'Keywire Zero-Trust Vault (legacy)', kind: 'service', pillar: 'security',
-    stack: ['TypeScript', 'Node.js', 'SQLite', 'JWT'],
-    purpose: 'Legacy vault — fallback lane since the 2026-10-15 migration. Also carries the fleet control plane (ecosystem/*, 40 routes) and the LLC compliance + site views with no Infisical equivalent.',
-    repo: 'BUSINESS/INFRASTRUCTURE/Keywire', bridge: null, tags: ['secrets', 'security', 'zero-trust', 'legacy'],
-    auditScore: 70, auditSource: ECOSYS_AUDIT, auditAt: '2026-08-25',
-    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
-    blockers: ['No git repository at audit time — secrets-critical source unversioned.', 'Admin JWT has no RBAC binding on prj-mucq4tw9 (openhub) / prj-mukcq2ve (uncle-rays-kitchen) — API enumeration hides 7 real secrets.', 'data/ holds the only copy of the audit chain, keywire-keys.json and alerts.jsonl — never delete.'],
-    evidence: [ECOSYS_AUDIT, '§1 leaked keys', '§4 no version control', 'plans/2026-10-15-keywire-elements-infisical-cannot-replace.md'],
-  }),
-
   // ---- Audit / review tools (bridged) -----------------------------------
   entity({
     id: 'reporank', name: 'RepoRank', kind: 'tool', pillar: 'audit',

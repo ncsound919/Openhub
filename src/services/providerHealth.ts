@@ -1,4 +1,4 @@
-import { keywireSecretNames, keywireProject, type VaultResult } from './keywire.js';
+import { secretNames, infisicalSecretPath, type VaultResult } from './vault.js';
 import { probeVaultGitHubCredentials, type VaultCredentialHealth } from './githubVaultAuth.js';
 import { OPENCODE_BASE, basicAuthHeader } from './opencodeEngine.js';
 
@@ -32,7 +32,7 @@ export interface ProviderHealthReport {
 }
 
 export interface ProviderHealthDeps {
-  secretNames: typeof keywireSecretNames;
+  secretNames: typeof secretNames;
   probeGitHub: typeof probeVaultGitHubCredentials;
   fetchImpl: typeof fetch;
   timeoutMs?: number;
@@ -41,7 +41,7 @@ export interface ProviderHealthDeps {
 const DEFAULT_TIMEOUT_MS = 4000;
 
 function defaultDeps(): ProviderHealthDeps {
-  return { secretNames: keywireSecretNames, probeGitHub: probeVaultGitHubCredentials, fetchImpl: fetch };
+  return { secretNames, probeGitHub: probeVaultGitHubCredentials, fetchImpl: fetch };
 }
 
 interface HttpProbe {
@@ -80,7 +80,7 @@ export async function probeProviderHealth(
   const vault = {
     reachable: names.available === true,
     secretCount,
-    project: keywireProject(env),
+    project: infisicalSecretPath(env),
     source: names.source ?? 'unknown',
   };
 
@@ -97,20 +97,6 @@ export async function probeProviderHealth(
         ? `${credentials.filter((c) => c.present && !c.valid).map((c) => c.key).join(', ')} revoked/expired`
         : 'no GitHub credential in the vault',
     requires: 'GITHUB_TOKEN',
-  };
-
-  const keywire: ProviderHealth = {
-    id: 'keywire',
-    name: 'Keywire Vault (legacy lane)',
-    category: 'security',
-    configured: true,
-    up: vault.reachable && vault.source === 'keywire',
-    detail: !vault.reachable
-      ? 'unreachable'
-      : vault.source === 'keywire'
-        ? `${secretCount ?? 0} secrets · ${vault.project}`
-        : 'legacy lane idle — Infisical answered',
-    requires: 'KEYWIRE_SERVICE_TOKEN',
   };
 
   const infisicalUrl = env.OPENHUB_INFISICAL_URL || env.INFISICAL_URL || 'http://localhost:8081';
@@ -148,7 +134,6 @@ export async function probeProviderHealth(
     vault,
     providers: [
       github,
-      keywire,
       httpProvider('infisical', 'Infisical Vault (primary)', 'security', infisical, infisicalUrl, 'MACH1 credentials (.secrets/mach1.env)'),
       httpProvider('axiom', 'Axiom Harness', 'core', axiom, axiomUrl),
       httpProvider('opencode', 'opencode Engine', 'core', opencode, opencodeUrl),

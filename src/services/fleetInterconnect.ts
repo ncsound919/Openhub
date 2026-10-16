@@ -4,7 +4,7 @@
  *
  * OpenHub is the primary tool. This module:
  *   - aggregates live state + Jev tier health of every peer (Recourse,
- *     Dev-Brain, Axiom, Draymond, Keywire),
+ *     Dev-Brain, Axiom, Draymond, Infisical),
  *   - routes decisions to the right engine by domain (code/repair → Axiom,
  *     ops (daily/cron/report/learning/brain) → Draymond, growth/strategy →
  *     Recourse, reasoning/matrix → Dev-Brain, review/workspace/audit → local),
@@ -18,7 +18,7 @@
  */
 
 export interface PeerSpec {
-  id: 'recourse' | 'devBrain' | 'axiom' | 'draymond' | 'keywire';
+  id: 'recourse' | 'devBrain' | 'axiom' | 'draymond' | 'infisical';
   label: string;
   baseUrl: string;
   token?: string;
@@ -30,7 +30,7 @@ export function peerSpecs(env: NodeJS.ProcessEnv = process.env): PeerSpec[] {
     { id: 'devBrain', label: 'Dev-Brain', baseUrl: (env.DEV_BRAIN_URL || 'http://localhost:3450').replace(/\/+$/, '') },
     { id: 'axiom', label: 'Axiom', baseUrl: (env.AXIOM_URL || 'http://localhost:3198').replace(/\/+$/, '') },
     { id: 'draymond', label: 'Draymond', baseUrl: (env.DRAYMOND_URL || 'http://localhost:3444').replace(/\/+$/, ''), token: env.DRAYMOND_CRON_SECRET },
-    { id: 'keywire', label: 'Keywire', baseUrl: (env.KEYWIRE_URL || 'http://127.0.0.1:4700').replace(/\/+$/, '') },
+    { id: 'infisical', label: 'Infisical', baseUrl: (env.INFISICAL_URL || 'http://127.0.0.1:8081').replace(/\/+$/, '') },
   ];
 }
 
@@ -107,7 +107,7 @@ async function probePeer(spec: PeerSpec): Promise<PeerHealth> {
     devBrain: '/api/status',
     axiom: '/api/status',
     draymond: '/api/jev/status',
-    keywire: '/api/v1/vault/bootstrap',
+    infisical: '/api/status',
   };
   const jevPath: Partial<Record<PeerSpec['id'], string>> = {
     recourse: '/api/recourse/decision/jev/status',

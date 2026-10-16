@@ -1,4 +1,4 @@
-import { keywireSecrets } from './keywire.js';
+import { secretValues } from './vault.js';
 import { fleetSites } from './fleetSites.js';
 import { fetchWithUrlGuard } from './webhooks.js';
 
@@ -93,7 +93,7 @@ function present(v: unknown): v is string {
 /** Which integration pieces exist (vault presence + live service). */
 export async function seoReadiness(env: NodeJS.ProcessEnv = process.env): Promise<SeoReadiness> {
   const notes: string[] = [];
-  const [status, secrets] = await Promise.all([openSeoStatus(env), keywireSecrets(env)]);
+  const [status, secrets] = await Promise.all([openSeoStatus(env), secretValues(env)]);
   const map = secrets.available && secrets.data ? secrets.data : {};
   const dataforseo = present(map.DATAFORSEO_API_KEY) && !/(value|placeholder|changeme)$/i.test(map.DATAFORSEO_API_KEY);
   const openrouter = present(map.OPENROUTER_API_KEY) && !/(value|placeholder|changeme)$/i.test(map.OPENROUTER_API_KEY);

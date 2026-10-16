@@ -1,6 +1,6 @@
 import { getDb } from '../auth/db.js';
 import { withBusyRetry } from '../lib/sqliteRetry.js';
-import { resolveSecret } from './keywire.js';
+import { resolveSecret } from './vault.js';
 
 /**
  * Fleet GitHub repo awareness (ncsound919 + tap919), staying current.

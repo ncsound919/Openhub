@@ -24,7 +24,7 @@ function deps(tokens: Record<string, string>, failWith = 'GitHub token verificat
   return {
     resolveSecret: vi.fn(async (name: string) => {
       const value = tokens[name] ?? null;
-      return value ? { value, source: 'keywire' } : { value: null, source: null, error: `no secret source for ${name}` };
+      return value ? { value, source: 'infisical' } : { value: null, source: null, error: `no secret source for ${name}` };
     }),
     verifyProfile: vi.fn(async (token: string) => {
       if (token.startsWith('bad-')) throw new Error(failWith);
@@ -41,7 +41,7 @@ describe('githubVaultAuth', () => {
       const d = deps({ GITHUB_TOKEN: 'tok-good' });
       const result = await provisionGitHubFromVault('user-1', {}, d);
 
-      expect(result).toMatchObject({ connected: true, key: 'GITHUB_TOKEN', source: 'keywire', scope: VAULT_CONNECT_SCOPE });
+      expect(result).toMatchObject({ connected: true, key: 'GITHUB_TOKEN', source: 'infisical', scope: VAULT_CONNECT_SCOPE });
       expect(result.user?.login).toBe('ncsound919');
       expect(d.saveIntegration).toHaveBeenCalledWith('user-1', 'tok-good', expect.objectContaining({ login: 'ncsound919' }), VAULT_CONNECT_SCOPE);
     });
@@ -88,10 +88,10 @@ describe('githubVaultAuth', () => {
 
     it('marks a vault error as not present rather than valid', async () => {
       const d = deps({});
-      d.resolveSecret = vi.fn(async () => { throw new Error('Keywire HTTP 500'); });
+      d.resolveSecret = vi.fn(async () => { throw new Error('Infisical HTTP 500'); });
       const health = await probeVaultGitHubCredentials({}, d);
       expect(health.every((h) => h.present === false && h.valid === false)).toBe(true);
-      expect(health[0].error).toContain('Keywire HTTP 500');
+      expect(health[0].error).toContain('Infisical HTTP 500');
     });
   });
 });

@@ -235,8 +235,8 @@ describe('ecosystemRegistry — query', () => {
     expect(services.entries.length).toBeGreaterThan(0);
     for (const e of services.entries) expect(e.kind).toBe('service');
 
-    const hit = listRegistry({ search: 'keywire' });
-    expect(hit.entries.some((e) => e.id === 'keywire')).toBe(true);
+    const hit = listRegistry({ search: 'infisical' });
+    expect(hit.entries.some((e) => e.id === 'infisical')).toBe(true);
 
     const high = listRegistry({ minDeployability: 80 });
     for (const e of high.entries) expect(e.deployability).toBeGreaterThanOrEqual(80);
@@ -381,9 +381,9 @@ describe('ecosystemRegistry — live audit scoring', () => {
   });
 
   it('skips entities without a live audit target, with a reason', async () => {
-    const result = await auditRegistry({ ids: ['keywire'], deps: {} });
+    const result = await auditRegistry({ ids: ['infisical'], deps: {} });
     expect(result.audited).toHaveLength(0);
-    expect(result.skipped[0].id).toBe('keywire');
+    expect(result.skipped[0].id).toBe('infisical');
     expect(result.skipped[0].reason).toContain('no live audit target');
   });
 

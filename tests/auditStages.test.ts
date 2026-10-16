@@ -20,7 +20,7 @@ describe('resolveAuditPlan', () => {
     expect(plan.preset).toBeNull();
     expect(plan.stage).toBeNull();
     expect(plan.full).toBe(false);
-    expect(plan.scorers).toEqual(expect.arrayContaining(KNOWN_SCORERS.filter((s) => s !== 'codenexus')));
+    expect(plan.scorers).toEqual(expect.arrayContaining(KNOWN_SCORERS.filter((s) => s !== 'codenexus' && s !== 'deep')));
   });
 
   it('resolves the quick preset to its four fast gates', () => {

@@ -71,7 +71,7 @@ import { buildLineStarts, lineAtOffset } from './src/services/secretScan.js';
 import { findSecrets } from './src/services/secretRules.js';
 import { loadEcosystemContext, summarizeEcosystem } from './src/services/ecosystem.js';
 import { recordAuditEvent } from './src/services/ecosystemMemory.js';
-import { resolveSecret } from './src/services/keywire.js';
+import { resolveSecret } from './src/services/vault.js';
 import { captureWebhookRawBody, verifyGitHubSignature } from './src/services/githubWebhookRaw.js';
 import { redactSecrets } from './src/services/receipts.js';
 import { createAiReviewRouter } from './src/routes/aiReview.js';

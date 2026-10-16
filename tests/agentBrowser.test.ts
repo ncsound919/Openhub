@@ -98,7 +98,7 @@ describe('agentBrowserOpen', () => {
 
   it('surfaces an honest error when no key is configured', async () => {
     vi.stubEnv('AGENTBROWSER_API_KEY', '');
-    vi.stubEnv('OPENHUB_KEYWIRE_URL', 'http://127.0.0.1:1');
+    vi.stubEnv('OPENHUB_DISABLE_INFISICAL', '1');
     const r = await agentBrowserOpen('https://vercel.com/dashboard');
     expect(r.available).toBe(false);
     expect(r.error).toMatch(/AGENTBROWSER_API_KEY|no secret source/i);

@@ -81,7 +81,7 @@ let consecutiveFailures = 0;
 const SIGNAL_WINDOW_MS = 60_000;
 const MIN_OCCURRENCES = 2;
 const MAX_FILES_BLAST_RADIUS = 5;
-const PROTECTED_FILES = ['server.ts', 'keywire.ts', 'auth.ts', '.env'];
+const PROTECTED_FILES = ['server.ts', 'vault.ts', 'auth.ts', '.env'];
 
 export function setKillSwitch(active: boolean): void {
   killSwitchActive = active;

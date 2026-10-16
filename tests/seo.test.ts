@@ -6,7 +6,6 @@ import express from 'express';
 import request from 'supertest';
 import { siteAudit, openSeoStatus, seoReadiness, auditFleetSites } from '../src/services/seo';
 import { createSeoRouter } from '../src/routes/seo';
-import { clearKeywireAuthCache, clearKeywireSecretCache } from '../src/services/keywire';
 import { __setSsrfTestHooks } from '../src/services/ssrfGuard.js';
 
 // The SSRF guard resolves DNS before fetching; these tests stub fetch, so give
@@ -17,7 +16,6 @@ beforeAll(async () => { await import('undici').catch(() => {}); }, 60_000);
 beforeEach(() => { __setSsrfTestHooks({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] }); });
 afterEach(() => { __setSsrfTestHooks({}); });
 
-const KEYS_FILE = path.join(os.tmpdir(), `openhub-seo-keys-${process.pid}.json`);
 const SITES_FILE = path.join(os.tmpdir(), `openhub-seo-sites-${process.pid}.json`);
 
 function page(body: string, status = 200): Response {
@@ -57,21 +55,15 @@ function stubFetch() {
 }
 
 beforeEach(() => {
-  fs.writeFileSync(KEYS_FILE, JSON.stringify({ jwtSecret: 'test-secret' }));
   fs.writeFileSync(SITES_FILE, JSON.stringify(SITES));
   vi.stubEnv('OPENHUB_SITES_FILE', SITES_FILE);
-  vi.stubEnv('OPENHUB_KEYWIRE_KEYS_FILE', KEYS_FILE);
-  vi.stubEnv('OPENHUB_KEYWIRE_URL', 'http://keywire.test');
+  vi.stubEnv('OPENHUB_DISABLE_INFISICAL', '1');
   vi.stubEnv('OPENHUB_OPENSEO_URL', 'http://seo.test');
-  clearKeywireAuthCache();
-  clearKeywireSecretCache();
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-  clearKeywireAuthCache();
-  clearKeywireSecretCache();
 });
 
 describe('siteAudit (deterministic, free)', () => {

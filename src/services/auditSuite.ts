@@ -884,9 +884,62 @@ function collectScannableFiles(targetDir: string, gitIgnore?: GitIgnoreMatcher):
   return out;
 }
 
+interface GitleaksFinding {
+  RuleID?: string;
+  File?: string;
+  StartLine?: number;
+  Description?: string;
+}
+
+/** Run gitleaks directly over a dir (consolidation 2026-10-15). Returns null when
+ *  gitleaks is not usable, so the caller falls back to the Claw-Protect service. */
+async function runSecretsGitleaks(targetDir: string): Promise<ScorerResult | null> {
+  const report = path.join(os.tmpdir(), `gitleaks-${process.pid}-${Date.now()}.json`);
+  await runLocalCommand(
+    'gitleaks',
+    ['detect', '--no-git', `--source=${targetDir}`, '--report-format=json', `--report-path=${report}`, '--exit-code=0'],
+    targetDir,
+    60_000,
+  );
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(report, 'utf8'));
+  } catch {
+    return null; // gitleaks unavailable / wrote no report — fall back to Claw
+  } finally {
+    try { fs.rmSync(report, { force: true }); } catch { /* best effort */ }
+  }
+  const list = Array.isArray(parsed) ? (parsed as GitleaksFinding[]) : [];
+  const findings: Finding[] = list.map((f) => {
+    const raw = String(f.File ?? '').replace(/\\/g, '/');
+    const rel = raw ? path.relative(targetDir, path.resolve(targetDir, raw)).replace(/\\/g, '/') : raw;
+    return makeFinding({
+      source: 'claw-protect',
+      dimension: 'security',
+      category: 'secret',
+      severity: 'high',
+      confidence: 0.9,
+      determinism: 'static',
+      ...(raw ? { location: { file: rel || raw, ...(typeof f.StartLine === 'number' ? { line: f.StartLine } : {}) } } : {}),
+      evidence: `${f.RuleID ?? 'secret'}${f.Description ? `: ${f.Description}` : ''}`,
+      remediation: 'Remove the credential from source, rotate it, and load it from Infisical/env at runtime.',
+    });
+  });
+  const n = findings.length;
+  return attach(
+    { scorer: 'claw-protect', score: n === 0 ? 100 : Math.max(0, 100 - n * 10), summary: `gitleaks scanned ${path.basename(targetDir)} — ${n} secret${n === 1 ? '' : 's'} found (direct)` },
+    { findings, analyzers: ['gitleaks'], status: 'ok' },
+  );
+}
+
 export async function runClawProtectScorer(
   params: { repoUrl?: string; targetDir?: string; gitIgnore?: GitIgnoreMatcher },
 ): Promise<ScorerResult> {
+  // Prefer gitleaks directly — no Claw-Protect service dependency for secret scanning.
+  if (params.targetDir && fs.existsSync(params.targetDir)) {
+    const direct = await runSecretsGitleaks(params.targetDir);
+    if (direct) return direct;
+  }
   await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
   if (!apiKey) return honest('claw-protect', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — SCA scan skipped');
@@ -2326,14 +2379,93 @@ export async function runLintScorer(
 }
 
 // ---------------------------------------------------------------------------
-// Software Composition Analysis (SCA) — dependency CVEs via Claw's trivy
-// backend. This is the dependency-CVE leg the audit otherwise lacks: the
-// graders only *infer* security from the file list, so known-vulnerable
-// dependencies went undetected. Claw owns the trivy subprocess; we normalize
-// its scan into a real count. Unavailable backend = honest skip, never a 0.
+// Software Composition Analysis (SCA) — dependency CVEs / secrets / misconfig.
+//
+// 2026-10-15 consolidation: `trivy` is on PATH (and vendored under
+// INFRASTRUCTURE/audit-tools), so the SCA scorer runs it DIRECTLY first through
+// the shared process runner. The Claw-Protect service round-trip is kept only as
+// a fallback (it owns the same trivy subprocess), so the audit no longer needs
+// Claw running to detect known-vulnerable dependencies. Unavailable = honest skip.
 // ---------------------------------------------------------------------------
 
+interface TrivyScope {
+  Target?: string;
+  Vulnerabilities?: Array<{ VulnerabilityID?: string; PkgName?: string; Severity?: string; Title?: string; FixedVersion?: string }>;
+  Secrets?: Array<{ RuleID?: string; Title?: string; Severity?: string; StartLine?: number }>;
+  Misconfigurations?: Array<{ ID?: string; Title?: string; Severity?: string }>;
+}
+
+type CveSeverity = 'critical' | 'high' | 'medium' | 'low';
+function cveSeverity(s?: string): CveSeverity {
+  const v = (s || '').toLowerCase();
+  return v === 'critical' ? 'critical' : v === 'high' ? 'high' : v === 'medium' ? 'medium' : 'low';
+}
+
+/** Run trivy directly. Returns null when trivy is not usable (caller falls back to Claw). */
+async function runScaScorerDirect(targetDir: string): Promise<ScorerResult | null> {
+  const run = await runLocalCommand(
+    'trivy',
+    ['fs', '--format', 'json', '--quiet', '--scanners', 'vuln,secret,misconfig', targetDir],
+    targetDir,
+    320_000,
+  );
+  if (run.timedOut) return honest('sca', 'trivy timed out after 320000ms — dependency CVE scan skipped');
+  let parsed: { Results?: TrivyScope[] };
+  try {
+    parsed = JSON.parse(run.output) as { Results?: TrivyScope[] };
+  } catch {
+    return null; // not trivy JSON (missing tool / progress noise) — fall back to Claw
+  }
+  const results = Array.isArray(parsed.Results) ? parsed.Results : [];
+  const c = { crit: 0, high: 0, med: 0, low: 0, secrets: 0, misconfig: 0 };
+  const bump = (s: CveSeverity) => { if (s === 'critical') c.crit++; else if (s === 'high') c.high++; else if (s === 'medium') c.med++; else c.low++; };
+  const findings: Finding[] = [];
+  for (const r of results) {
+    for (const v of r.Vulnerabilities ?? []) {
+      const s = cveSeverity(v.Severity); bump(s);
+      findings.push(createFinding({
+        source: 'sca', dimension: 'dependencies', category: 'cve', severity: s, confidence: 0.9, determinism: 'static',
+        ...(r.Target ? { location: { file: r.Target } } : {}),
+        evidence: `${v.VulnerabilityID ?? 'CVE'}${v.PkgName ? ` in ${v.PkgName}` : ''}${v.Title ? `: ${v.Title}` : ''}`,
+        remediation: v.FixedVersion ? `Upgrade to ${v.FixedVersion}` : 'Upgrade the affected dependency.',
+        ...(v.VulnerabilityID ? { cve: v.VulnerabilityID } : {}),
+      }));
+    }
+    for (const sec of r.Secrets ?? []) {
+      c.secrets++;
+      findings.push(createFinding({
+        source: 'sca', dimension: 'security', category: 'secret', severity: cveSeverity(sec.Severity), confidence: 0.9, determinism: 'static',
+        ...(r.Target ? { location: { file: r.Target, ...(typeof sec.StartLine === 'number' ? { line: sec.StartLine } : {}) } } : {}),
+        evidence: `${sec.RuleID ?? 'secret'}${sec.Title ? `: ${sec.Title}` : ''}`,
+      }));
+    }
+    for (const mc of r.Misconfigurations ?? []) {
+      c.misconfig++;
+      findings.push(createFinding({
+        source: 'sca', dimension: 'security', category: 'misconfig', severity: cveSeverity(mc.Severity), confidence: 0.85, determinism: 'static',
+        ...(r.Target ? { location: { file: r.Target } } : {}),
+        evidence: `${mc.ID ?? 'misconfig'}${mc.Title ? `: ${mc.Title}` : ''}`,
+      }));
+    }
+  }
+  const total = c.crit + c.high + c.med + c.low;
+  const score = Math.max(0, 100 - (c.crit * 25 + c.high * 10 + c.med * 4 + c.low + c.secrets * 8 + c.misconfig * 2));
+  const parts = [`${total} CVE(s)`, `crit ${c.crit}`, `high ${c.high}`, `med ${c.med}`, `low ${c.low}`];
+  if (c.secrets) parts.push(`${c.secrets} secret(s)`);
+  if (c.misconfig) parts.push(`${c.misconfig} misconfig(s)`);
+  return attach(
+    { scorer: 'sca', score, summary: `${parts.join(' · ')} (trivy direct)`, details: { secretsCount: c.secrets, misconfigCount: c.misconfig, backend: 'trivy-direct' } },
+    { findings, dimensions: ['dependencies', 'security'], analyzers: ['trivy'] },
+  );
+}
+
 export async function runScaScorer(targetDir?: string): Promise<ScorerResult> {
+  // Prefer the direct trivy run — no Claw service dependency.
+  if (targetDir && fs.existsSync(targetDir)) {
+    const direct = await runScaScorerDirect(targetDir);
+    if (direct) return direct;
+  }
+  // Fallback: the Claw-Protect service (same trivy subprocess, normalized JSON).
   await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
   if (!apiKey) return honest('sca', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — dependency CVE scan skipped');
@@ -2609,7 +2741,7 @@ export interface AuditPreset {
  *  list instead of a magic count that drifts when a scorer is added. */
 export const DEFAULT_AUDIT_SCORERS: ScorerName[] = [
   'reporank', 'grader', 'claw', 'sca', 'codegraph', 'ocr',
-  'deep', 'codegang', 'local_qa', 'typecheck', 'lint',
+  'codegang', 'local_qa', 'typecheck', 'lint',
   'deps_freshness', 'licenses_sbom', 'duplication', 'perf',
   'a11y', 'api_contract', 'git_history', 'iac', 'sonarqube', 'cmake',
 ];
@@ -2622,7 +2754,7 @@ export const AUDIT_PRESETS: Record<AuditPresetName, AuditPreset> = {
   },
   standard: {
     scorers: [
-      'reporank', 'grader', 'deep', 'sca', 'codegraph', 'ocr',
+      'reporank', 'grader', 'sca', 'codegraph', 'ocr',
       'local_qa', 'typecheck', 'lint', 'deps_freshness', 'licenses_sbom',
       'duplication', 'git_history', 'iac', 'cmake',
     ],

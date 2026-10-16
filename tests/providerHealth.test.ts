@@ -44,9 +44,6 @@ describe('probeProviderHealth', () => {
     const report = await probeProviderHealth({}, d);
     expect(report.vault.reachable).toBe(false);
     expect(report.vault.secretCount).toBeNull();
-    const keywire = report.providers.find((p) => p.id === 'keywire');
-    expect(keywire?.up).toBe(false);
-    expect(keywire?.detail).toBe('unreachable');
   });
 
   it('reports an unreachable fleet service with its error, never as up', async () => {

@@ -5,14 +5,16 @@ import { reportIncident, type IncidentSeverity, type IncidentSource } from './in
 /**
  * Alert bridge — feeds the security spine into OpenHub's incident bus.
  *
- * Two producers append AlertEnvelope lines (interfaces §1):
+ * A producer appends AlertEnvelope lines (interfaces §1):
  *   - Draymond scheduled jobs → <draymond>/.draymond/security-alerts.jsonl
- *   - Keywire scheduled scan  → <keywire>/data/security/alerts.jsonl
- * This loop tails both and reports each new envelope as an incident, flowing
- * through the existing rails: repair auto-dispatch, `alert.raised` webhooks,
- * ntfy channel, dedupe.
+ * (Keywire's data/security/alerts.jsonl tail was retired with Keywire,
+ *  2026-10-15; OpenHub raises its own leak alerts from audit findings via
+ *  securityAlerts.ts.)
+ * This loop tails the file(s) and reports each new envelope as an incident,
+ * flowing through the existing rails: repair auto-dispatch, `alert.raised`
+ * webhooks, ntfy channel, dedupe.
  *
- * Read-only on both producers; files are appended by their owners, never here.
+ * Read-only on producers; files are appended by their owners, never here.
  * Gated by OPENHUB_ALERTS=0; cadence via OPENHUB_ALERTS_INTERVAL_MS.
  */
 
@@ -22,10 +24,7 @@ function pollFiles(): string[] {
     process.env.OPENHUB_DRAYMOND_DIR ||
     process.env.DRAYMOND_REGISTRY_DIR ||
     path.join(upliftRoot, 'Draymond-Orchestrator', '.draymond');
-  const keywireAlerts =
-    process.env.OPENHUB_KEYWIRE_ALERTS_FILE ||
-    path.join(process.env.KEYWIRE_ROOT || 'C:/Users/User/Downloads/BUSINESS/INFRASTRUCTURE/Keywire', 'data', 'security', 'alerts.jsonl');
-  return [path.join(draymondDir, 'security-alerts.jsonl'), keywireAlerts];
+  return [path.join(draymondDir, 'security-alerts.jsonl')];
 }
 
 const SEVERITY_MAP: Record<string, IncidentSeverity> = {

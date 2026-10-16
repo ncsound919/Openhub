@@ -1,4 +1,4 @@
-import { resolveSecret } from './keywire.js';
+import { resolveSecret } from './vault.js';
 import {
   verifyAndFetchGitHubProfile,
   saveGitHubIntegration,
@@ -109,7 +109,7 @@ async function firstWorkingCredential(
     }
     try {
       const profile = await deps.verifyProfile(resolved.value);
-      return { token: resolved.value, profile, key, source: resolved.source || 'keywire' };
+      return { token: resolved.value, profile, key, source: resolved.source || 'env' };
     } catch (err) {
       attempts.push(`${key}: ${err instanceof Error ? err.message : String(err)}`);
     }

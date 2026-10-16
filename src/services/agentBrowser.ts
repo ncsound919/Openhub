@@ -1,4 +1,4 @@
-import { resolveSecret } from './keywire.js';
+import { resolveSecret } from './vault.js';
 
 /**
  * AgentBrowser client — the fleet's authenticated browser (a real Comet profile

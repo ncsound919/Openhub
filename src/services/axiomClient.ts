@@ -4,24 +4,20 @@ import path from 'path';
 
 export const AXIOM_BASE = process.env.AXIOM_URL || `http://127.0.0.1:${process.env.AXIOM_PORT || '3198'}`;
 
-/** Resolve the HMAC signing secret using the SAME chain Axiom itself uses
- *  (src/server/auth.ts resolveSigningSecret): Keywire key file first, then the
- *  persisted emergency key. Order matters: Axiom prefers the Keywire secret
- *  when it is configured, so OpenHub must too or minted tokens get rejected
- *  with "bad signature". */
+/** Resolve the HMAC signing secret for the internal Axiom token.
+ *
+ *  Until 2026-10-15 the source was Keywire's `keywire-keys.json` (`jwtSecret`),
+ *  matching Axiom's own resolveSigningSecret chain. Keywire was retired
+ *  ecosystem-wide and Axiom is archived (`BUSINESS/_archive/from-uplift`), so
+ *  that file read is GONE. The secret now comes from `AXIOM_JWT_SECRET`, else the
+ *  persisted emergency key file (the same shape Axiom uses). With no secret the
+ *  token is empty and callers degrade honestly rather than minting a
+ *  bad-signature JWT. */
 function getSigningSecret(): string {
-  const keysFile = process.env.KEYWIRE_KEYS_FILE
-    || path.join(process.env.KEYWIRE_ROOT || path.join('C:', 'Users', 'User', 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'Keywire'), 'data', 'keywire-keys.json');
-  if (keysFile && fs.existsSync(keysFile)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(keysFile, 'utf8').replace(/^\uFEFF/, ''));
-      if (typeof parsed?.jwtSecret === 'string' && parsed.jwtSecret) {
-        return parsed.jwtSecret;
-      }
-    } catch {}
-  }
+  const envSecret = (process.env.AXIOM_JWT_SECRET || '').trim();
+  if (envSecret) return envSecret;
 
-  // Emergency key file check (same path shape as src/server/auth.ts).
+  // Emergency key file check (same path shape as Axiom's src/server/auth.ts).
   const emergencyPath = process.env.AXIOM_EMERGENCY_KEY_FILE || path.join(process.env.USERPROFILE || '', '.axiom', 'emergency-key.json');
   if (fs.existsSync(emergencyPath)) {
     try {

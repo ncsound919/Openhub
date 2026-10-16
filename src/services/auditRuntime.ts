@@ -161,7 +161,7 @@ export async function resolveAuditModelKey(env: NodeJS.ProcessEnv = process.env)
   const direct = (env.AUDIT_LLM_KEY || env.OPENHUB_LLM_KEY || env.LITELLM_MASTER_KEY || '').trim();
   if (direct) return direct;
   try {
-    const { resolveSecret } = await import('./keywire.js');
+    const { resolveSecret } = await import('./vault.js');
     const result = await resolveSecret('LITELLM_MASTER_KEY', env);
     return result.value ?? undefined;
   } catch {

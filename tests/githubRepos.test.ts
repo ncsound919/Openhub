@@ -136,8 +136,8 @@ describe('githubRepos (fleet repo awareness)', () => {
     let tmp: string;
     let mock: { base: string; close: () => Promise<void> };
     // Hermetic vault: these tests exercise the *unauthenticated* public path, so
-    // point Keywire at an unreachable port rather than the live vault.
-    const noVault = { OPENHUB_KEYWIRE_URL: 'http://127.0.0.1:1' };
+    // disable Infisical rather than letting the live vault answer.
+    const noVault = { OPENHUB_DISABLE_INFISICAL: '1' };
 
     beforeEach(async () => {
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'github-repos-'));

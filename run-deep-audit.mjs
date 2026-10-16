@@ -5,13 +5,10 @@ import path from 'path';
 const AX = 'http://127.0.0.1:3198';
 
 function getSigningSecret() {
-  const keysFile = process.env.KEYWIRE_KEYS_FILE || path.join('C:', 'Users', 'User', 'Downloads', 'BUSINESS', 'INFRASTRUCTURE', 'Keywire', 'data', 'keywire-keys.json');
-  if (fs.existsSync(keysFile)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(keysFile, 'utf8').replace(/^\uFEFF/, ''));
-      if (typeof parsed?.jwtSecret === 'string' && parsed.jwtSecret) return parsed.jwtSecret;
-    } catch { /* unreadable key file — fall through to the emergency key */ }
-  }
+  // Keywire's keywire-keys.json read is gone (Keywire retired 2026-10-15;
+  // Axiom archived). Secret comes from AXIOM_JWT_SECRET, else the emergency key.
+  const envSecret = (process.env.AXIOM_JWT_SECRET || '').trim();
+  if (envSecret) return envSecret;
   const emergencyPath = process.env.AXIOM_EMERGENCY_KEY_FILE || path.join(process.env.USERPROFILE || '', '.axiom', 'emergency-key.json');
   if (fs.existsSync(emergencyPath)) {
     try {
@@ -35,7 +32,7 @@ function mint() {
 
 const token = mint();
 if (!token) {
-  console.log('NO_TOKEN — could not resolve signing secret (keywire/emergency key missing)');
+  console.log('NO_TOKEN — could not resolve signing secret (AXIOM_JWT_SECRET/emergency key missing)');
   process.exit(0);
 }
 

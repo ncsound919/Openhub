@@ -13,10 +13,10 @@ const CLOSED = 'http://127.0.0.1:9';
 describe('peerSpecs', () => {
   it('defaults every peer to a base URL and reuses fleet env overrides', () => {
     const specs = peerSpecs({ RECOURSE_URL: 'http://localhost:3050' });
-    expect(specs.map((s) => s.id)).toEqual(['recourse', 'devBrain', 'axiom', 'draymond', 'keywire']);
+    expect(specs.map((s) => s.id)).toEqual(['recourse', 'devBrain', 'axiom', 'draymond', 'infisical']);
     expect(specs[0].baseUrl).toBe('http://localhost:3050');
-    // Keywire moved to :4700 (Phase-0 fix); :3000 is Grafana on this host.
-    expect(specs[4].baseUrl).toBe('http://127.0.0.1:4700');
+    // Keywire retired ecosystem-wide (2026-10-15); the vault node is now Infisical.
+    expect(specs[4].baseUrl).toBe('http://127.0.0.1:8081');
   });
 });
 
@@ -54,7 +54,7 @@ describe('routeDecision', () => {
   });
 
   it('routes growth to Recourse and reports unavailable honestly when down', async () => {
-    const r = await routeDecision('growth', {}, { RECOURSE_URL: CLOSED, DEV_BRAIN_URL: CLOSED, AXIOM_URL: CLOSED, DRAYMOND_URL: CLOSED, KEYWIRE_URL: CLOSED });
+    const r = await routeDecision('growth', {}, { RECOURSE_URL: CLOSED, DEV_BRAIN_URL: CLOSED, AXIOM_URL: CLOSED, DRAYMOND_URL: CLOSED, INFISICAL_URL: CLOSED });
     expect(r.routedTo).toBe('recourse');
     expect(r.available).toBe(false);
     expect(r.error).toBeTruthy();
@@ -63,7 +63,7 @@ describe('routeDecision', () => {
 
 describe('fleetState', () => {
   it('reports every peer offline without fabricating when none are reachable', async () => {
-    const state = await fleetState({ RECOURSE_URL: CLOSED, DEV_BRAIN_URL: CLOSED, AXIOM_URL: CLOSED, DRAYMOND_URL: CLOSED, KEYWIRE_URL: CLOSED });
+    const state = await fleetState({ RECOURSE_URL: CLOSED, DEV_BRAIN_URL: CLOSED, AXIOM_URL: CLOSED, DRAYMOND_URL: CLOSED, INFISICAL_URL: CLOSED });
     expect(state.online).toBe(false);
     expect(state.peers).toHaveLength(5);
     expect(state.peers.every((p) => p.online === false)).toBe(true);
