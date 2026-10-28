@@ -24,6 +24,15 @@ interface Session {
   updatedAt: number;
 }
 
+interface Approval {
+  id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  status: 'pending' | 'allowed' | 'denied' | 'executed' | 'failed';
+  createdAt: number;
+  reason?: string | null;
+}
+
 const SUGGESTIONS = [
   'What is down right now?',
   'What ran overnight and did anything fail?',
@@ -39,6 +48,8 @@ export function ChatView() {
   const [session, setSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [tools, setTools] = useState<ToolCall[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [deciding, setDeciding] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<string>('Connecting…');
@@ -57,6 +68,7 @@ export function ChatView() {
       session?: Session;
       messages?: Message[];
       toolCalls?: Array<{ tool: string; status: string; result: { summary?: string; at?: string } }>;
+      approvals?: Approval[];
       error?: string;
     };
     if (!res.ok || !body.ok || !body.session) throw new Error(body.error || `HTTP ${res.status}`);
@@ -70,6 +82,7 @@ export function ChatView() {
         at: call.result?.at ?? '',
       })),
     );
+    setApprovals(body.approvals ?? []);
     setStatus('Ready');
   }, []);
 
@@ -136,6 +149,16 @@ export function ChatView() {
         ...prev.filter((t) => !(t.tool === data.tool && t.summary === 'running…')),
       ].slice(0, 12));
     });
+    es.addEventListener('approval.required', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { approval: Approval };
+      setApprovals((prev) => [data.approval, ...prev.filter((a) => a.id !== data.approval.id)]);
+      setStatus('Waiting for approval');
+    });
+    es.addEventListener('approval.resolved', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { approval: Approval };
+      setApprovals((prev) => prev.map((a) => (a.id === data.approval.id ? data.approval : a)));
+      setStatus('Ready');
+    });
     es.addEventListener('assistant.final', (event) => {
       const data = JSON.parse((event as MessageEvent).data) as { text: string; tier?: string };
       setTier(data.tier ?? '');
@@ -189,18 +212,43 @@ export function ChatView() {
         tier?: string;
         messages?: Message[];
         toolCalls?: ToolCall[];
+        approvals?: Approval[];
+        approval?: Approval | null;
         error?: string;
       };
       if (body.messages) setMessages(body.messages);
       if (body.toolCalls) setTools((prev) => [...body.toolCalls!, ...prev].slice(0, 12));
+      if (body.approvals) setApprovals(body.approvals);
       if (body.tier) setTier(body.tier);
       if (!res.ok || !body.ok) setError(body.error || body.text || `HTTP ${res.status}`);
-      setStatus('Ready');
+      setStatus(body.approval ? 'Waiting for approval' : 'Ready');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus('Error');
     } finally {
       setSending(false);
+    }
+  };
+
+  const decide = async (id: string, allow: boolean) => {
+    if (deciding) return;
+    setDeciding(id);
+    setError('');
+    try {
+      const res = await fetch(`/api/harness/approvals/${id}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({ allow }),
+      });
+      const body = (await res.json()) as { ok?: boolean; error?: string; text?: string };
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      if (session) await loadSession(session.id);
+      setStatus('Ready');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeciding('');
     }
   };
 
@@ -316,6 +364,50 @@ export function ChatView() {
         ) : null}
         <div ref={bottomRef} />
       </div>
+
+      {approvals.some((a) => a.status === 'pending') ? (
+        <section aria-label="Approvals" className="flex flex-col gap-2">
+          {approvals
+            .filter((a) => a.status === 'pending')
+            .map((approval) => (
+              <div
+                key={approval.id}
+                role="group"
+                aria-label={`Approval for ${approval.tool}`}
+                className="rounded-lg border border-[var(--color-warning)]/50 bg-[var(--color-warning)]/10 p-3"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-warning)]">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Approval needed · <span className="font-mono">{approval.tool}</span>
+                </div>
+                <pre className="mt-2 max-h-32 overflow-auto rounded bg-black/20 p-2 font-mono text-[10px] text-[var(--color-text-secondary)]">
+                  {JSON.stringify(approval.args, null, 2)}
+                </pre>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void decide(approval.id, true)}
+                    disabled={Boolean(deciding)}
+                    className="rounded bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    {deciding === approval.id ? 'Working…' : 'Allow'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void decide(approval.id, false)}
+                    disabled={Boolean(deciding)}
+                    className="rounded border border-surface-overlay px-3 py-1.5 text-xs disabled:opacity-50"
+                  >
+                    Deny
+                  </button>
+                </div>
+                <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
+                  Nothing runs until you allow it. Writes are executed server-side and logged.
+                </p>
+              </div>
+            ))}
+        </section>
+      ) : null}
 
       {tools.length > 0 ? (
         <section aria-label="Tool activity" className="rounded-lg border border-surface-overlay bg-surface/30 p-3">

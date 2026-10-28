@@ -21,7 +21,7 @@ const TELEMETRY_URL = (env: NodeJS.ProcessEnv = process.env) =>
 export const TOOL_ARGS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['service', 'window', 'limit'],
+  required: ['service', 'window', 'limit', 'job', 'title', 'steps', 'budget_usd'],
   properties: {
     service: {
       type: ['string', 'null'],
@@ -34,6 +34,22 @@ export const TOOL_ARGS_SCHEMA = {
     limit: {
       type: ['integer', 'null'],
       description: 'Maximum rows for list tools. Null defaults to 20.',
+    },
+    job: {
+      type: ['string', 'null'],
+      description: 'Exact job id for cron.pause/cron.enable/cron.run.',
+    },
+    title: {
+      type: ['string', 'null'],
+      description: 'Plan title for plan.create.',
+    },
+    steps: {
+      type: ['string', 'null'],
+      description: 'Plan steps, one per line, for plan.create.',
+    },
+    budget_usd: {
+      type: ['number', 'null'],
+      description: 'Optional budget in USD for plan.create.',
     },
   },
 } as const;
@@ -89,7 +105,51 @@ export const TOOLS: ToolSpec[] = [
     annotations,
     risk: 'read',
   },
+  {
+    name: 'cron.pause',
+    title: 'Pause a job',
+    description:
+      'Disable one existing job by exact id. Reversible with cron.enable. Requires args.job. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: true },
+    risk: 'write',
+    idempotent: true,
+  },
+  {
+    name: 'cron.enable',
+    title: 'Enable a job',
+    description:
+      'Re-enable one existing job by exact id. Requires args.job. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: true },
+    risk: 'write',
+    idempotent: true,
+  },
+  {
+    name: 'cron.run',
+    title: 'Run a job now',
+    description:
+      'Dispatch one existing job immediately by exact id. Requires args.job. It takes the same path as the cron, so a run row is recorded. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
+    risk: 'write',
+  },
+  {
+    name: 'plan.create',
+    title: 'Create a plan',
+    description:
+      'Create a draft plan with a title and one step per line. Optionally set budget_usd. This is a write and needs operator approval. Creating a new cron slot still requires a code deploy; use cron.pause/enable/run for existing jobs.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
+    risk: 'write',
+  },
 ];
+
+/** Read tools run immediately; everything else pauses for the operator. */
+export function requiresApproval(name: string): boolean {
+  const tool = toolByName(name);
+  return Boolean(tool && tool.risk !== 'read');
+}
 
 export function toolByName(name: string): ToolSpec | undefined {
   return TOOLS.find((tool) => tool.name === name);
@@ -120,6 +180,31 @@ async function getJson(url: string, headers: Record<string, string> = {}): Promi
     throw new Error(`HTTP ${response.status}${detail ? `: ${String(detail)}` : ''}`);
   }
   return body;
+}
+
+async function postJson(
+  url: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Promise<unknown> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  });
+  const text = await response.text();
+  let parsed: unknown = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { raw: text.slice(0, 500) };
+  }
+  if (!response.ok) {
+    const detail = parsed && typeof parsed === 'object' ? (parsed as { error?: unknown }).error : null;
+    throw new Error(`HTTP ${response.status}${detail ? `: ${String(detail)}` : ''}`);
+  }
+  return parsed;
 }
 
 function controlHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
@@ -220,6 +305,71 @@ export async function executeTool(
         `Telemetry ${window}: ${int(totals.events)} events, ${int(totals.errors)} errors. ` +
         `Sources: ${sources || 'none'}. Kinds: ${kinds || 'none'}.`;
       return { ok: true, tool: name, summary, data: body, at };
+    }
+
+    if (name === 'cron.pause' || name === 'cron.enable' || name === 'cron.run') {
+      const job = typeof args.job === 'string' ? args.job.trim() : '';
+      if (!job) return errorResult(name, `${name} requires args.job (an exact job id from cron.list).`);
+      const headers = controlHeaders(env);
+      if (name === 'cron.run') {
+        const body = (await postJson(
+          `${CONTROL_URL(env)}/api/jobs/${encodeURIComponent(job)}/run`,
+          {},
+          headers,
+        )) as { ok?: boolean; status?: string; detail?: string; error?: string };
+        if (!body?.ok) return errorResult(name, `Run refused: ${body?.error ?? body?.detail ?? 'unknown'}`);
+        return {
+          ok: true,
+          tool: name,
+          summary: `Dispatched ${job}: ${body.status ?? 'queued'}${body.detail ? ` (${body.detail})` : ''}.`,
+          data: body,
+          at,
+        };
+      }
+      const enable = name === 'cron.enable';
+      const body = (await postJson(
+        `${CONTROL_URL(env)}/api/jobs/${encodeURIComponent(job)}/reconfigure`,
+        { enabled: enable },
+        headers,
+      )) as { ok?: boolean; error?: string };
+      if (!body?.ok) return errorResult(name, `Reconfigure refused: ${body?.error ?? 'unknown'}`);
+      return {
+        ok: true,
+        tool: name,
+        summary: `${job} is now ${enable ? 'enabled' : 'paused'}.`,
+        data: body,
+        at,
+      };
+    }
+
+    if (name === 'plan.create') {
+      const title = typeof args.title === 'string' ? args.title.trim() : '';
+      const stepsRaw = typeof args.steps === 'string' ? args.steps : '';
+      const steps = stepsRaw
+        .split(/\r?\n/)
+        .map((s) => s.replace(/^\s*(?:[-*]|\d+[.)])\s*/, '').trim())
+        .filter(Boolean)
+        .slice(0, 20);
+      if (!title) return errorResult(name, 'plan.create requires args.title.');
+      if (steps.length === 0) return errorResult(name, 'plan.create requires args.steps (one step per line).');
+      const body = (await postJson(
+        `${CONTROL_URL(env)}/api/plans`,
+        {
+          title,
+          steps,
+          budget_usd: typeof args.budget_usd === 'number' ? args.budget_usd : null,
+          status: 'draft',
+        },
+        controlHeaders(env),
+      )) as { ok?: boolean; plan?: { id?: number }; error?: string };
+      if (!body?.ok || !body.plan?.id) return errorResult(name, `Plan refused: ${body?.error ?? 'unknown'}`);
+      return {
+        ok: true,
+        tool: name,
+        summary: `Created plan #${body.plan.id} "${title}" with ${steps.length} step(s), status draft.`,
+        data: body,
+        at,
+      };
     }
 
     if (name === 'cron.list') {

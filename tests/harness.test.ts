@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ACTION_SCHEMA, parseAction } from '../src/harness/loop';
 import { buildSystemPrompt, renderAppMap } from '../src/harness/systemMap';
-import { executeTool, TOOLS } from '../src/harness/tools';
+import { executeTool, requiresApproval, TOOLS } from '../src/harness/tools';
 import { serializeEvent } from '../src/harness/events';
 import { APP_MANIFESTS } from '../src/harness/apps';
 
@@ -24,12 +24,18 @@ describe('app map and prompt', () => {
     expect(prompt).toContain('Reply with ONE JSON object');
   });
 
-  it('keeps phase 1 read-only', () => {
+  it('separates read tools from approval-gated writes', () => {
     for (const tool of TOOLS) {
-      expect(tool.risk).toBe('read');
-      expect(tool.annotations.readOnlyHint).toBe(true);
+      if (tool.risk === 'read') {
+        expect(tool.annotations.readOnlyHint).toBe(true);
+      } else {
+        expect(tool.risk).toBe('write');
+        expect(tool.annotations.readOnlyHint).toBe(false);
+      }
       expect(tool.annotations.destructiveHint).toBe(false);
     }
+    expect(TOOLS.some((t) => t.risk === 'read')).toBe(true);
+    expect(TOOLS.some((t) => t.risk === 'write')).toBe(true);
   });
 });
 
@@ -42,6 +48,10 @@ describe('action envelope', () => {
       'service',
       'window',
       'limit',
+      'job',
+      'title',
+      'steps',
+      'budget_usd',
     ]);
   });
 
@@ -107,6 +117,60 @@ describe('read tools', () => {
     const result = await executeTool('fleet.status', {}, {} as NodeJS.ProcessEnv);
     expect(result.ok).toBe(false);
     expect(result.summary).toContain('ECOSYSTEM_CONTROL_TOKEN');
+  });
+});
+
+describe('write tools', () => {
+  it('marks every non-read tool as approval-gated', () => {
+    expect(requiresApproval('fleet.status')).toBe(false);
+    expect(requiresApproval('telemetry.summary')).toBe(false);
+    expect(requiresApproval('cron.pause')).toBe(true);
+    expect(requiresApproval('cron.enable')).toBe(true);
+    expect(requiresApproval('cron.run')).toBe(true);
+    expect(requiresApproval('plan.create')).toBe(true);
+  });
+
+  it('pauses a job through the control plane', async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: String(init?.body ?? '') });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }),
+    );
+    const result = await executeTool(
+      'cron.pause',
+      { job: 'fleet-watch' },
+      { ECOSYSTEM_CONTROL_TOKEN: 'test' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('fleet-watch is now paused');
+    expect(calls[0].url).toContain('/api/jobs/fleet-watch/reconfigure');
+    expect(JSON.parse(calls[0].body)).toEqual({ enabled: false });
+  });
+
+  it('creates a plan with one step per line', async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: String(init?.body ?? '') });
+        return new Response(JSON.stringify({ ok: true, plan: { id: 7 } }), { status: 201 });
+      }),
+    );
+    const result = await executeTool(
+      'plan.create',
+      { title: 'Nightly oncology', steps: '- check worker\n2) run audit\n', budget_usd: 5 },
+      { ECOSYSTEM_CONTROL_TOKEN: 'test' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('plan #7');
+    const body = JSON.parse(calls[0].body) as { steps: string[]; title: string; budget_usd: number };
+    expect(calls[0].url).toContain('/api/plans');
+    expect(body.title).toBe('Nightly oncology');
+    expect(body.steps).toEqual(['check worker', 'run audit']);
+    expect(body.budget_usd).toBe(5);
   });
 });
 

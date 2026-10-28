@@ -1,8 +1,8 @@
-import { addMessage, addToolCall, listMessages } from './store';
+import { addMessage, addToolCall, createApproval, listMessages } from './store';
 import { buildSystemPrompt, loadLiveState } from './systemMap';
-import { TOOLS, executeTool, toolByName } from './tools';
+import { TOOLS, executeTool, requiresApproval, toolByName } from './tools';
 import { publish } from './events';
-import type { HarnessAction, ToolResult } from './types';
+import type { ApprovalRecord, HarnessAction, ToolResult } from './types';
 import { runLlm, type LlmMessage } from '../services/llmRouter';
 
 /**
@@ -24,11 +24,15 @@ export const ACTION_SCHEMA = {
     args: {
       type: 'object',
       additionalProperties: false,
-      required: ['service', 'window', 'limit'],
+      required: ['service', 'window', 'limit', 'job', 'title', 'steps', 'budget_usd'],
       properties: {
         service: { type: ['string', 'null'] },
         window: { type: ['string', 'null'] },
         limit: { type: ['integer', 'null'] },
+        job: { type: ['string', 'null'] },
+        title: { type: ['string', 'null'] },
+        steps: { type: ['string', 'null'] },
+        budget_usd: { type: ['number', 'null'] },
       },
     },
     plan: {
@@ -81,6 +85,11 @@ export function parseAction(raw: string): HarnessAction | null {
         service: typeof args.service === 'string' ? args.service : null,
         window: typeof args.window === 'string' ? args.window : null,
         limit: typeof args.limit === 'number' && Number.isFinite(args.limit) ? Math.trunc(args.limit) : null,
+        job: typeof args.job === 'string' ? args.job : null,
+        title: typeof args.title === 'string' ? args.title : null,
+        steps: typeof args.steps === 'string' ? args.steps : null,
+        budget_usd:
+          typeof args.budget_usd === 'number' && Number.isFinite(args.budget_usd) ? args.budget_usd : null,
       },
       plan:
         parsed.plan && typeof parsed.plan === 'object' && typeof parsed.plan.title === 'string'
@@ -171,6 +180,8 @@ export interface TurnResult {
   text: string;
   tier: string;
   toolCalls: Array<{ tool: string; ok: boolean; summary: string; at: string }>;
+  /** Present when the model asked for a write; the turn paused for approval. */
+  approval?: ApprovalRecord;
   error?: string;
 }
 
@@ -221,7 +232,7 @@ export async function runTurn(
         role: 'user',
         content:
           'Your previous reply was not valid JSON in the required envelope. Reply with exactly one JSON object: ' +
-          '{"type":"tool"|"final"|"ask"|"plan","say":"...","tool":null,"args":{"service":null,"window":null,"limit":null},"plan":null}',
+          '{"type":"tool"|"final"|"ask"|"plan","say":"...","tool":null,"args":{"service":null,"window":null,"limit":null,"job":null,"title":null,"steps":null,"budget_usd":null},"plan":null}',
       });
       continue;
     }
@@ -243,6 +254,14 @@ export async function runTurn(
       messages.push({ role: 'assistant', content: result.text });
       messages.push({ role: 'user', content: `TOOL RESULT ${JSON.stringify({ tool, ok: false, summary: observation })}` });
       continue;
+    }
+
+    if (requiresApproval(tool)) {
+      const approval = createApproval(sessionId, tool, action.args as unknown as Record<string, unknown>);
+      const say = action.say.trim() || `I need your approval to ${tool}.`;
+      addMessage(sessionId, 'assistant', say);
+      publish(sessionId, 'approval.required', { approval });
+      return { ok: true, text: say, tier: lastTier, toolCalls: calls, approval };
     }
 
     const startedAt = Date.now();

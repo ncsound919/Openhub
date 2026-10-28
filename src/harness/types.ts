@@ -56,6 +56,11 @@ export interface HarnessAction {
     service: string | null;
     window: string | null;
     limit: number | null;
+    job: string | null;
+    title: string | null;
+    /** Newline-separated plan steps. A string keeps constrained decoding simple. */
+    steps: string | null;
+    budget_usd: number | null;
   };
   plan: {
     title: string;
@@ -70,4 +75,18 @@ export interface HarnessToolCall {
   result: ToolResult;
   startedAt: string;
   finishedAt: string;
+}
+
+export type ApprovalStatus = 'pending' | 'allowed' | 'denied' | 'executed' | 'failed';
+
+export interface ApprovalRecord {
+  id: string;
+  sessionId: string;
+  tool: string;
+  args: Record<string, unknown>;
+  status: ApprovalStatus;
+  createdAt: number;
+  decidedAt: number | null;
+  reason: string | null;
+  result: Record<string, unknown> | null;
 }

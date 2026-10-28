@@ -1,15 +1,19 @@
 import express from 'express';
 import {
   addMessage,
+  addToolCall,
   createSession,
+  decideApproval,
+  getApproval,
   getSession,
+  listApprovals,
   listMessages,
   listSessions,
   listToolCalls,
 } from '../harness/store';
-import { subscribe } from '../harness/events';
+import { publish, subscribe } from '../harness/events';
 import { runTurn } from '../harness/loop';
-import { TOOLS } from '../harness/tools';
+import { TOOLS, executeTool } from '../harness/tools';
 
 /**
  * Harness HTTP surface. All routes are behind the normal OpenHub session auth.
@@ -46,6 +50,7 @@ export function createHarnessRouter(deps: { authMiddleware: express.RequestHandl
       session,
       messages: listMessages(session.id, 100),
       toolCalls: listToolCalls(session.id, 100),
+      approvals: listApprovals(session.id, 50),
     });
   });
 
@@ -71,7 +76,9 @@ export function createHarnessRouter(deps: { authMiddleware: express.RequestHandl
         text: result.text,
         tier: result.tier,
         toolCalls: result.toolCalls,
+        approval: result.approval ?? null,
         messages: listMessages(session.id, 100),
+        approvals: listApprovals(session.id, 50),
         error: result.error,
       });
     } catch (error) {
@@ -79,6 +86,59 @@ export function createHarnessRouter(deps: { authMiddleware: express.RequestHandl
       addMessage(session.id, 'assistant', `Harness error: ${message}`);
       return res.status(500).json({ ok: false, error: message });
     }
+  });
+
+  router.post('/harness/approvals/:id', async (req, res) => {
+    const approval = getApproval(req.params.id);
+    if (!approval) return res.status(404).json({ ok: false, error: 'approval not found' });
+    if (approval.status !== 'pending') {
+      return res.status(409).json({ ok: false, error: `approval is already ${approval.status}` });
+    }
+
+    const allow = req.body?.allow === true;
+    if (!allow) {
+      const denied = decideApproval(approval.id, 'denied', 'operator denied');
+      const text = `Denied: ${approval.tool} was not run.`;
+      addMessage(approval.sessionId, 'assistant', text);
+      publish(approval.sessionId, 'approval.resolved', { approval: denied });
+      return res.json({ ok: true, approval: denied, text });
+    }
+
+    const startedAt = Date.now();
+    publish(approval.sessionId, 'tool.started', {
+      tool: approval.tool,
+      args: approval.args,
+      at: new Date(startedAt).toISOString(),
+    });
+    const result = await executeTool(approval.tool, approval.args);
+    const finishedAt = Date.now();
+    addToolCall(
+      approval.sessionId,
+      approval.tool,
+      approval.args,
+      result as unknown as Record<string, unknown>,
+      result.ok ? 'ok' : 'error',
+      startedAt,
+      finishedAt,
+    );
+    const updated = decideApproval(
+      approval.id,
+      result.ok ? 'executed' : 'failed',
+      result.ok ? null : result.error ?? result.summary,
+      result as unknown as Record<string, unknown>,
+    );
+    const text = result.ok
+      ? `${approval.tool}: ${result.summary}`
+      : `${approval.tool} failed: ${result.summary}`;
+    addMessage(approval.sessionId, 'assistant', text);
+    publish(approval.sessionId, 'tool.result', {
+      tool: approval.tool,
+      ok: result.ok,
+      summary: result.summary,
+      at: result.at,
+    });
+    publish(approval.sessionId, 'approval.resolved', { approval: updated, result });
+    return res.json({ ok: result.ok, approval: updated, result, text });
   });
 
   return router;
