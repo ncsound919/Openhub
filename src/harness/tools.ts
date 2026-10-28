@@ -59,6 +59,14 @@ export const TOOL_ARGS_SCHEMA = {
       type: ['string', 'null'],
       description: 'Exact run id for agent.playbook_runs detail.',
     },
+    cron: {
+      type: ['string', 'null'],
+      description: 'Five-field UTC cron for cron.create, e.g. "0 3 * * *".',
+    },
+    verbs: {
+      type: ['string', 'null'],
+      description: 'Comma-separated verbs for cron.create, exactly as fleet.status lists them.',
+    },
   },
 } as const;
 
@@ -156,10 +164,29 @@ export const TOOLS: ToolSpec[] = [
     risk: 'write',
   },
   {
+    name: 'cron.create',
+    title: 'Create a scheduled job',
+    description:
+      'Create a job on the control plane: args.service (a registered service id), args.verbs (comma-separated, exactly as fleet.status lists them), args.title (the job name), and args.cron (five-field UTC, e.g. "0 3 * * *" or "*/30 * * * *"). Optionally args.job for the id, args.limit is not used, args.budget_usd optional. The target and each verb are checked against the dispatcher allowlist before anything is stored. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
+    risk: 'write',
+  },
+  {
+    name: 'cron.delete',
+    title: 'Delete a scheduled job',
+    description:
+      'Delete an operator-created job by exact id. Fixed-trigger jobs cannot be deleted. Run history is kept. Requires args.job. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: true },
+    risk: 'write',
+    idempotent: true,
+  },
+  {
     name: 'plan.create',
     title: 'Create a plan',
     description:
-      'Create a draft plan with a title and one step per line. Optionally set budget_usd. This is a write and needs operator approval. Creating a new cron slot still requires a code deploy; use cron.pause/enable/run for existing jobs.',
+      'Create a draft plan with a title and one step per line. Optionally set budget_usd. This is a write and needs operator approval. To actually schedule work, use cron.create.',
     inputSchema: TOOL_ARGS_SCHEMA,
     annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
     risk: 'write',
@@ -395,6 +422,58 @@ export async function executeTool(
         ok: true,
         tool: name,
         summary: `${job} is now ${enable ? 'enabled' : 'paused'}.`,
+        data: body,
+        at,
+      };
+    }
+
+    if (name === 'cron.create') {
+      const service = typeof args.service === 'string' ? args.service.trim() : '';
+      const title = typeof args.title === 'string' ? args.title.trim() : '';
+      const cron = typeof args.cron === 'string' ? args.cron.trim() : '';
+      const verbs = (typeof args.verbs === 'string' ? args.verbs : '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+      const id = typeof args.job === 'string' ? args.job.trim() : '';
+      if (!service) return errorResult(name, 'cron.create requires args.service (a registered service id from fleet.status).');
+      if (!title) return errorResult(name, 'cron.create requires args.title (the job name).');
+      if (!verbs.length) return errorResult(name, 'cron.create requires args.verbs (comma-separated, as fleet.status lists them).');
+      if (!cron) return errorResult(name, 'cron.create requires args.cron (five-field UTC, e.g. "0 3 * * *").');
+      const body = (await postJson(
+        `${CONTROL_URL(env)}/api/jobs`,
+        {
+          ...(id ? { id } : {}),
+          name: title,
+          target: service,
+          verbs,
+          cron,
+          budget_usd: typeof args.budget_usd === 'number' ? args.budget_usd : null,
+        },
+        controlHeaders(env),
+      )) as { ok?: boolean; job?: { id?: string; cron?: string }; nextRunAt?: string };
+      const created = body?.job?.id ?? id ?? title;
+      return {
+        ok: true,
+        tool: name,
+        summary: `Created ${created} (${service}.${verbs.join(',')}) on '${body?.job?.cron ?? cron}'; next run ${body?.nextRunAt ?? 'unknown'}.`,
+        data: body,
+        at,
+      };
+    }
+
+    if (name === 'cron.delete') {
+      const job = typeof args.job === 'string' ? args.job.trim() : '';
+      if (!job) return errorResult(name, 'cron.delete requires args.job (an exact job id from cron.list).');
+      const body = (await postJson(
+        `${CONTROL_URL(env)}/api/jobs/${encodeURIComponent(job)}/delete`,
+        {},
+        controlHeaders(env),
+      )) as { ok?: boolean; deleted?: string };
+      return {
+        ok: true,
+        tool: name,
+        summary: `Deleted ${body?.deleted ?? job}. Its run history is kept.`,
         data: body,
         at,
       };

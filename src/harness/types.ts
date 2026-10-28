@@ -63,6 +63,10 @@ export interface HarnessAction {
     budget_usd: number | null;
     playbook: string | null;
     run_id: string | null;
+    /** Five-field UTC cron for cron.create, e.g. "0 3 * * *". */
+    cron: string | null;
+    /** Comma-separated verbs for cron.create, e.g. "stats,retrieve". */
+    verbs: string | null;
   };
   plan: {
     title: string;

@@ -34,6 +34,8 @@ export const ACTION_SCHEMA = {
         'budget_usd',
         'playbook',
         'run_id',
+        'cron',
+        'verbs',
       ],
       properties: {
         service: { type: ['string', 'null'] },
@@ -45,6 +47,8 @@ export const ACTION_SCHEMA = {
         budget_usd: { type: ['number', 'null'] },
         playbook: { type: ['string', 'null'] },
         run_id: { type: ['string', 'null'] },
+        cron: { type: ['string', 'null'] },
+        verbs: { type: ['string', 'null'] },
       },
     },
     plan: {
@@ -104,6 +108,8 @@ export function parseAction(raw: string): HarnessAction | null {
           typeof args.budget_usd === 'number' && Number.isFinite(args.budget_usd) ? args.budget_usd : null,
         playbook: typeof args.playbook === 'string' ? args.playbook : null,
         run_id: typeof args.run_id === 'string' ? args.run_id : null,
+        cron: typeof args.cron === 'string' ? args.cron : null,
+        verbs: typeof args.verbs === 'string' ? args.verbs : null,
       },
       plan:
         parsed.plan && typeof parsed.plan === 'object' && typeof parsed.plan.title === 'string'
@@ -246,7 +252,7 @@ export async function runTurn(
         role: 'user',
         content:
           'Your previous reply was not valid JSON in the required envelope. Reply with exactly one JSON object: ' +
-          '{"type":"tool"|"final"|"ask"|"plan","say":"...","tool":null,"args":{"service":null,"window":null,"limit":null,"job":null,"title":null,"steps":null,"budget_usd":null,"playbook":null,"run_id":null},"plan":null}',
+          '{"type":"tool"|"final"|"ask"|"plan","say":"...","tool":null,"args":{"service":null,"window":null,"limit":null,"job":null,"title":null,"steps":null,"budget_usd":null,"playbook":null,"run_id":null,"cron":null,"verbs":null},"plan":null}',
       });
       continue;
     }

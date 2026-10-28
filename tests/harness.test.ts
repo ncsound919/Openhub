@@ -56,6 +56,8 @@ describe('action envelope', () => {
       'budget_usd',
       'playbook',
       'run_id',
+      'cron',
+      'verbs',
     ]);
   });
 
@@ -131,11 +133,62 @@ describe('write tools', () => {
     expect(requiresApproval('cron.pause')).toBe(true);
     expect(requiresApproval('cron.enable')).toBe(true);
     expect(requiresApproval('cron.run')).toBe(true);
+    expect(requiresApproval('cron.create')).toBe(true);
+    expect(requiresApproval('cron.delete')).toBe(true);
     expect(requiresApproval('plan.create')).toBe(true);
     expect(requiresApproval('agent.playbook_run')).toBe(true);
     expect(requiresApproval('agent.reconcile')).toBe(true);
     expect(requiresApproval('agent.playbooks')).toBe(false);
     expect(requiresApproval('agent.playbook_runs')).toBe(false);
+  });
+
+  it('creates a scheduled job with a proven target, verb and cron', async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: String(init?.body ?? '') });
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            job: { id: 'nightly-index', cron: '0 3 * * *' },
+            nextRunAt: '2026-10-29T03:00:00.000Z',
+          }),
+          { status: 201 },
+        );
+      }),
+    );
+    const result = await executeTool(
+      'cron.create',
+      {
+        service: 'sieve-container',
+        verbs: 'index,stats',
+        title: 'Nightly index',
+        cron: '0 3 * * *',
+      },
+      { ECOSYSTEM_CONTROL_TOKEN: 'test' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('nightly-index');
+    expect(result.summary).toContain('next run 2026-10-29T03:00:00.000Z');
+    expect(calls[0].url).toContain('/api/jobs');
+    expect(JSON.parse(calls[0].body)).toEqual({
+      name: 'Nightly index',
+      target: 'sieve-container',
+      verbs: ['index', 'stats'],
+      cron: '0 3 * * *',
+      budget_usd: null,
+    });
+  });
+
+  it('refuses cron.create without a cron expression', async () => {
+    const result = await executeTool(
+      'cron.create',
+      { service: 'sieve-container', verbs: 'index', title: 'Nightly' },
+      { ECOSYSTEM_CONTROL_TOKEN: 'test' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('args.cron');
   });
 
   it('lists Agent Support playbooks through the loopback hub', async () => {
