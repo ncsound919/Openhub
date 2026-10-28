@@ -1,4 +1,6 @@
-import 'dotenv/config';
+// Must stay first: loads .env before any module that reads process.env at import
+// time, and makes the project's configured values win over stale machine-level ones.
+import './src/config/loadEnv.js';
 import express from 'express';
 import helmet from 'helmet';
 import path from 'path';
@@ -82,12 +84,16 @@ import { createSeoRouter } from './src/routes/seo.js';
 import { createCrmRouter } from './src/routes/crm.js';
 import { createNtfyRouter } from './src/routes/ntfy.js';
 import { createFleetKpisRouter } from './src/routes/fleetKpis.js';
+import { createHarnessRouter } from './src/routes/harness.js';
 import { createFleetAgentsRouter } from './src/routes/fleetAgents.js';
 import { createGithubFleetRouter } from './src/routes/githubFleet.js';
 import { createServicesLifecycleRouter } from './src/routes/servicesLifecycle.js';
 import { createFleetCapabilitiesRouter } from './src/routes/fleetCapabilities.js';
+import { createMemoryRecallRouter } from './src/routes/memoryRecall.js';
+import { createAndroidAuditRouter } from './src/routes/androidAudit.js';
 import { createAxiomProxyRouter } from './src/routes/axiomProxy.js';
 import { createOpencodeProxyRouter } from './src/routes/opencodeProxy.js';
+import { createKaggleRouter } from './src/routes/kaggleRoutes.js';
 import { createReceiptsRouter } from './src/routes/receipts.js';
 import { createClosedLoopRouter } from './src/routes/closedLoopRoutes.js';
 import { createAuditRouter } from './src/routes/auditRoutes.js';
@@ -485,7 +491,14 @@ async function startServer() {
   // Only trust X-Forwarded-* when the operator says a real proxy sits in front;
   // otherwise a spoofed header forges req.ip (which IP-based logic depends on).
   app.set('trust proxy', process.env.OPENHUB_TRUST_PROXY === '1' ? 1 : false);
-  const PORT = parseInt(process.env.PORT || '3000', 10);
+  // A machine-level PORT=0 (or any non-positive/garbage value) made the server bind
+  // an ephemeral port, so the Electron shell and the phone could never reach
+  // localhost:3000. Fall back to the documented default instead of listening on 0,
+  // and publish the effective port so later readers (self-report, spawned services)
+  // never advertise the bogus value.
+  const parsedPort = parseInt(process.env.PORT || '3000', 10);
+  const PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort < 65536 ? parsedPort : 3000;
+  process.env.PORT = String(PORT);
   // Bind loopback by default. OpenHub is a local control plane; exposing it on
   // 0.0.0.0 puts auth cookies and the repo/browse surface on the LAN. Operators
   // that genuinely front it with a reverse proxy set OPENHUB_HOST=0.0.0.0.
@@ -1980,21 +1993,15 @@ async function startServer() {
   // ===================== HEALTH =====================
 
   app.get('/api/health', async (_req, res) => {
-    // Axiom is the single execution engine: probe it so health reflects the
-    // real downstream dependency. Never report "ok" for a dependency we
-    // did not actually reach — surface degraded explicitly.
-    let axiom: { reachable: boolean; status?: unknown; error?: string } = { reachable: false };
-    try {
-      const { getAxiomStatus } = await import('./src/services/axiomClient.js');
-      const status = await getAxiomStatus();
-      axiom = { reachable: true, status };
-    } catch (err: any) {
-      axiom = { reachable: false, error: err?.message || 'Axiom unreachable' };
-    }
+    // opencode is the execution engine now (Axiom was dropped): probe it so
+    // health reflects the real downstream dependency. Never report "ok" for a
+    // dependency we did not actually reach — surface degraded explicitly.
+    const { opencodeEngineHealth } = await import('./src/services/opencodeEngine.js');
+    const engine = await opencodeEngineHealth();
     res.json({
-      status: axiom.reachable ? 'ok' : 'degraded',
-      engine: 'axiom',
-      axiom,
+      status: engine.available ? 'ok' : 'degraded',
+      engine: 'opencode',
+      opencode: { reachable: engine.available, version: engine.version, error: engine.error },
       timestamp: new Date().toISOString(),
     });
   });
@@ -2033,14 +2040,19 @@ async function startServer() {
   // review — all auth-gated, mounted under /api.
   app.use('/api', createFleetAgentsRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createFleetKpisRouter({ authMiddleware: auth.middleware() }));
+  // Operator chat: app map + read-only fleet/telemetry tools, one SSE stream.
+  app.use('/api', createHarnessRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createAiReviewRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createSeoRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createCrmRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createGithubFleetRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createServicesLifecycleRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createFleetCapabilitiesRouter({ authMiddleware: auth.middleware() }));
+  app.use('/api', createMemoryRecallRouter({ authMiddleware: auth.middleware() }));
+  app.use('/api', createAndroidAuditRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createAxiomProxyRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createOpencodeProxyRouter({ authMiddleware: auth.middleware() }));
+  app.use('/api', createKaggleRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createReceiptsRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createClosedLoopRouter({ authMiddleware: auth.middleware() }));
   // Machine-to-machine audit surface for Recourse's autopilot loop. Gated on
@@ -2119,7 +2131,16 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
+    // Running server.ts from the repo root -> <root>/dist. Running the esbuild
+    // bundle -> __dirname IS dist, and the old join produced dist/dist, so the
+    // built app returned "Cannot GET /" while every API still worked. The root
+    // also has a Vite entry index.html, so existence alone is not enough: only a
+    // directory literally named `dist` is the bundled case. Otherwise running
+    // `tsx server.ts` in production served the dev entry (`/src/main.tsx`) and
+    // every phone/browser got a blank page.
+    const bundled = path.basename(__dirname) === 'dist'
+      && fs.existsSync(path.join(__dirname, 'index.html'));
+    const distPath = bundled ? __dirname : path.join(__dirname, 'dist');
     if (!fs.existsSync(path.join(distPath, 'index.html'))) {
       console.warn('[Server] dist/ build not found. Run the build, or set NODE_ENV=development for the Vite dev server.');
     }

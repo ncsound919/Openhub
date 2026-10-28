@@ -2,6 +2,8 @@ import type { MissionEvent } from '../lib/missionStore.js';
 
 interface MissionTimelineProps {
   events: MissionEvent[];
+  /** Empty-state copy; the mission page uses the event log as a secondary view. */
+  emptyLabel?: string;
 }
 
 /** One rendered step: a header plus the events that belong to it. */
@@ -64,11 +66,11 @@ export function stepLabel(step: MissionStep): { label: string; full: string } {
  * Ordered mission event log, grouped into steps. Each event shows its local
  * time, `kind` and text. If there are no events, a calm empty state is shown.
  */
-export function MissionTimeline({ events }: MissionTimelineProps) {
+export function MissionTimeline({ events, emptyLabel }: MissionTimelineProps) {
   if (events.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-balance text-sm text-[var(--color-text-muted)]">
-        No mission yet — describe a goal to begin.
+        {emptyLabel ?? 'No mission yet — describe a goal to begin.'}
       </div>
     );
   }

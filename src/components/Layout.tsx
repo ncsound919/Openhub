@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  CircleDot, Lightbulb, Menu, Search, X, ChevronRight, Moon, Sun,
+  CircleDot, Lightbulb, Menu, Search, X, ChevronRight, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useStore } from '../store';
@@ -206,6 +206,13 @@ export function Layout() {
                 })}
               </div>
             ))}
+            {/* Mobile-only: the audit desk is a phone workflow, not a desktop rail item. */}
+            <div className="mb-4">
+              <div className="sidebar-group-label mb-1.5">Mobile</div>
+              <NavLink to="/assurance?av=android" onClick={() => setSidebarOpen(false)} className={({ isActive }) => cn('sidebar-link', isActive && 'active')}>
+                <Smartphone className="w-4 h-4" /> Android Desk
+              </NavLink>
+            </div>
           </div>
         </div>
       )}

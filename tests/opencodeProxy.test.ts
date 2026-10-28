@@ -4,13 +4,17 @@ import type { AddressInfo } from 'node:net';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createOpencodeProxyRouter } from '../src/routes/opencodeProxy.js';
+import { createOpencodeProxyRouter, defaultPromptModel } from '../src/routes/opencodeProxy.js';
 import { listReceipts } from '../src/services/receipts.js';
 
 function app() {
   const a = express();
   a.use(express.json());
-  a.use('/api', createOpencodeProxyRouter({ authMiddleware: (_req, _res, next) => next() }));
+  a.use('/api', createOpencodeProxyRouter({
+    authMiddleware: (_req, _res, next) => next(),
+    // Pure env resolution: no local-model probe in unit tests.
+    resolveDefaultModel: async () => defaultPromptModel(),
+  }));
   return a;
 }
 
@@ -30,6 +34,16 @@ describe('opencodeProxy', () => {
     expect(down.status).toBe(200);
     expect(down.body.data).toMatchObject({ available: false });
     expect(String(down.body.data.error)).toMatch(/ECONNREFUSED/);
+  });
+
+  it('GET /api/opencode/permissions reads the engine-wide pending list', async () => {
+    const list = [{ id: 'per_1', sessionID: 'ses_1', permission: 'bash', patterns: ['ls'], metadata: {} }];
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => engineOk(JSON.stringify(list)));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await request(app()).get('/api/opencode/permissions');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, data: list });
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/permission$/);
   });
 
   it('prompt rejects empty parts (400, no engine call)', async () => {
@@ -123,6 +137,63 @@ describe('opencodeProxy', () => {
     expect(badModel.status).toBe(400);
     expect(badAgent.status).toBe(400);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies OPENHUB_OPENCODE_MODEL only when the prompt names no model', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.OPENHUB_OPENCODE_MODEL = 'opencode/beam-free';
+    try {
+      await request(app()).post('/api/opencode/sessions/ses_1/prompt').send({ parts: [{ type: 'text', text: 'go' }] });
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+        parts: [{ type: 'text', text: 'go' }], model: { providerID: 'opencode', modelID: 'beam-free' },
+      });
+      // A provider id containing slashes keeps everything after the first slash as the model.
+      process.env.OPENHUB_OPENCODE_MODEL = 'cloudflare-ai-gateway/openai/gpt-5.4-mini';
+      await request(app()).post('/api/opencode/sessions/ses_1/prompt').send({ parts: [{ type: 'text', text: 'go' }] });
+      expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body)).model).toEqual({
+        providerID: 'cloudflare-ai-gateway', modelID: 'openai/gpt-5.4-mini',
+      });
+      // An explicit client model still wins.
+      await request(app()).post('/api/opencode/sessions/ses_1/prompt')
+        .send({ parts: [{ type: 'text', text: 'go' }], model: { providerID: 'mistral', modelID: 'codestral-latest' } });
+      expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body)).model).toEqual({ providerID: 'mistral', modelID: 'codestral-latest' });
+    } finally {
+      delete process.env.OPENHUB_OPENCODE_MODEL;
+    }
+  });
+
+  it('ignores an unset or malformed OPENHUB_OPENCODE_MODEL (never invents a model)', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const before = process.env.OPENHUB_OPENCODE_MODEL;
+    try {
+      await request(app()).post('/api/opencode/sessions/ses_1/prompt').send({ parts: [{ type: 'text', text: 'go' }] });
+      expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).not.toHaveProperty('model');
+      for (const bad of ['', '  ', 'opencode', 'opencode/', '/beam-free']) {
+        process.env.OPENHUB_OPENCODE_MODEL = bad;
+        await request(app()).post('/api/opencode/sessions/ses_1/prompt').send({ parts: [{ type: 'text', text: 'go' }] });
+      }
+      for (const call of fetchMock.mock.calls) {
+        expect(JSON.parse(String(call[1]?.body))).not.toHaveProperty('model');
+      }
+    } finally {
+      if (before === undefined) delete process.env.OPENHUB_OPENCODE_MODEL;
+      else process.env.OPENHUB_OPENCODE_MODEL = before;
+    }
+  });
+
+  it('falls back to the resolver local model when nothing is configured', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const a = express();
+    a.use(express.json());
+    a.use('/api', createOpencodeProxyRouter({
+      authMiddleware: (_req, _res, next) => next(),
+      resolveDefaultModel: async () => ({ providerID: 'local', modelID: 'qwen3.5-4b' }),
+    }));
+    await request(a).post('/api/opencode/sessions/ses_1/prompt').send({ parts: [{ type: 'text', text: 'go' }] });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).model).toEqual({ providerID: 'local', modelID: 'qwen3.5-4b' });
   });
 
   it('records an audit receipt for mutating calls (verdict included, body text excluded)', async () => {

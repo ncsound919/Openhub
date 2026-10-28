@@ -2,14 +2,27 @@ const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 const isDev = !app.isPackaged;
 
-const APP_URL = 'http://localhost:3000';
+// The server binds PORT from .env (project config wins over the machine env).
+// Read the same file here so the shell follows the server instead of assuming
+// 3000; a machine-level PORT=0 or a junk value must never become the URL.
+try {
+  require('dotenv').config({ path: path.join(__dirname, '.env'), override: true, quiet: true });
+} catch {
+  // dotenv missing (packaged build) or no .env file: fall back to the process env.
+}
+
+const APP_PORT = (() => {
+  const n = Number(process.env.OPENHUB_PORT || process.env.PORT);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : 3000;
+})();
+const APP_URL = `http://localhost:${APP_PORT}`;
 const APP_ORIGIN = new URL(APP_URL).origin;
 const HEALTH_URL = `${APP_ORIGIN}/api/health`;
 const HEALTH_RETRIES = 10;
 const HEALTH_RETRY_DELAY_MS = 1000;
 
-// Verify that the server on port 3000 is actually OpenHub before loading it,
-// so we never hand an unknown local service a privileged renderer.
+// Verify that the thing answering on APP_URL is actually OpenHub before loading
+// it, so we never hand an unknown local service a privileged renderer.
 async function isOpenHubServer() {
   for (let attempt = 0; attempt < HEALTH_RETRIES; attempt++) {
     try {
@@ -19,8 +32,11 @@ async function isOpenHubServer() {
       clearTimeout(timer);
       if (res.ok) {
         const body = await res.json();
-        // OpenHub's /api/health reports engine: 'axiom' plus a timestamp.
-        if (body && body.engine === 'axiom' && typeof body.timestamp === 'string') {
+        // OpenHub's /api/health reports its execution engine plus a timestamp.
+        // 'opencode' is the current engine; 'axiom' is accepted so an older
+        // server already running on the port still loads in the shell.
+        const engines = ['opencode', 'axiom'];
+        if (body && engines.includes(body.engine) && typeof body.timestamp === 'string') {
           return true;
         }
         return false; // Something answered, but it is not OpenHub.
@@ -95,7 +111,7 @@ function createWindow() {
   hardenWebContents(mainWindow.webContents);
 
   // In dev the server is started by `npm run electron:dev` (wait-on); in a
-  // packaged build we assume the Node server runs concurrently on port 3000.
+  // packaged build we assume the Node server runs concurrently on APP_PORT.
   // Either way, confirm it is OpenHub before loading it.
   const win = mainWindow;
   isOpenHubServer().then((ok) => {

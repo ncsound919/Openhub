@@ -11,8 +11,12 @@ import {
   revertLastStep,
   subscribeMission,
   sessionToMission,
+  permissionFromRequest,
+  fetchPendingPermissions,
   isTopLevelSession,
   normalizeSessionTelemetry,
+  missionStatusFromMessages,
+  sendPrompt,
 } from '../src/mission/useMission.js';
 import type { MissionEvent } from '../src/lib/missionStore.js';
 
@@ -97,6 +101,26 @@ describe('parseEventFrame', () => {
   });
 });
 
+describe('sendPrompt routing', () => {
+  it('passes the plan agent and pinned model through the proxy', async () => {
+    const fetchMock = vi.fn(async () => jsonRes({ ok: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await sendPrompt('ses_1', 'plan the change', {
+      agent: 'plan',
+      model: { providerID: 'local', modelID: 'qwen3.5-4b' },
+    });
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(call[0])).toContain('/sessions/ses_1/prompt');
+    expect(JSON.parse(String(call[1].body))).toEqual({
+      parts: [{ type: 'text', text: 'plan the change' }],
+      agent: 'plan',
+      model: { providerID: 'local', modelID: 'qwen3.5-4b' },
+    });
+  });
+});
+
 describe('diff/todo normalization', () => {
   it('reads path/file, additions, deletions, patch and status defensively', () => {
     const out = normalizeFileDiff([
@@ -178,6 +202,13 @@ describe('subscribeMission terminal events', () => {
     expect(ends).toEqual(['done']);
   });
 
+  it('treats session.status{status.type:idle} as done (opencode 1.19.x)', async () => {
+    const { ends } = await runSubscribe([
+      frame({ type: 'session.status', properties: { sessionID: 'ses_1', status: { type: 'idle' } } }),
+    ]);
+    expect(ends).toEqual(['done']);
+  });
+
   it('calls onEnd(failed) for session.error', async () => {
     const { ends, errors } = await runSubscribe([frame({ type: 'session.error', sessionID: 'ses_1' })]);
     expect(ends).toEqual(['failed']);
@@ -211,7 +242,104 @@ describe('sessionToMission defaults', () => {
   });
 });
 
+describe('parseEventFrame conversation fields', () => {
+  it('reads the message id, role and engine timestamp from message.updated', () => {
+    const e = parseEventFrame(JSON.stringify({
+      type: 'message.updated',
+      properties: {
+        sessionID: 'ses_1',
+        info: { id: 'msg_1', role: 'assistant', time: { created: 1793072880708 } },
+      },
+    })) as unknown as { messageId?: string; role?: string; at: number };
+    expect(e.messageId).toBe('msg_1');
+    expect(e.role).toBe('assistant');
+    expect(e.at).toBe(1793072880708);
+  });
+
+  it('reads a full text part, including its part id and engine time', () => {
+    const e = parseEventFrame(JSON.stringify({
+      type: 'message.part.updated',
+      properties: {
+        sessionID: 'ses_1',
+        time: 1793072889059,
+        part: {
+          id: 'prt_1',
+          messageID: 'msg_1',
+          sessionID: 'ses_1',
+          type: 'text',
+          text: 'transcript-ok',
+        },
+      },
+    })) as unknown as { messageId?: string; partId?: string; partType?: string; partText?: string; text?: string; at: number };
+    expect(e.messageId).toBe('msg_1');
+    expect(e.partId).toBe('prt_1');
+    expect(e.partType).toBe('text');
+    expect(e.partText).toBe('transcript-ok');
+    expect(e.text).toBe('transcript-ok');
+    expect(e.at).toBe(1793072889059);
+  });
+
+  it('reads a streamed text delta', () => {
+    const e = parseEventFrame(JSON.stringify({
+      type: 'message.part.delta',
+      properties: {
+        sessionID: 'ses_1',
+        messageID: 'msg_1',
+        partID: 'prt_1',
+        field: 'text',
+        delta: 'trans',
+      },
+    })) as unknown as { messageId?: string; partId?: string; delta?: string; field?: string };
+    expect(e.messageId).toBe('msg_1');
+    expect(e.partId).toBe('prt_1');
+    expect(e.delta).toBe('trans');
+    expect(e.field).toBe('text');
+  });
+
+  it('turns a tool part into a compact row', () => {
+    const e = parseEventFrame(JSON.stringify({
+      type: 'message.part.updated',
+      properties: {
+        sessionID: 'ses_1',
+        part: {
+          id: 'prt_tool',
+          messageID: 'msg_1',
+          sessionID: 'ses_1',
+          type: 'tool',
+          tool: 'bash',
+          state: { status: 'completed', title: 'bash', input: { command: 'echo hi' } },
+        },
+      },
+    })) as unknown as { tool?: { id: string; name: string; title?: string; status?: string } };
+    expect(e.tool).toEqual({ id: 'prt_tool', name: 'bash', title: 'bash', status: 'completed' });
+  });
+});
+
 describe('parseEventFrame permissions', () => {
+  it('builds a readable label from the opencode 1.19.x permission.asked shape', () => {
+    const ev = parseEventFrame(JSON.stringify({
+      type: 'permission.asked',
+      properties: {
+        id: 'per_2',
+        sessionID: 'ses_2',
+        permission: 'bash',
+        patterns: ['npm test'],
+        metadata: { command: 'npm test -- --run' },
+        always: [],
+      },
+    })) as unknown as { sessionId?: string; permission?: { id: string; title: string; type: string }; text?: string };
+    expect(ev.sessionId).toBe('ses_2');
+    expect(ev.permission).toEqual({ id: 'per_2', title: 'bash: npm test -- --run', type: 'bash' });
+    expect(ev.text).toBe('bash: npm test -- --run');
+  });
+
+  it('falls back to patterns and ignores a request without an id', () => {
+    expect(permissionFromRequest({ id: 'per_3', permission: 'edit', patterns: ['src/a.ts'] }))
+      .toEqual({ id: 'per_3', title: 'edit: src/a.ts', type: 'edit' });
+    expect(permissionFromRequest({ permission: 'bash' })).toBeNull();
+    expect(permissionFromRequest(null)).toBeNull();
+  });
+
   it('extracts a pending permission from permission.updated', () => {
     const ev = parseEventFrame(JSON.stringify({
       type: 'permission.updated',
@@ -228,6 +356,28 @@ describe('parseEventFrame permissions', () => {
       properties: { sessionID: 's', permissionID: 'per_1', response: 'once' },
     })) as unknown as { permissionReplied?: string };
     expect(replied.permissionReplied).toBe('per_1');
+  });
+});
+
+describe('fetchPendingPermissions', () => {
+  it('filters the engine-wide list to the active session and normalizes it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonRes({
+      ok: true,
+      data: [
+        { id: 'per_1', sessionID: 'ses_1', permission: 'bash', patterns: ['ls'], metadata: {} },
+        { id: 'per_2', sessionID: 'ses_other', permission: 'bash', patterns: ['rm -rf /'], metadata: {} },
+        { id: 'per_3', sessionID: 'ses_1', permission: 'edit', patterns: ['a.ts'], metadata: {} },
+      ],
+    })));
+    await expect(fetchPendingPermissions('ses_1')).resolves.toEqual([
+      { id: 'per_1', title: 'bash: ls', type: 'bash' },
+      { id: 'per_3', title: 'edit: a.ts', type: 'edit' },
+    ]);
+  });
+
+  it('returns [] for a non-array payload instead of throwing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonRes({ ok: true, data: { weird: true } })));
+    await expect(fetchPendingPermissions('ses_1')).resolves.toEqual([]);
   });
 });
 
@@ -276,7 +426,9 @@ describe('robustness fixes', () => {
 
 describe('live engine event capture (opencode 1.18.35, tests/fixtures/opencode-events.live.txt)', () => {
   const frames = readFileSync(join(process.cwd(), 'tests', 'fixtures', 'opencode-events.live.txt'), 'utf8')
-    .split('\n\n').map((f) => f.trim()).filter(Boolean);
+    // The fixture is checked out with CRLF on Windows; splitting on `\n\n`
+    // would treat the whole capture as one unparseable frame.
+    .split(/\r?\n\r?\n/).map((f) => f.trim()).filter(Boolean);
   const parsed = frames.map((f) => parseEventFrame(f) as unknown as { kind: string; text: string; sessionId?: string });
   it('parses every captured frame', () => {
     expect(parsed).toHaveLength(4);
@@ -296,5 +448,41 @@ describe('live engine event capture (opencode 1.18.35, tests/fixtures/opencode-e
     for (const k of ['server.connected', 'server.heartbeat']) {
       expect(parsed.find((e) => e.kind === k)?.sessionId).toBeUndefined();
     }
+  });
+});
+
+describe('missionStatusFromMessages', () => {
+  const assistant = (finish?: string, extra: Record<string, unknown> = {}) => ({
+    info: { role: 'assistant', finish, time: { created: 1, completed: 2 }, ...extra },
+    parts: [],
+  });
+
+  it('does not claim a status without a message or while the last message is the user prompt', () => {
+    expect(missionStatusFromMessages([])).toBeUndefined();
+    expect(missionStatusFromMessages([{ info: { role: 'user' } }])).toBeUndefined();
+  });
+
+  it('maps a completed stop to done', () => {
+    expect(missionStatusFromMessages([{ info: { role: 'user' } }, assistant('stop')])).toBe('done');
+    expect(missionStatusFromMessages([assistant('stop')])).toBe('done');
+  });
+
+  it('stays undecided while the turn is still calling tools', () => {
+    expect(missionStatusFromMessages([assistant('tool-calls')])).toBeUndefined();
+    expect(missionStatusFromMessages([assistant(undefined)])).toBeUndefined();
+  });
+
+  it('maps an error or an exhausted context to failed', () => {
+    expect(missionStatusFromMessages([assistant('error')])).toBe('failed');
+    expect(missionStatusFromMessages([assistant('stop', { error: 'boom' })])).toBe('failed');
+    expect(missionStatusFromMessages([assistant('length')])).toBe('failed');
+  });
+
+  it('does not reuse an older completed turn after a newer user prompt', () => {
+    expect(missionStatusFromMessages([assistant('stop'), { info: { role: 'user' } }])).toBeUndefined();
+  });
+
+  it('accepts flat message shapes', () => {
+    expect(missionStatusFromMessages([{ role: 'assistant', finish: 'stop' }])).toBe('done');
   });
 });

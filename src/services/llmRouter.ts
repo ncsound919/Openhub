@@ -16,6 +16,8 @@
  * `{ ok: false, error }` — a review is never fabricated.
  */
 
+import { probeBase } from './localModel.js';
+
 export type LlmTier = 'auto' | 'local' | 'gateway' | 'critical';
 
 export interface LlmMessage {
@@ -64,7 +66,19 @@ export const DEFAULT_LLM_TIMEOUT_MS = 60_000;
 /** Local tier defaults: llama.cpp server, MiniCPM5-1B-Claude-Opus-Fable5-V2
  *  (community fine-tune: stronger instruction-following + tool-calling). */
 export const DEFAULT_LOCAL_LLM_URL = 'http://127.0.0.1:11434';
-export const DEFAULT_LOCAL_LLM_MODEL = 'qwen3.5-2b';
+// The operator's phone-bound model: Qwen 3.5 4B GGUF (llama.cpp/Ollama).
+export const DEFAULT_LOCAL_LLM_MODEL = 'qwen3.5-4b';
+
+/**
+ * A local server is chosen by the operator's own env first; when that base
+ * refuses the connection (llama.cpp `llama-server` usually listens on 8080,
+ * Ollama on 11434) the other well-known local port is tried and the model id it
+ * advertises is used. HTTP-level errors are NOT retried elsewhere: a server that
+ * answered is the operator's server, and its error is reported as-is.
+ */
+function isConnectionFailure(message: string): boolean {
+  return /failed:|ECONNREFUSED|ECONNRESET|timed out|network|fetch failed|ENOTFOUND|socket hang up/i.test(message);
+}
 export const DEFAULT_LOCAL_MAX_TOKENS = 512;
 const LOCAL_LLM_TIMEOUT_MS = 45_000;
 
@@ -130,6 +144,9 @@ function redactSecrets(text: string, apiKey?: string): string {
 }
 
 const COMPLETIONS_PATH = '/v1/chat/completions';
+
+/** Well-known local inference ports, tried only after a refused connection. */
+const LOCAL_PROBE_BASES = ['http://127.0.0.1:11434', 'http://127.0.0.1:8080'];
 
 interface ChatAttemptResult {
   text: string;
@@ -224,6 +241,13 @@ function localTier(env: NodeJS.ProcessEnv): { base: string; model: string } {
   return { base, model: model || DEFAULT_LOCAL_LLM_MODEL };
 }
 
+/** The other well-known local port, tried only after a refused connection. */
+function localFallbackBases(_env: NodeJS.ProcessEnv, configured: string): string[] {
+  return LOCAL_PROBE_BASES
+    .map((base) => base.replace(/\/+$/, '').replace(/\/v1$/, ''))
+    .filter((base) => base !== configured);
+}
+
 /**
  * Run an LLM conversation. Default `auto`: the local small model first, then the
  * fleet gateway seam (falling back across `OPENHUB_LLM_FALLBACKS` on failure).
@@ -248,19 +272,33 @@ export async function runLlm(
   // Local small-model tier first: bounded, no-think, fast. Failure falls through.
   if (!skipLocal) {
     const lt = localTier(env);
+    const localOpts = { maxTokens: opts.localMaxTokens ?? DEFAULT_LOCAL_MAX_TOKENS, temperature: 0.2, noThink: true, jsonSchema: opts.jsonSchema };
+    const localTimeout = Math.min(timeoutMs, LOCAL_LLM_TIMEOUT_MS);
     try {
-      const r = await attemptChat(
-        lt.base,
-        undefined,
-        lt.model,
-        messages,
-        Math.min(timeoutMs, LOCAL_LLM_TIMEOUT_MS),
-        { maxTokens: opts.localMaxTokens ?? DEFAULT_LOCAL_MAX_TOKENS, temperature: 0.2, noThink: true, jsonSchema: opts.jsonSchema },
-      );
+      const r = await attemptChat(lt.base, undefined, lt.model, messages, localTimeout, localOpts);
       usageLedger.push({ ts: Date.now(), tier: 'local', provider: lt.base, model: lt.model, ...r });
       return { ok: true, text: r.text, provider: `local:${lt.base}`, tier: 'local' };
     } catch (err) {
-      lastError = `local:${err instanceof Error ? err.message : String(err)}`;
+      const message = err instanceof Error ? err.message : String(err);
+      lastError = `local:${message}`;
+      // Only a refused/unroutable base justifies trying the other local port.
+      if (isConnectionFailure(message)) {
+        for (const alt of localFallbackBases(env, lt.base)) {
+          const discovered = await probeBase(alt, fetch, 1500);
+          if (!discovered.ok) {
+            lastError = `local:${alt}: ${discovered.error ?? 'unreachable'}`;
+            continue;
+          }
+          const model = discovered.models.includes(lt.model) ? lt.model : (discovered.models[0] ?? lt.model);
+          try {
+            const r = await attemptChat(alt, undefined, model, messages, localTimeout, localOpts);
+            usageLedger.push({ ts: Date.now(), tier: 'local', provider: alt, model, ...r });
+            return { ok: true, text: r.text, provider: `local:${alt}`, tier: 'local' };
+          } catch (altErr) {
+            lastError = `local:${altErr instanceof Error ? altErr.message : String(altErr)}`;
+          }
+        }
+      }
     }
   }
 

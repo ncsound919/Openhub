@@ -128,6 +128,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void fetchUser();
   }, [fetchUser]);
 
+  // Keep the 15-minute access cookie fresh while a mission is running. Without
+  // this, a long mission (the on-phone Qwen agent routinely needs 10+ minutes)
+  // starts getting 401/403 on the status and SSE reads midway and the phone is
+  // left showing a stale RUNNING state even after the mission completes. Refresh
+  // ahead of expiry, and again as soon as Android brings the tab back from sleep.
+  useEffect(() => {
+    if (!user) return undefined;
+    const refresh = () => { void fetchUser(); };
+    const timer = setInterval(refresh, 10 * 60 * 1000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user, fetchUser]);
+
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/auth/login', {

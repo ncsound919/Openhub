@@ -46,20 +46,24 @@ interface CacheEntry {
 
 let probeCache: CacheEntry | null = null;
 
-async function probeHttp(
-  host: string,
-  port: number,
-  path: string,
+async function probeHttpUrl(
+  url: string,
   timeoutMs = 2500,
 ): Promise<{ ok: boolean; status: number; text: string }> {
   try {
-    const url = `http://${host}:${port}${path}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     const text = await res.text().catch(() => '');
     return { ok: res.status < 500, status: res.status, text: text.slice(0, 300) };
   } catch (err: any) {
     return { ok: false, status: 0, text: err.message || 'Connection failed' };
   }
+}
+
+/** The URL a bridge's probes and operations resolve against. */
+function bridgeBase(identity: BridgeCapabilityStatement['identity']): string | null {
+  if (identity.baseUrl) return identity.baseUrl.replace(/\/+$/, '');
+  if (identity.host && identity.port) return `http://${identity.host}:${identity.port}`;
+  return null;
 }
 
 function probeTcp(
@@ -95,13 +99,12 @@ export async function probeBridge(bridge: BridgeCapabilityStatement): Promise<Br
   let reason: string | undefined;
   let version: string | undefined;
   let output = '';
+  const base = bridgeBase(identity);
 
-  if (identity.transport === 'http' && identity.host && identity.port) {
+  if (identity.transport === 'http' && base) {
     const probePath = bridge.liveness.path || '/';
-    const httpRes = await probeHttp(
-      identity.host,
-      identity.port,
-      probePath,
+    const httpRes = await probeHttpUrl(
+      `${base}${probePath}`,
       bridge.liveness.timeoutMs || 2500,
     );
     output = httpRes.text;
@@ -181,9 +184,15 @@ export async function probeBridge(bridge: BridgeCapabilityStatement): Promise<Br
     /* receipts recording is best effort */
   }
 
+  if (identity.transport === 'http' && !base) {
+    status = 'offline';
+    reason = 'No HTTP endpoint configured (set OPENHUB_MOBILE_GATEWAY_URL for mobile bridges)';
+    output = reason;
+  }
+
   const endpoint =
-    identity.transport === 'http' && identity.port
-      ? `http://${identity.host || '127.0.0.1'}:${identity.port}${bridge.liveness.path || ''}`
+    identity.transport === 'http' && base
+      ? `${base}${bridge.liveness.path || ''}`
       : identity.port
       ? `${identity.host || '127.0.0.1'}:${identity.port}`
       : identity.cliCommand;

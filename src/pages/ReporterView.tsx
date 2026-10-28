@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Archive, BookOpen, Dices, Fingerprint, Gauge, Newspaper, PenLine, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { Archive, BookOpen, Cpu, Dices, Fingerprint, Gauge, Newspaper, PenLine, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { MarkdownProse } from '../components/MarkdownProse';
 import { InsightsView } from './InsightsView';
@@ -135,9 +135,10 @@ export function ReporterView() {
   const [format, setFormat] = useState('dispatch');
   const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState<'write' | 'narrate' | 'preview' | null>(null);
+  const [busy, setBusy] = useState<'write' | 'narrate' | 'local' | 'preview' | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [message, setMessage] = useState('');
+  const [localNarration, setLocalNarration] = useState<{ text: string; model?: string | null } | null>(null);
   const [tab, setTab] = useState<ReporterTab>('report');
 
   const headers = useCallback(
@@ -242,6 +243,32 @@ export function ReporterView() {
     setBusy(null);
   };
 
+  /**
+   * OpenHub's own self-report, narrated by the phone's local Qwen. Local-only:
+   * if the model is down the API returns 503 and the page says so.
+   */
+  const narrateLocal = async () => {
+    setBusy('local');
+    setMessage('');
+    try {
+      const res = await fetch('/api/self-report/narrate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: headers(),
+      });
+      const json = (await res.json()) as { available?: boolean; prose?: string; model?: string | null; error?: string };
+      if (json.available && json.prose) {
+        setLocalNarration({ text: json.prose, model: json.model ?? null });
+        setMessage(`Phone model${json.model ? ` (${json.model})` : ''} wrote a local brief from OpenHub's self-report.`);
+      } else {
+        setMessage(`Local narration unavailable: ${json.error ?? 'phone model offline'}`);
+      }
+    } catch (err: any) {
+      setMessage(`Local narration failed: ${err?.message ?? err}`);
+    }
+    setBusy(null);
+  };
+
   const counts = article?.counts;
   const tiles = counts
     ? [
@@ -339,15 +366,33 @@ export function ReporterView() {
           >
             <Sparkles className={`w-4 h-4 ${busy === 'narrate' ? 'animate-spin' : ''}`} /> Model narration
           </button>
+          <button
+            onClick={() => void narrateLocal()}
+            disabled={busy !== null}
+            title="Summarize OpenHub's own self-report with the phone's local model"
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40"
+          >
+            <Cpu className={`w-4 h-4 ${busy === 'local' ? 'animate-pulse' : ''}`} /> Local model brief
+          </button>
         </div>
         {message && <div className="mt-3 font-mono text-[11px] text-gray-400">{message}</div>}
       </section>
+
+      {localNarration && (
+        <section className="industrial-card p-5 border-emerald-500/30">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border-muted pb-3 font-mono text-[11px] text-emerald-300">
+            <Cpu className="w-3.5 h-3.5" />
+            PHONE MODEL BRIEF{localNarration.model ? ` (${localNarration.model})` : ''} — reads OpenHub's self-report, not the Recourse dispatch
+          </div>
+          <div className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{localNarration.text}</div>
+        </section>
+      )}
 
       {offline && !article && (
         <section className="industrial-card p-6">
           <div className="font-mono text-sm text-gray-400">
             Recourse is offline or has not written a dispatch yet. Start Recourse and generate one, or wait for the
-            two-hour cadence.
+            two-hour cadence. The local model brief above uses OpenHub's own self-report and works without it.
           </div>
         </section>
       )}

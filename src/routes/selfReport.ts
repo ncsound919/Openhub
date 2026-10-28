@@ -7,6 +7,7 @@ import {
   refreshSelfReport,
   writeSelfReport,
 } from '../services/selfReport.js';
+import { narrateSelfReportWithPhone } from '../services/selfReportVoice.js';
 
 /**
  * OpenHub self-report surface — OpenHub's own status as a versioned, durable
@@ -54,6 +55,22 @@ export function createSelfReportRouter(deps: { authMiddleware: RequestHandler })
     }
     const result = await pushSelfReport(report);
     res.status(result.available ? 200 : 503).json({ ok: result.pushed, ...result });
+  });
+
+  /**
+   * POST /self-report/narrate
+   * Write a short brief about OpenHub's own state with the phone's local model.
+   * Local-only by design: when the model is down this returns 503 rather than
+   * silently spending a cloud provider or fabricating a summary.
+   */
+  router.post('/self-report/narrate', async (_req, res) => {
+    let report = readSelfReport();
+    if (!report) {
+      const r = await refreshSelfReport({ push: false });
+      report = r.report;
+    }
+    const result = await narrateSelfReportWithPhone(report);
+    res.status(result.available ? 200 : 503).json(result);
   });
 
   return router;

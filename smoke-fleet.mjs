@@ -90,11 +90,7 @@ async function main() {
   const kpis = await req('GET', '/api/ecosystem/kpis');
   check('ecosystem/kpis returns structured snapshot', kpis.status === 200 && typeof kpis.data === 'object', `source=${kpis.data?.source}`);
 
-  // 7. server-side AI review (capability #4) — honest failure when no LLM seam
-  const ai = await req('POST', '/api/ai/review', { repoName: 'smoke', title: 'test PR' });
-  check('ai/review server-side (honest ok field)', ai.status === 200 && typeof ai.data?.ok === 'boolean', `ok=${ai.data?.ok}, error=${ai.data?.error ?? 'none'}`);
-
-  // 8. create a real repo (user-scoped)
+  // 7. create a real repo (user-scoped)
   const repo = await req('POST', '/api/repos', { name: 'smoke-test', description: 'smoke', isPrivate: false });
   check('create repo (scoped to user dir)', repo.status === 200 && !!repo.data?.id && repo.data?.owner_name === username, `id=${repo.data?.id}, owner=${repo.data?.owner_name}`);
   const repoId = repo.data?.id;
@@ -107,25 +103,44 @@ async function main() {
   const read = await req('GET', `/api/repos/${owner}/${repoName}/contents?path=index.js`);
   check('contents GET requires+honors auth (real read)', read.status === 200 && read.data?.type === 'file' && String(read.data?.content).includes('export const x'), `status=${read.status}`);
 
-  // 10. real deterministic pipeline (capability: no timers)
-  const run = await req('POST', '/api/pipeline/run', { repoId, commitMessage: 'smoke run' });
-  check('pipeline/run started (real repo)', run.status === 200 && !!run.data?.runId, `status=${run.status}`);
-  const runId = run.data?.runId;
+  // 9b. Select the project. The pipeline, audit and repair routes all resolve
+  // the ACTIVE project (they 409 NO_ACTIVE_PROJECT without this), so creating a
+  // repo is not enough — the old script never selected one and failed here.
+  const select = await req('POST', '/api/project/active', { repoId });
+  check('select active project', select.status === 200 && select.data?.ok !== false, `status=${select.status}, project=${select.data?.project?.repositoryName ?? select.data?.code ?? '?'}`);
+
+  // 9c. server-side AI review (capability #4) — runs against the ACTIVE project,
+  // so it needs the selection above; an honest ok:false is accepted as long as the
+  // route answered (no LLM seam configured is a real deployment state).
+  const ai = await req('POST', '/api/ai/review', { repoName: 'smoke-test', title: 'test PR' });
+  check('ai/review server-side (honest ok field)', ai.status === 200 && typeof ai.data?.ok === 'boolean', `ok=${ai.data?.ok}, error=${ai.data?.error ?? 'none'}`);
+
+  // 10. real deterministic pipeline (capability: no timers). The route answers with
+  // `{ job }` (id on the job) and progress is polled at GET /api/pipeline/:id.
+  // Custom stages keep this check about OpenHub's own deterministic execution:
+  // the default chain ends in a repair dispatch, which requires the fleet's
+  // Draymond orchestrator (a separate service, not part of this smoke run).
+  const run = await req('POST', '/api/pipeline/run', { mode: 'custom', stages: ['typecheck', 'audit'], goal: 'smoke run' });
+  const runId = run.data?.job?.id ?? run.data?.runId;
+  check('pipeline/run started (real repo)', run.status === 200 && !!runId, `status=${run.status}, id=${runId ?? 'none'}, error=${run.data?.error ?? 'none'}`);
 
   let status = null;
   let stageSummary = '';
-  for (let i = 0; i < 30; i++) {
-    const poll = await req('GET', `/api/pipeline/status/${runId}`);
-    status = poll.data?.status;
+  for (let i = 0; i < 30 && runId; i++) {
+    const poll = await req('GET', `/api/pipeline/${runId}`);
+    const job = poll.data?.job ?? {};
+    status = job.status;
     if (status && status !== 'running') {
-      stageSummary = (poll.data?.stages ?? []).map((s) => `${s.name}:${s.status}`).join(', ');
-      if (poll.data?.gates?.length) stageSummary += ` | gates: ${poll.data.gates.map((g) => `${g.name}:${g.status}`).join(', ')}`;
+      // Stages carry { id, label, status, ok, detail }; surface the failing detail so a
+      // failure names its cause instead of just "failed".
+      stageSummary = (job.stages ?? []).map((s) => `${s.label ?? s.id}:${s.status}${s.detail ? ` (${s.detail})` : ''}`).join(', ');
+      if (job.error) stageSummary += ` | error: ${job.error}`;
       break;
     }
     await sleep(1000);
   }
-  check('pipeline finished (no timer theater)', status === 'success', `status=${status} — ${stageSummary}`);
-  check('pipeline stages honest (skips when no ts/tests)', stageSummary.includes('Secret Scan:success') && stageSummary.includes('Typecheck:skipped') && stageSummary.includes('Tests:skipped'), stageSummary);
+  check('pipeline finished (terminal state reached)', status === 'complete' || status === 'success', `status=${status} — ${stageSummary}`);
+  check('pipeline stages honest (typecheck skips without a tsconfig)', /Typecheck:skipped/.test(stageSummary) && /Audit team:done/.test(stageSummary), stageSummary);
 
   // 11. dual-write fleet memory (capability #2) — appended to the draymond dir the server was pointed at
   if (DRAY) {

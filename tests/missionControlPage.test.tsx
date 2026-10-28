@@ -53,6 +53,7 @@ function makeFetch(
     if (u.includes('/prompt')) return jsonRes({ ok: true, data: {} });
     if (u.includes('/diff')) return jsonRes({ ok: true, data: [] });
     if (u.includes('/todos')) return jsonRes({ ok: true, data: [] });
+    if (u.includes('/messages')) return jsonRes({ ok: true, data: [] });
     if (u.includes('/api/opencode/sessions')) return jsonRes({ ok: true, data: [] });
     return jsonRes({ ok: true, data: {} });
   });
@@ -120,5 +121,29 @@ describe('MissionControlPage', () => {
 
     expect(await view.findByText(/abort refused/i)).toBeTruthy();
     expect(useMissionStore.getState().missions.find((m) => m.id === 'ses_run')?.status).toBe('running');
+  });
+
+  it('renders the agent response from the session history', async () => {
+    seedRunning('ses_run');
+    makeFetch({
+      '/messages': () =>
+        jsonRes({
+          ok: true,
+          data: [
+            {
+              info: { id: 'msg_u', role: 'user', time: { created: 1 } },
+              parts: [{ type: 'text', text: 'write the file' }],
+            },
+            {
+              info: { id: 'msg_a', role: 'assistant', time: { created: 2 }, finish: 'stop' },
+              parts: [{ type: 'text', text: 'Wrote the file — transcript-ok.' }],
+            },
+          ],
+        }),
+    });
+    const view = render(React.createElement(MissionControlPage));
+
+    expect(await view.findByText('Wrote the file — transcript-ok.')).toBeTruthy();
+    expect(view.getByText('write the file')).toBeTruthy();
   });
 });

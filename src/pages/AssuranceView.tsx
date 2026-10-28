@@ -1,8 +1,9 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, ShieldCheck, Wrench, FileCode, FolderGit2, ArrowUpRight, ShieldAlert, GitPullRequest, Layers } from 'lucide-react';
+import { Activity, ShieldCheck, Wrench, FileCode, FolderGit2, ArrowUpRight, ShieldAlert, GitPullRequest, Layers, Smartphone } from 'lucide-react';
 import { useStore } from '../store';
 import { AutonomousPipelines } from './AutonomousPipelines';
 import { AuditSuiteView } from './AuditSuiteView';
+import { AndroidAuditDeskView } from './AndroidAuditDeskView';
 import { ReceiptsView } from './ReceiptsView';
 import { RepairTeamView } from './RepairTeamView';
 import { TestingReadiness } from './TestingReadiness';
@@ -14,6 +15,7 @@ import { cn } from '../lib/utils';
 const TABS = [
   { id: 'pipelines', label: 'Pipelines', icon: Activity },
   { id: 'audit', label: 'Audit', icon: ShieldCheck },
+  { id: 'android', label: 'Android Desk', icon: Smartphone },
   { id: 'tiers', label: 'Tiers', icon: Layers },
   { id: 'vulns', label: 'Vulnerabilities', icon: ShieldAlert },
   { id: 'review', label: 'Code Review', icon: GitPullRequest },
@@ -75,6 +77,8 @@ export function AssuranceView() {
 
       {tab === 'pipelines' ? (
         <AutonomousPipelines />
+      ) : tab === 'android' ? (
+        <AndroidAuditDeskView />
       ) : tab === 'tiers' ? (
         <TiersView />
       ) : tab === 'vulns' ? (

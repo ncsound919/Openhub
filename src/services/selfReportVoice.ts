@@ -7,6 +7,8 @@ import {
   type JevResult,
   type JevSource,
 } from './jevClient.js';
+import { runLlm, type LlmMessage } from './llmRouter.js';
+import { probeLocalModel } from './localModel.js';
 
 /**
  * selfReportVoice.ts — JEV-driven delivery framing for OpenHub's self-report.
@@ -176,4 +178,93 @@ export async function humanizedSelfReport(report: SelfReport): Promise<{ text: s
     text: `${voice.headline}\n${voice.opener}\n\n${facts}\n\n${voice.closer}\n\n(source: ${voice.source})`,
     voice,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phone-model narration: the local Qwen reads OpenHub's own self-report and
+// writes a short brief. This is the local tier of OpenHub reporting — no gateway
+// call, no fabricated facts, and an explicit failure when the phone model is
+// not answering.
+// ---------------------------------------------------------------------------
+
+export interface LocalNarrationResult {
+  available: boolean;
+  prose?: string;
+  /** The id the phone's server advertised (e.g. qwen3.5-4b). */
+  model?: string | null;
+  provider?: string | null;
+  error?: string;
+}
+
+export const LOCAL_NARRATION_MAX_TOKENS = 320;
+
+/** Prompt messages for the on-device reporter. Pure and testable. */
+export function localNarrationMessages(report: SelfReport): LlmMessage[] {
+  const signals = report.activity.ok
+    ? {
+      bySystem: report.activity.bySystem,
+      byKind: report.activity.byKind,
+      byOutcome: report.activity.byOutcome,
+      bySeverity: report.activity.bySeverity,
+      passRate: report.activity.passRate,
+    }
+    : null;
+  return [
+    {
+      role: 'system',
+      content: [
+        'You are OpenHub\'s on-device reporter running on the operator\'s phone.',
+        'Write one short status brief in plain prose. Do not use markdown headings or bullet lists.',
+        'Use ONLY the numbers and facts supplied. Never invent an incident, system, number or cause.',
+        'If a section is unavailable, say it is unavailable rather than guessing.',
+        '90-140 words. Calm, concrete, first person.',
+      ].join(' '),
+    },
+    {
+      role: 'user',
+      content: [
+        `Report time: ${report.at}`,
+        selfReportFacts(report),
+        signals ? `Activity by system: ${JSON.stringify(signals.bySystem)}` : 'Activity by system: unavailable',
+        signals ? `Activity by kind: ${JSON.stringify(signals.byKind)}` : 'Activity by kind: unavailable',
+        report.incidents.ok
+          ? `Recent incidents (${report.incidents.recent.length}): ${JSON.stringify(report.incidents.recent).slice(0, 1800)}`
+          : 'Recent incidents: unavailable',
+        report.runs.ok && report.runs.latest
+          ? `Latest run: ${JSON.stringify(report.runs.latest).slice(0, 900)}`
+          : 'Latest run: none reported',
+        '',
+        'Write the brief now.',
+      ].join('\n'),
+    },
+  ];
+}
+
+/** Narrate a self-report with the phone's local model only. Never throws. */
+export async function narrateSelfReportWithPhone(
+  report: SelfReport,
+  deps: { probeLocal?: typeof probeLocalModel; run?: typeof runLlm } = {},
+): Promise<LocalNarrationResult> {
+  const probe = await (deps.probeLocal ?? probeLocalModel)().catch(() => null);
+  if (!probe?.reachable) {
+    return { available: false, model: probe?.modelId ?? null, error: probe?.error ?? 'local model is not reachable' };
+  }
+  try {
+    const result = await (deps.run ?? runLlm)(localNarrationMessages(report), {
+      tier: 'local',
+      localMaxTokens: LOCAL_NARRATION_MAX_TOKENS,
+      timeoutMs: 120_000,
+    });
+    const prose = result.text?.trim();
+    if (!result.ok || !prose) {
+      return { available: false, model: probe.modelId, provider: result.provider, error: result.error ?? 'the local model returned an empty brief' };
+    }
+    return { available: true, prose, model: probe.modelId, provider: result.provider };
+  } catch (err) {
+    return {
+      available: false,
+      model: probe.modelId,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

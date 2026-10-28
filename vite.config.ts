@@ -11,10 +11,6 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
         '@ide': path.resolve(__dirname, 'src/ide'),
         '@auth': path.resolve(__dirname, 'src/auth'),
-        // monaco-editor@0.56 ships a restrictive `exports` map that blocks the
-        // deep `esm/vs/...` worker imports. Alias to the real directory so the
-        // self-hosted workers resolve as files (same-origin, CSP-clean).
-        'monaco-editor/esm': path.resolve(__dirname, 'node_modules/monaco-editor/esm'),
       },
     },
     define: {
@@ -24,9 +20,10 @@ export default defineConfig(() => {
       port: 3000,
       host: '0.0.0.0',
       // Requests arrive via the Cloudflare tunnel with a public Host header
-      // (openhub.overlay365.com). Vite's dev server blocks unknown Hosts with a
-      // 403 by default; allow the fleet domain (and local dev hosts).
-      allowedHosts: ['.overlay365.com', 'localhost', '127.0.0.1'],
+      // (openhub.overlay365.com / openhub.overlay365.online). Vite's dev server
+      // blocks unknown Hosts with a 403 by default; allow the fleet domains
+      // (and local dev hosts). Production Express does not use this list.
+      allowedHosts: ['.overlay365.com', '.overlay365.online', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': { target: 'http://localhost:3000', changeOrigin: true },
       },
@@ -48,7 +45,6 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
-            editor: ['@monaco-editor/react', 'monaco-editor'],
             charts: ['recharts'],
             motion: ['motion'],
             query: ['@tanstack/react-query'],

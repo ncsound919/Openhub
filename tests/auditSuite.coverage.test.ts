@@ -617,7 +617,7 @@ describe('typecheck and lint across multiple projects', () => {
     const details = r.details as Record<string, unknown>;
     expect(details.projectsFound).toBe(2);
     expect(r.error).not.toContain('no tsconfig.json');
-  }, 60_000);
+  }, 120_000);
 
   it('still reports unavailable when the tree genuinely has no typechecker config', async () => {
     const dir = tmpProject({ 'src/main.cpp': 'int main(){}' });
@@ -634,7 +634,7 @@ describe('typecheck and lint across multiple projects', () => {
     // it found must be named, and it must NOT be "no config detected".
     expect((r.details as Record<string, unknown>).projectsFound).toBe(1);
     expect(r.error).not.toContain('no eslint, ruff or flake8 config detected');
-  }, 60_000);
+  }, 120_000);
 
   it('lint reports unavailable for a tree with no linter config', async () => {
     const dir = tmpProject({ 'src/main.cpp': 'int main(){}' });

@@ -13,6 +13,7 @@
 
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { useMissionStore, type Mission, type MissionEvent, type MissionStatus } from '../lib/missionStore.js';
+import type { TranscriptTool } from './transcript.js';
 
 /**
  * A parsed frame that also carries the session it belongs to. The public
@@ -28,16 +29,67 @@ export interface PendingPermission {
 
 export interface ParsedMissionEvent extends MissionEvent {
   sessionId?: string;
-  /** Set on `permission.updated`: the agent is blocked until this is answered. */
+  /** Set on `permission.updated` / `permission.asked`: the agent is blocked. */
   permission?: PendingPermission;
   /** Set on `permission.replied`: the id of the permission that was answered. */
   permissionReplied?: string;
+  /** opencode `session.status.properties.status.type` (idle | busy | retry). */
+  sessionStatus?: string;
+  /** Message a part belongs to (`message.updated` / `message.part.*`). */
+  messageId?: string;
+  /** Part id on `message.part.updated` / `message.part.delta`. */
+  partId?: string;
+  /** Part type on `message.part.updated` (`text`, `tool`, `step-start`, …). */
+  partType?: string;
+  /** Actual text payload on a text part (never the event-type fallback). */
+  partText?: string;
+  /** Streamed text chunk on `message.part.delta` when `field === 'text'`. */
+  delta?: string;
+  /** The changed field on `message.part.delta` (`text`, `reasoning`, …). */
+  field?: string;
+  /** Message role on `message.updated`; used to label the transcript bubble. */
+  role?: 'user' | 'assistant';
+  /** Compact tool row on a `message.part.updated` tool part. */
+  tool?: TranscriptTool;
 }
 
 /** A nested object field, or undefined when it is absent / not a plain object. */
 function nestedObject(rec: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
   const v = rec[key];
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+}
+
+function nonEmptyString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+}
+
+/**
+ * Human label for an opencode permission request.
+ *
+ * v1.19.4 schema: `{id, sessionID, permission, patterns, metadata, always, tool}`.
+ * `title`/`type` only existed on older capture shapes, so read those too. The
+ * detail (shell command, file path) is what the operator is actually approving
+ * on a phone; a generic "Permission requested" is not enough.
+ */
+export function permissionFromRequest(raw: unknown): PendingPermission | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const id = nonEmptyString(r.id);
+  if (!id) return null;
+  const kind = nonEmptyString(r.permission) ?? nonEmptyString(r.type) ?? '';
+  const metadata = nestedObject(r, 'metadata');
+  const patterns = Array.isArray(r.patterns) ? r.patterns.filter((p): p is string => typeof p === 'string' && !!p) : [];
+  const detail =
+    nonEmptyString(metadata?.command) ??
+    nonEmptyString(metadata?.filePath) ??
+    nonEmptyString(metadata?.filepath) ??
+    nonEmptyString(metadata?.path) ??
+    (patterns.length > 0 ? patterns.join(', ') : undefined);
+  // Older engines sent a ready-made title; keep it verbatim. v1.19 asks carry
+  // permission + patterns/metadata, so build `<kind>: <detail>` from those.
+  const legacyTitle = nonEmptyString(r.title);
+  const label = legacyTitle ?? (detail ? (kind ? `${kind}: ${detail}` : detail) : 'Permission requested');
+  return { id, title: label, type: kind };
 }
 
 /**
@@ -105,7 +157,10 @@ export function parseEventFrame(raw: string): ParsedMissionEvent | null {
   const properties = nestedObject(rec, 'properties');
   const propertiesInfo = properties ? nestedObject(properties, 'info') : undefined;
   const propertiesPart = properties ? nestedObject(properties, 'part') : undefined;
+  const dataInfo = data ? nestedObject(data, 'info') : undefined;
   const dataPart = data ? nestedObject(data, 'part') : undefined;
+  const messageInfo = propertiesInfo ?? dataInfo;
+  const part = propertiesPart ?? dataPart;
   const textSource =
     data?.text ??
     properties?.text ??
@@ -128,24 +183,70 @@ export function parseEventFrame(raw: string): ParsedMissionEvent | null {
     const first = msg.split('\n')[0].trim();
     if (first) finalText = first;
   }
-  const event: ParsedMissionEvent = { at: Date.now(), kind, text: finalText };
+  // Part events carry `properties.time`; message.updated carries
+  // `info.time.created`. Prefer those over the local receive time so the
+  // transcript orders by when the engine produced the text.
+  const partTime = typeof properties?.time === 'number' ? properties.time : undefined;
+  const createdTime = messageInfo ? num(nestedObject(messageInfo, 'time')?.created) : undefined;
+  const event: ParsedMissionEvent = { at: partTime ?? createdTime ?? Date.now(), kind, text: finalText };
   if (data?.taskId != null) {
     event.taskId = typeof data.taskId === 'string' ? data.taskId : String(data.taskId);
   }
+  const messageId =
+    nonEmptyString(messageInfo?.id) ??
+    nonEmptyString(part?.messageID) ??
+    nonEmptyString(properties?.messageID) ??
+    nonEmptyString(data?.messageID);
+  const partId = nonEmptyString(part?.id) ?? nonEmptyString(properties?.partID) ?? nonEmptyString(data?.partID);
+  const partType = nonEmptyString(part?.type);
+  if (messageId) event.messageId = messageId;
+  if (partId) event.partId = partId;
+  if (partType) event.partType = partType;
+  const role = nonEmptyString(messageInfo?.role);
+  if (role === 'user' || role === 'assistant') event.role = role;
+  if (kind === 'message.part.delta') {
+    const delta = nonEmptyString(properties?.delta) ?? nonEmptyString(data?.delta);
+    const field = nonEmptyString(properties?.field) ?? nonEmptyString(data?.field);
+    if (delta) event.delta = delta;
+    if (field) event.field = field;
+  }
+  if (kind === 'message.part.updated' && partType === 'text' && part && typeof part.text === 'string') {
+    event.partText = part.text;
+  }
+  if (kind === 'message.part.updated' && partType === 'tool' && part) {
+    const state = nestedObject(part, 'state');
+    const input = state ? nestedObject(state, 'input') : undefined;
+    const toolName = nonEmptyString(part.tool) ?? nonEmptyString(part.name) ?? 'tool';
+    const title =
+      nonEmptyString(state?.title) ??
+      nonEmptyString(input?.description) ??
+      nonEmptyString(input?.command) ??
+      nonEmptyString(input?.filePath) ??
+      nonEmptyString(input?.path);
+    const status = nonEmptyString(state?.status);
+    event.tool = {
+      id: partId ?? `${messageId ?? 'message'}-${toolName}`,
+      name: toolName,
+      ...(title ? { title } : {}),
+      ...(status ? { status } : {}),
+    };
+  }
   const sessionId = pickSessionId(rec);
   if (sessionId) event.sessionId = sessionId;
-  // Permission prompts (UNVERIFIED shape: opencode puts the Permission under
-  // `properties`). Read defensively; without an id we cannot answer it.
+  if (kind === 'session.status') {
+    const status = properties ? nestedObject(properties, 'status') : undefined;
+    const statusType = nonEmptyString(status?.type) ?? nonEmptyString(properties?.status);
+    if (statusType) event.sessionStatus = statusType;
+  }
+  // Permission prompts carry the Request fields under `properties`
+  // (opencode v1.19.4 `permission.asked`); older engines used
+  // `permission.updated`. Read defensively; without an id it cannot be answered.
   const permSrc = properties ?? data;
   if (kind === 'permission.updated' || kind === 'permission.asked') {
-    const id = typeof permSrc?.id === 'string' ? permSrc.id : '';
-    if (id) {
-      event.permission = {
-        id,
-        title: typeof permSrc?.title === 'string' && permSrc.title ? permSrc.title : 'Permission requested',
-        type: typeof permSrc?.type === 'string' ? permSrc.type : '',
-      };
-      if (!text || text === type) event.text = event.permission.title;
+    const permission = permissionFromRequest(permSrc);
+    if (permission) {
+      event.permission = permission;
+      if (!text || text === type) event.text = permission.title;
     }
   } else if (kind === 'permission.replied') {
     const id = permSrc?.permissionID ?? permSrc?.requestID;
@@ -212,13 +313,25 @@ export async function createMission(goal: string): Promise<string> {
 }
 
 /**
+ * Extra prompt routing. `plan` is opencode's native read-only planning agent;
+ * `build` executes tools. A model may be pinned per turn just like the proxy's
+ * default-model resolver.
+ */
+export interface PromptRunOptions {
+  agent?: 'plan' | 'build' | string;
+  model?: { providerID: string; modelID: string };
+}
+
+/**
  * Send the goal to an already-created session and move it to `running`. On
  * failure the mission is marked `failed` before the error rethrows.
  */
-export async function sendPrompt(id: string, goal: string): Promise<void> {
+export async function sendPrompt(id: string, goal: string, options: PromptRunOptions = {}): Promise<void> {
   try {
     await postJson(`/api/opencode/sessions/${encodeURIComponent(id)}/prompt`, {
       parts: [{ type: 'text', text: goal }],
+      ...(options.agent ? { agent: options.agent } : {}),
+      ...(options.model ? { model: options.model } : {}),
     });
     useMissionStore.getState().setStatus(id, 'running');
   } catch (err) {
@@ -347,7 +460,14 @@ export function subscribeMission(
               const event = parseEventFrame(payload);
               if (event && event.sessionId === sessionId) {
                 onEvent(event);
-                if (event.kind === 'session.idle' || event.kind === 'session.completed') {
+                // v1.19.x emits session.status{status.type:'idle'} and then the
+                // deprecated session.idle. Accept either so a mission cannot get
+                // stuck `running` when an engine drops the deprecated event.
+                if (
+                  event.kind === 'session.idle' ||
+                  event.kind === 'session.completed' ||
+                  (event.kind === 'session.status' && event.sessionStatus === 'idle')
+                ) {
                   endOnce('done');
                 } else if (event.kind === 'session.error') {
                   endOnce('failed');
@@ -464,6 +584,33 @@ export function normalizeSessionTelemetry(raw: unknown): SessionTelemetry {
   if (model) out.model = model;
 
   return out;
+}
+
+/**
+ * Terminal status implied by the session's last message.
+ *
+ * `session.idle` is the primary completion signal, but a phone that was
+ * backgrounded — or a mission that finishes between the prompt POST and the
+ * SSE subscribe — can miss it. This fallback reads the message log instead:
+ * opencode stamps the final assistant message with `finish: 'stop'`, while a
+ * turn still executing tools ends with `finish: 'tool-calls'`. Returns
+ * undefined while the run is in progress, before it starts, or when the shape
+ * is unknown, so an unknown state never claims a finished mission.
+ */
+export function missionStatusFromMessages(messages: unknown[]): MissionStatus | undefined {
+  if (!Array.isArray(messages) || messages.length === 0) return undefined;
+  const last = messages[messages.length - 1];
+  if (!last || typeof last !== 'object' || Array.isArray(last)) return undefined;
+  const rec = last as Record<string, unknown>;
+  const info = nestedObject(rec, 'info') ?? rec;
+  if (str(info.role) !== 'assistant') return undefined;
+  if (info.error != null) return 'failed';
+  const finish = str(info.finish);
+  if (finish === 'stop') return 'done';
+  if (finish === 'error' || finish === 'length' || finish === 'content-filter' || finish === 'content_filter') {
+    return 'failed';
+  }
+  return undefined;
 }
 
 /** Parse an ISO timestamp from the several epoch/string shapes a session may carry. */
@@ -643,6 +790,29 @@ export async function fetchDiff(id: string): Promise<FileDiff[]> {
 export async function fetchTodos(id: string): Promise<MissionTodo[]> {
   const json = await getJson(`/api/opencode/sessions/${encodeURIComponent(id)}/todos`);
   return normalizeTodos(json.data);
+}
+
+/**
+ * GET pending approvals and filter them to one session. opencode exposes no
+ * per-session list, so the proxy reads `GET /permission` (all sessions) and the
+ * sessionID in each request is used here. A rotated/unknown shape yields `[]`.
+ */
+export async function fetchPendingPermissions(sessionId: string): Promise<PendingPermission[]> {
+  const json = await getJson('/api/opencode/permissions');
+  let list: unknown = json.data;
+  if (list && typeof list === 'object' && !Array.isArray(list)) {
+    const rec = list as Record<string, unknown>;
+    if (Array.isArray(rec.permissions)) list = rec.permissions;
+  }
+  if (!Array.isArray(list)) return [];
+  const out: PendingPermission[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    if ((item as Record<string, unknown>).sessionID !== sessionId) continue;
+    const permission = permissionFromRequest(item);
+    if (permission) out.push(permission);
+  }
+  return out;
 }
 
 /**

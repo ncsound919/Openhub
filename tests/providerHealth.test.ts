@@ -11,6 +11,10 @@ function deps(over: Partial<ProviderHealthDeps> = {}): ProviderHealthDeps {
     ] as VaultCredentialHealth[])),
     fetchImpl: vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch,
     timeoutMs: 50,
+    // Never dial the network from a unit test: the local lane is stubbed unless asked.
+    probeLocal: vi.fn(async () => ({
+      reachable: false, baseUrl: null, models: [], modelId: 'qwen3.5-4b', error: 'not configured', checkedAt: 'now',
+    })),
     ...over,
   };
 }
@@ -69,6 +73,21 @@ describe('probeProviderHealth', () => {
     expect(opencode?.name).toContain('opencode');
     expect(opencode?.up).toBe(false);
     expect(opencode?.detail).toContain('ECONNREFUSED');
+  });
+
+  it('reports the phone local model lane, up only when the server answers', async () => {
+    const down = await probeProviderHealth({}, deps());
+    expect(down.providers.find((p) => p.id === 'local-model')).toMatchObject({ up: false, configured: false, detail: 'not configured' });
+
+    const up = await probeProviderHealth({}, deps({
+      probeLocal: vi.fn(async () => ({
+        reachable: true, baseUrl: 'http://127.0.0.1:8080', models: ['qwen3.5-4b'], modelId: 'qwen3.5-4b', checkedAt: 'now',
+      })),
+    }));
+    const lane = up.providers.find((p) => p.id === 'local-model');
+    expect(lane).toMatchObject({ up: true, configured: true });
+    expect(lane?.detail).toContain('qwen3.5-4b');
+    expect(lane?.detail).toContain('127.0.0.1:8080');
   });
 
   it('probes the opencode engine at /global/health', async () => {

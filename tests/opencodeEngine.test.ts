@@ -1,5 +1,6 @@
+import path from 'node:path';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { OPENCODE_BASE, buildServeArgs, parsePassword, taskkillArgs, opencodeEngineHealth } from '../src/services/opencodeEngine.js';
+import { OPENCODE_BASE, buildServeArgs, buildEngineEnv, parsePassword, taskkillArgs, opencodeEngineHealth } from '../src/services/opencodeEngine.js';
 
 describe('opencodeEngine', () => {
   it('targets a dedicated loopback port', () => {
@@ -14,6 +15,15 @@ describe('opencodeEngine', () => {
   });
   it('builds a Windows tree-kill command', () => {
     expect(taskkillArgs(1234)).toEqual(['/pid', '1234', '/T', '/F']);
+  });
+  it('scopes the engine to its own data dir when one is configured', () => {
+    const env = buildEngineEnv('pw', { OPENHUB_OPENCODE_DATA_DIR: '.opencode-data' } as NodeJS.ProcessEnv);
+    expect(env.OPENCODE_SERVER_PASSWORD).toBe('pw');
+    expect(env.XDG_DATA_HOME).toBe(path.resolve('.opencode-data'));
+  });
+  it('leaves the CLI data dir alone when no engine data dir is configured', () => {
+    const env = buildEngineEnv('pw', {} as NodeJS.ProcessEnv);
+    expect(env.XDG_DATA_HOME).toBeUndefined();
   });
   it('health probe sends basic auth (engine 401s unauthenticated calls)', async () => {
     const fetchMock = vi.fn(async (_u: string | URL, _i?: RequestInit) => new Response('{"healthy":true}', { status: 200 }));

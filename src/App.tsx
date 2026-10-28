@@ -3,12 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { LoginPage } from './auth/LoginPage';
 import { Layout } from './components/Layout';
+import { MobileHomeRedirect } from './components/MobileHomeRedirect';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Route-level code splitting (E2): every page is its own chunk, so the initial
 // bundle no longer ships the heavy graph (three.js/visualize), Studio, audit
 // tools, etc. Login + the Layout shell stay eager so the first paint is instant.
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const ChatView = lazy(() => import('./pages/ChatView').then((m) => ({ default: m.ChatView })));
 const RepoLayout = lazy(() => import('./pages/RepoLayout').then((m) => ({ default: m.RepoLayout })));
 const CodeView = lazy(() => import('./pages/CodeView').then((m) => ({ default: m.CodeView })));
 const IssuesView = lazy(() => import('./pages/IssuesView').then((m) => ({ default: m.IssuesView })));
@@ -21,7 +23,6 @@ const ExtensionsView = lazy(() => import('./pages/ExtensionsView').then((m) => (
 const UserSettingsView = lazy(() => import('./pages/UserSettingsView').then((m) => ({ default: m.UserSettingsView })));
 const SettingsView = lazy(() => import('./pages/SettingsView').then((m) => ({ default: m.SettingsView })));
 const WorkspacePage = lazy(() => import('./ide/WorkspacePage').then((m) => ({ default: m.WorkspacePage })));
-const MissionControlPage = lazy(() => import('./mission/MissionControlPage').then((m) => ({ default: m.MissionControlPage })));
 const WorkspaceIntelligence = lazy(() => import('./pages/WorkspaceIntelligence').then((m) => ({ default: m.WorkspaceIntelligence })));
 const StudioPage = lazy(() => import('./ide/StudioPage').then((m) => ({ default: m.StudioPage })));
 const FleetPanel = lazy(() => import('./pages/FleetPanel').then((m) => ({ default: m.FleetPanel })));
@@ -69,7 +70,9 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<MobileHomeRedirect />} />
+          {/* Operator chat: the harness surface. */}
+          <Route path="chat" element={<ChatView />} />
           {/* Primary IA surfaces */}
           <Route path="projects" element={<GitHubIntegrationPage />} />
           <Route path="crm" element={<CrmView />} />
@@ -89,6 +92,7 @@ function AppRoutes() {
           {/* Quality: pipelines + audit + repair + readiness live in assurance */}
           <Route path="autonomous" element={<Navigate to="/assurance?tab=pipelines" replace />} />
           <Route path="audit" element={<Navigate to="/assurance?tab=audit" replace />} />
+          <Route path="android-desk" element={<Navigate to="/assurance?av=android" replace />} />
           <Route path="repair" element={<Navigate to="/assurance?tab=repair" replace />} />
           <Route path="readiness" element={<Navigate to="/assurance?tab=readiness" replace />} />
           <Route path="api-studio" element={<ApiStudioView />} />
@@ -101,7 +105,7 @@ function AppRoutes() {
           <Route path="models" element={<ModelSelectionView />} />
           <Route path="workspace" element={<Navigate to="/editor" replace />} />
           <Route path="workspace/:owner/:repo" element={<Navigate to="/editor" replace />} />
-          <Route path="missions" element={<MissionControlPage />} />
+          <Route path="missions" element={<Navigate to="/editor" replace />} />
           <Route path="editor" element={<WorkspacePage />} />
           {/* Mounted 2026-10-05. The page existed but was never routed, and all
               five /api/workspace endpoints it called were unimplemented, so it

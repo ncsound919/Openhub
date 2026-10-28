@@ -97,10 +97,9 @@ export function FileTree({
         <React.Fragment key={node.path}>
           <div className="group/row relative flex w-full items-center">
             <button
-              onClick={() => toggle(node)}
-              onDoubleClick={() => node.type === 'file' && onOpenFile(node)}
+              onClick={() => (node.type === 'dir' ? toggle(node) : onOpenFile(node))}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-2 text-left text-[12px] transition-colors',
+                'flex min-h-9 min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-2 text-left text-[12px] transition-colors md:min-h-0',
                 node.type === 'file'
                   ? activePath === node.path
                     ? 'bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-text-primary)]'
@@ -135,14 +134,14 @@ export function FileTree({
             {/* Actions are siblings of the row button â€” never nested interactive
                 elements (axe nested-interactive), and revealed on row hover. */}
             {node.type === 'file' && (onRenameFile || onDeleteFile) && (
-              <span className="flex shrink-0 items-center gap-0.5 pr-1.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+              <span className="flex shrink-0 items-center gap-0.5 pr-1.5 opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover/row:opacity-100">
                 {onRenameFile && (
                   <button
                     type="button"
                     aria-label={`Rename ${node.name}`}
                     title="Rename"
                     onClick={() => onRenameFile(node)}
-                    className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                    className="flex min-h-8 min-w-8 items-center justify-center rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] md:min-h-0 md:min-w-0 md:p-0.5"
                   >
                     <Pencil className="w-3 h-3" />
                   </button>
@@ -153,7 +152,7 @@ export function FileTree({
                     aria-label={`Delete ${node.name}`}
                     title="Delete"
                     onClick={() => onDeleteFile(node)}
-                    className="rounded p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
+                    className="flex min-h-8 min-w-8 items-center justify-center rounded text-[var(--color-text-muted)] hover:text-[var(--color-danger)] md:min-h-0 md:min-w-0 md:p-0.5"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>

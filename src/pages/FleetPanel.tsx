@@ -6,6 +6,7 @@ import {
   Bot,
   Boxes,
   BookOpen,
+  Database,
   DollarSign,
   Goal,
   Loader2,
@@ -15,6 +16,7 @@ import {
 import type { KpiSnapshot } from '../routes/fleetKpis';
 import { GitHubRepoExplorer } from '../components/GitHubRepoExplorer';
 import { CapabilityGrid } from '../components/CapabilityGrid';
+import { MemoryRecallPanel } from '../components/MemoryRecallPanel';
 import { ServicesLifecycleView } from './ServicesLifecycleView';
 import { EcosystemView } from './EcosystemView';
 import { cn } from '../lib/utils';
@@ -87,7 +89,9 @@ function statusClasses(status: string | null): string {
 export function FleetPanel() {
   const [searchParams] = useSearchParams();
   const rawTab = searchParams.get('tab') ?? 'capabilities';
-  const tab = ['capabilities', 'overview', 'services', 'ecosystem'].includes(rawTab) ? rawTab : 'capabilities';
+  const tab = ['capabilities', 'overview', 'services', 'ecosystem', 'memory'].includes(rawTab)
+    ? rawTab
+    : 'capabilities';
   const [kpis, setKpis] = useState<KpiSnapshot | null>(null);
   const [kpisError, setKpisError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentRecord[]>([]);
@@ -188,6 +192,7 @@ export function FleetPanel() {
           { id: 'capabilities', label: 'Capability Grid', icon: Server },
           { id: 'overview', label: 'Overview', icon: Activity },
           { id: 'services', label: 'Services', icon: Boxes },
+          { id: 'memory', label: 'Memory', icon: Database },
           { id: 'ecosystem', label: 'Ecosystem', icon: BookOpen },
         ].map((t) => (
           <Link
@@ -336,6 +341,8 @@ export function FleetPanel() {
       </>
       ) : tab === 'services' ? (
         <ServicesLifecycleView />
+      ) : tab === 'memory' ? (
+        <MemoryRecallPanel />
       ) : (
         <EcosystemView />
       )}

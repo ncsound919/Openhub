@@ -1,6 +1,8 @@
 import { keywireSecretNames, keywireProject } from './keywire.js';
 import { probeVaultGitHubCredentials, type VaultCredentialHealth } from './githubVaultAuth.js';
 import { OPENCODE_BASE, basicAuthHeader } from './opencodeEngine.js';
+import { probeCloudProviders } from './cloudProviders.js';
+import { probeLocalModel } from './localModel.js';
 
 /**
  * Real provider health for the Integrations surface.
@@ -36,12 +38,19 @@ export interface ProviderHealthDeps {
   probeGitHub: typeof probeVaultGitHubCredentials;
   fetchImpl: typeof fetch;
   timeoutMs?: number;
+  /** How the local (phone) model is probed; injectable so tests never dial out. */
+  probeLocal?: typeof probeLocalModel;
 }
 
 const DEFAULT_TIMEOUT_MS = 4000;
 
 function defaultDeps(): ProviderHealthDeps {
-  return { secretNames: keywireSecretNames, probeGitHub: probeVaultGitHubCredentials, fetchImpl: fetch };
+  return {
+    secretNames: keywireSecretNames,
+    probeGitHub: probeVaultGitHubCredentials,
+    fetchImpl: fetch,
+    probeLocal: probeLocalModel,
+  };
 }
 
 interface HttpProbe {
@@ -114,13 +123,38 @@ export async function probeProviderHealth(
   const llmUrl = env.OPENHUB_LLM_BASE_URL || 'http://127.0.0.1:4100';
   const browserUrl = env.OPENHUB_AGENTBROWSER_URL || 'http://127.0.0.1:3700';
 
-  const [axiom, opencode, recourse, llm, browser] = await Promise.all([
+  const [axiom, opencode, recourse, llm, browser, cloud, localModel] = await Promise.all([
     probeHttp(axiomUrl, '/api/health', deps),
     probeHttp(opencodeUrl, '/global/health', deps, { Authorization: basicAuthHeader() }),
     probeHttp(recourseUrl, '/api/recourse/status', deps),
     probeHttp(llmUrl, '/health/liveliness', deps),
     probeHttp(browserUrl, '/api/system/health', deps),
+    probeCloudProviders(env),
+    (deps.probeLocal ?? probeLocalModel)(env).catch(() => null),
   ]);
+
+  // The phone's own GGUF model (Qwen 3.5 4B): light coding, tool calls and the
+  // local tier of reports. Reported as "not configured" when no env target is set,
+  // never as up — an unreachable local model must not look healthy.
+  const local: ProviderHealth = localModel?.reachable
+    ? {
+      id: 'local-model',
+      name: 'Local model (phone)',
+      category: 'llm',
+      configured: true,
+      up: true,
+      detail: `${localModel.modelId ?? 'model'} · ${localModel.baseUrl}${localModel.models.length > 1 ? ` · ${localModel.models.length} models` : ''}`,
+      requires: 'OPENHUB_LOCAL_LLM_URL + OPENHUB_LOCAL_LLM_MODEL',
+    }
+    : {
+      id: 'local-model',
+      name: 'Local model (phone)',
+      category: 'llm',
+      configured: localModel ? localModel.error !== 'not configured' : false,
+      up: false,
+      detail: localModel?.error ?? 'not configured',
+      requires: 'OPENHUB_LOCAL_LLM_URL + OPENHUB_LOCAL_LLM_MODEL',
+    };
 
   const httpProvider = (
     id: string, name: string, category: string, probe: HttpProbe, url: string, requires?: string,
@@ -146,6 +180,8 @@ export async function probeProviderHealth(
       httpProvider('recourse', 'Recourse', 'memory', recourse, recourseUrl),
       httpProvider('llm', 'LLM Gateway', 'llm', llm, llmUrl, 'OPENHUB_LLM_BASE_URL'),
       httpProvider('agentbrowser', 'AgentBrowser', 'browser', browser, browserUrl, 'AGENTBROWSER_API_KEY'),
+      local,
+      ...cloud,
     ],
     githubCredentials: credentials,
   };

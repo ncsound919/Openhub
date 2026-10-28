@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import express from 'express';
 import request from 'supertest';
 import {
@@ -7,6 +9,7 @@ import {
   listBridgeStatements,
 } from '../src/services/capabilityRegistry';
 import {
+  probeBridge,
   probeFleetCapabilities,
   resetCapabilityProbeCache,
 } from '../src/services/capabilityProbe';
@@ -33,6 +36,12 @@ describe('Capability Registry (C1)', () => {
     const redis = getBridgeStatement('redis');
     expect(redis?.identity.transport).toBe('tcp');
     expect(redis?.identity.port).toBe(6379);
+
+    const sieve = getBridgeStatement('sieve');
+    expect(sieve?.identity.category).toBe('memory');
+    expect(sieve?.liveness.path).toBe('/v1/sieve/health');
+    expect(sieve?.operations.map((o) => o.id)).toContain('code.recall');
+    expect(getBridgeStatement('recourse-mobile')?.liveness.path).toBe('/v1/recourse/health');
   });
 });
 
@@ -66,6 +75,38 @@ describe('Capability Probing & Evidence (C2)', () => {
     const second = await probeFleetCapabilities({ refresh: false });
     expect(second.cached).toBe(true);
     expect(second.probedAt).toBe(first.probedAt);
+  });
+
+  it('probes a bridge declared by baseUrl instead of host:port', async () => {
+    const seen: string[] = [];
+    const server = createServer((req, res) => {
+      seen.push(req.url ?? '');
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, version: '1.2.3' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const result = await probeBridge({
+        identity: {
+          slug: 'edge-test',
+          name: 'Edge Test',
+          category: 'memory',
+          transport: 'http',
+          baseUrl: `http://127.0.0.1:${port}`,
+        },
+        versionSpec: { type: 'http', endpointOrArgs: '/health' },
+        liveness: { type: 'http', path: '/v1/app/health', timeoutMs: 2000 },
+        readiness: { type: 'http', path: '/v1/app/health', timeoutMs: 2000 },
+        operations: [],
+      });
+      expect(result.status).toBe('online');
+      expect(result.version).toBe('1.2.3');
+      expect(result.endpoint).toBe(`http://127.0.0.1:${port}/v1/app/health`);
+      expect(seen).toEqual(['/v1/app/health']);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 

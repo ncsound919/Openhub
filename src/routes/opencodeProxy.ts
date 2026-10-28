@@ -16,14 +16,68 @@ import {
   sessionTodos,
   sessionDiff,
   respondPermission,
+  listPermissions,
   eventsRaw,
 } from '../services/opencodeClient.js';
 import { startOpencodeEngine, stopOpencodeEngine } from '../services/opencodeEngine.js';
 import { recordReceipt } from '../services/receipts.js';
+import { localOpencodeModel, LOCAL_PROVIDER_ID } from '../services/localModel.js';
 
 /** Message from an unknown thrown value without assuming it is an Error. */
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Default opencode model for prompts that do not name one.
+ *
+ * The engine ships no configured default, so it picked the first catalog entry —
+ * an image-only OpenRouter model (`google/gemini-3-pro-image-preview`) that cannot
+ * use tools. Every mission sent from the phone died with "No endpoints found that
+ * support tool use" while a perfectly usable model sat one env var away.
+ *
+ * Format: `provider/model`. Model ids may contain slashes themselves (for example
+ * `cloudflare-ai-gateway/openai/gpt-5.4-mini`), so the provider is everything up
+ * to the FIRST slash. Unset or malformed values are ignored, never guessed.
+ */
+/** Parse one `provider/model` reference (model ids may contain slashes). */
+export function parseModelRef(raw: string): PromptOptions['model'] | undefined {
+  const value = raw.trim();
+  const slash = value.indexOf('/');
+  if (slash <= 0 || slash === value.length - 1) return undefined;
+  return { providerID: value.slice(0, slash), modelID: value.slice(slash + 1) };
+}
+
+export function defaultPromptModel(env: NodeJS.ProcessEnv = process.env): PromptOptions['model'] | undefined {
+  return parseModelRef(env.OPENHUB_OPENCODE_MODEL || '');
+}
+
+/**
+ * The model a prompt runs on when the client names none.
+ *
+ * `OPENHUB_OPENCODE_MODEL` is a comma-separated preference list, so the phone can
+ * prefer its own model and still keep working when that server is off:
+ *   `local/qwen3.5-4b,opencode/beam-free`
+ * A `local/*` entry is used only while the local server answers; otherwise the
+ * next entry is taken. With nothing configured, the local model is used when it is
+ * answering, and the engine's own default applies when it is not.
+ */
+export async function preferredPromptModel(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<PromptOptions['model'] | undefined> {
+  const refs = (env.OPENHUB_OPENCODE_MODEL || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (refs.length === 0) {
+    return (await localOpencodeModel(env).catch(() => null)) ?? undefined;
+  }
+  for (const raw of refs) {
+    const model = parseModelRef(raw);
+    if (!model) continue;
+    if (model.providerID !== LOCAL_PROVIDER_ID) return model;
+    // A local entry must actually be answering, or the mission dies on a dead port.
+    const local = await localOpencodeModel(env).catch(() => null);
+    if (local) return local;
+  }
+  return undefined;
 }
 
 
@@ -98,7 +152,11 @@ function createEventHub() {
   };
 }
 
-export function createOpencodeProxyRouter(deps: { authMiddleware: express.RequestHandler }): express.Router {
+export function createOpencodeProxyRouter(deps: {
+  authMiddleware: express.RequestHandler;
+  /** Test seam: how a prompt with no model resolves its default. */
+  resolveDefaultModel?: () => Promise<PromptOptions['model'] | undefined>;
+}): express.Router {
   const router = express.Router();
   const hub = createEventHub();
   router.use(deps.authMiddleware);
@@ -182,6 +240,14 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
     catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
   });
 
+  // Pending approvals survive a browser reload/suspend via this read. The engine
+  // emits permission.asked once; a phone that was backgrounded when it fired
+  // would otherwise have no way to unblock the agent.
+  router.get('/opencode/permissions', async (_req, res) => {
+    try { res.json({ ok: true, data: await listPermissions() }); }
+    catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
+  });
+
   router.post('/opencode/sessions', async (req, res) => {
     try {
       const title = typeof req.body?.title === 'string' ? req.body.title : undefined;
@@ -206,6 +272,7 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
   // `/prompt` and `/prompt_async` (mid-run "steer", opencode's own name) are the
   // same operation. An empty prompt is a client error, not something to forward.
   const promptHandler: express.RequestHandler = async (req, res) => {
+
     const parts = Array.isArray(req.body?.parts) ? req.body.parts : [];
     if (parts.length === 0 || parts.length > 20
       || !parts.every((p: unknown) => !!p && typeof p === 'object' && typeof (p as { type?: unknown }).type === 'string')) {
@@ -229,6 +296,9 @@ export function createOpencodeProxyRouter(deps: { authMiddleware: express.Reques
       }
       opts.agent = agent;
     }
+    // A prompt without a model inherits the configured default, or the local model
+    // when it is answering; an explicit client choice always wins.
+    opts.model ??= await (deps.resolveDefaultModel ?? preferredPromptModel)().catch(() => undefined);
     try { res.json({ ok: true, data: await promptSessionAsync(req.params.id, parts, opts) }); }
     catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
   };

@@ -6,12 +6,17 @@ export function authHeader(pw: string = getEnginePassword()): string {
 
 /**
  * Opt-in project scoping: set OPENHUB_OPENCODE_DIRECTORY so sessions run in that
- * directory instead of wherever `opencode serve` happened to start (UNVERIFIED
- * header name against a live engine; unset = previous behaviour).
+ * directory instead of wherever `opencode serve` happened to start.
+ *
+ * Verified against opencode v1.19.4 `workspace-routing.ts`: the middleware reads
+ * `request.headers["x-opencode-directory"]` (or ?directory=) verbatim. The old
+ * encodeURIComponent() turned `/home/phone/repo` into `%2Fhome%2Fphone%2Frepo`,
+ * so the engine created the session in a literal percent-encoded path and the
+ * agent edited the wrong (usually empty) directory.
  */
 function dirHeaders(): Record<string, string> {
   const dir = process.env.OPENHUB_OPENCODE_DIRECTORY;
-  return dir ? { 'x-opencode-directory': encodeURIComponent(dir) } : {};
+  return dir ? { 'x-opencode-directory': dir } : {};
 }
 
 export async function ocFetch(
@@ -122,11 +127,33 @@ export function sessionDiff(id: string): Promise<any> {
   return ocFetch(`/session/${encodeURIComponent(id)}/diff`);
 }
 
-export function respondPermission(id: string, permissionID: string, response: unknown): Promise<any> {
-  return ocFetch(
-    `/session/${encodeURIComponent(id)}/permissions/${encodeURIComponent(permissionID)}`,
-    { method: 'POST', body: JSON.stringify({ response }) },
-  );
+/**
+ * Pending permission requests across all sessions (opencode `GET /permission`,
+ * verified in v1.19.4). Each request carries `sessionID`, so the UI can filter.
+ * A browser reload otherwise loses every approval the agent is blocked on.
+ */
+export function listPermissions(): Promise<any> {
+  return ocFetch('/permission', { timeoutMs: 5000 });
+}
+
+export async function respondPermission(id: string, permissionID: string, response: unknown): Promise<any> {
+  try {
+    // Session-scoped route (deprecated in v1.19 but still served).
+    return await ocFetch(
+      `/session/${encodeURIComponent(id)}/permissions/${encodeURIComponent(permissionID)}`,
+      { method: 'POST', body: JSON.stringify({ response }) },
+    );
+  } catch (err) {
+    // Newer engines expose only the experimental root route, with a `reply`
+    // field. Only fall back when the session route is absent, never on an auth
+    // or validation error (those must surface).
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/HTTP 40[45]\b/.test(message)) throw err;
+    return ocFetch(`/permission/${encodeURIComponent(permissionID)}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ reply: response }),
+    });
+  }
 }
 
 export function eventsRaw(signal?: AbortSignal): Promise<Response> {

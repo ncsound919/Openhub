@@ -1,5 +1,13 @@
 import { useState, type KeyboardEvent } from 'react';
-import { Play, Square } from 'lucide-react';
+import { Play, Square, Sparkles } from 'lucide-react';
+
+const QUICK_GOALS = [
+  'Fix the failing tests and explain what changed',
+  'Add unit tests for the changed code',
+  'Refactor for readability without changing behavior',
+  'Review the diff and list risks',
+  'Update docs to match the code',
+];
 
 interface GoalComposerProps {
   engineOnline: boolean;
@@ -37,6 +45,19 @@ export function GoalComposer({ engineOnline, onSubmit, busy = false, canStop = f
 
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
+      <div className="flex flex-wrap gap-1.5">
+        {QUICK_GOALS.map((g) => (
+          <button
+            key={g}
+            type="button"
+            onClick={() => setGoal(g)}
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-full border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-secondary)] sm:min-h-0"
+          >
+            <Sparkles className="h-3 w-3 shrink-0" />
+            {g}
+          </button>
+        ))}
+      </div>
       <textarea
         value={goal}
         onChange={(e) => setGoal(e.target.value)}
@@ -53,7 +74,7 @@ export function GoalComposer({ engineOnline, onSubmit, busy = false, canStop = f
           type="button"
           onClick={submit}
           disabled={disabled}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent-text)] px-3 py-1.5 text-xs font-semibold text-[var(--color-bg-base)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-[var(--color-accent-text)] px-3 py-1.5 text-xs font-semibold text-[var(--color-bg-base)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40 sm:min-h-0"
         >
           <Play className="h-3.5 w-3.5" />
           Run
@@ -62,7 +83,7 @@ export function GoalComposer({ engineOnline, onSubmit, busy = false, canStop = f
           <button
             type="button"
             onClick={onStop}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] sm:min-h-0"
           >
             <Square className="h-3.5 w-3.5" />
             Stop

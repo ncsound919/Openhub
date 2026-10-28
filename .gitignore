@@ -29,3 +29,9 @@ __pycache__/
 # appear beside any tracked .db and is binary noise that differs on every run.
 *.db-wal
 *.db-shm
+
+# Local engine secrets (never commit)
+.secrets/
+
+# Engine-local opencode data root (never commit)
+.opencode-data/

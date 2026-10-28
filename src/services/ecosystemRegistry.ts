@@ -358,6 +358,57 @@ const SEED: EcosystemEntity[] = [
     evidence: [AGENTOPS + ' (#8, scheduler-driven)'],
   }),
 
+  // ---- Full-stack development aids (ncsound919 MCP + generators) --------
+  entity({
+    id: 'og-glass', name: 'OG-Glass', kind: 'tool', pillar: 'core',
+    stack: ['TypeScript', 'Node.js', 'Express', 'MCP'],
+    purpose: 'MCP-backed UI preset system: generates and enforces React design styles, validates UI, exports design kits.',
+    repo: 'ncsound919/OG-Glass', port: 3460, bridge: 'og-glass', tags: ['mcp', 'ui', 'design', 'frontend'],
+    auditScore: null,
+    factors: f({ deployed: false, buildable: true, verified: false, versionControlled: true, integrated: true, documented: true }),
+    blockers: ['HTTP mode must be started with PORT=3460 (README default 3001 collides with open-seo).'],
+    evidence: ['github.com/ncsound919/OG-Glass (stdio + Streamable HTTP MCP at /mcp, GET /health)', 'local checkout verified 2026-10-27: C:/Users/tap45/Downloads/eco/OG-Glass'],
+  }),
+  entity({
+    id: 'math-x', name: 'Math-X', kind: 'tool', pillar: 'core',
+    stack: ['TypeScript', 'Node.js', 'Express', 'React', 'Vite', 'Pyodide', 'DuckDB-Wasm'],
+    purpose: 'Edge-first math/compute API: verification, planning, codegen, literature and domain analysis behind coding tasks.',
+    repo: 'ncsound919/math-x', port: 5000, bridge: 'math-x', tags: ['math', 'compute', 'codegen', 'research'],
+    auditScore: null,
+    factors: f({ deployed: false, buildable: true, verified: false, versionControlled: true, integrated: true, documented: true }),
+    evidence: ['github.com/ncsound919/math-x (Express API :5000, GET /health)', 'local checkout verified 2026-10-27: .../Oncology-Ecosystem/apps/math-x'],
+  }),
+  entity({
+    id: 'bigback', name: 'BigBack-', kind: 'tool', pillar: 'core',
+    stack: ['Python', 'FastAPI', 'React', 'PostgreSQL', 'Redis', 'Docker'],
+    purpose: 'Deterministic backend generator: a spec becomes a runnable FastAPI/Express/Hono/Fastify/Flask project.',
+    repo: 'ncsound919/BigBack-', port: 8000, bridge: 'bigback', tags: ['backend', 'generator', 'scaffold'],
+    auditScore: null,
+    factors: f({ deployed: false, buildable: true, verified: false, versionControlled: true, integrated: true, documented: true }),
+    blockers: ['No local checkout on this machine — clone to run the generator.', 'Default :8000 can collide with the colibri local LLM; the probe checks FastAPI /openapi.json so a foreign service on 8000 is not mistaken for it.'],
+    evidence: ['github.com/ncsound919/BigBack- (FastAPI :8000, docker compose, /docs)'],
+  }),
+  entity({
+    id: 'business-logic-mcp', name: 'Business-Logic-MCP', kind: 'tool', pillar: 'core',
+    stack: ['TypeScript', 'Node.js', 'MCP'],
+    purpose: 'MCP server exposing domain business rules, entity schemas, state machines and deterministic validation/codegen (37 tools).',
+    repo: 'ncsound919/Business-Logic-MCP', bridge: null, tags: ['mcp', 'domain-rules', 'validation', 'codegen'],
+    auditScore: null,
+    factors: f({ deployed: false, buildable: true, verified: false, versionControlled: true, integrated: false, documented: true }),
+    blockers: ['No local checkout on this machine — clone, run `npm run build`, then set OPENHUB_MCP_BUSINESS_LOGIC_DIR to register it with the engine.'],
+    evidence: ['github.com/ncsound919/Business-Logic-MCP (stdio MCP, 37 tools)'],
+  }),
+  entity({
+    id: 'middle-man-mcp', name: 'Middle-Man-MCP', kind: 'service', pillar: 'core',
+    stack: ['Node.js', 'Express', 'JWT', 'Prometheus'],
+    purpose: 'Deterministic MCP gateway: health-gated relay of tool calls to backend MCP HTTP endpoints, plus proxy/circuit-breaker middleware.',
+    repo: 'ncsound919/Middle-Man-MCP', port: 8085, bridge: 'middle-man', tags: ['mcp', 'gateway', 'relay', 'middleware'],
+    auditScore: null,
+    factors: f({ deployed: false, buildable: true, verified: false, versionControlled: false, integrated: true, documented: true }),
+    blockers: ['github.com/ncsound919/Middle-Man-MCP returns 404 (private or removed) — local zip checkout only: no git history, no GitHub scoring.', 'Run with PORT=8085 (default 8080 collides with the local LLM) and JWT_SECRET set — it refuses to start in production without one.'],
+    evidence: ['local checkout verified 2026-10-27: C:/Users/tap45/Downloads/Middle-Man-MCP-main (src/server.js, 156 jest tests)', 'README: MCP gateway v1.1 — relay/retry/cache, pre-auth /api/mcp-registry, public /health'],
+  }),
+
   // ---- Memory / LLM / index ---------------------------------------------
   entity({
     id: 'recourse', name: 'Recourse', kind: 'service', pillar: 'memory',
@@ -683,6 +734,15 @@ const AUDIT_TARGETS: Record<string, { auditRepo?: string; auditDir?: string }> =
   // Finance / revenue-facing tools. middleman has no folder anywhere — repo only.
   middleman: { auditRepo: 'tap919/middleman' },
   'owl-token': { auditRepo: 'ncsound919/Overlay365-AI-Safety' },
+  // Full-stack dev aids (ncsound919). Local checkouts verified on disk 2026-10-27;
+  // BigBack/Business-Logic are GitHub-scoreable only (no checkout on this machine).
+  'og-glass': { auditDir: 'C:/Users/tap45/Downloads/eco/OG-Glass', auditRepo: 'ncsound919/OG-Glass' },
+  'math-x': { auditDir: 'C:/Users/tap45/Downloads/eco/ecosystem/Oncology-Ecosystem/apps/math-x', auditRepo: 'ncsound919/math-x' },
+  bigback: { auditRepo: 'ncsound919/BigBack-' },
+  'business-logic-mcp': { auditRepo: 'ncsound919/Business-Logic-MCP' },
+  // Middle-Man-MCP: repo 404s (local zip checkout only) — local audit dir,
+  // no GitHub target to score.
+  'middle-man-mcp': { auditDir: 'C:/Users/tap45/Downloads/Middle-Man-MCP-main' },
   'uplift-health': {},
   'uplift-wealth': {},
   'uplift-justice': {},

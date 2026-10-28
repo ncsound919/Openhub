@@ -6,10 +6,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { IntegrationsHub } from './IntegrationsHub';
 import { ModelSelectionView } from './ModelSelectionView';
-import { EditorSettingsPanel } from '../components/EditorSettingsPanel';
 import { AutomationSettingsPanel } from '../components/AutomationSettingsPanel';
 
-const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations', 'editor', 'automation', 'advanced'];
+const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations', 'automation', 'advanced'];
 
 /** Surfaces deliberately kept out of the main rail. They still exist for
  *  power users and deep links, but they are not part of the daily flow. */
@@ -189,9 +188,6 @@ export function UserSettingsView() {
         <button onClick={() => setActiveTab('models')} className={`sidebar-link w-full ${activeTab === 'models' ? 'active' : ''}`}>
           <Cpu className="w-4 h-4 mr-3" /> Models
         </button>
-        <button onClick={() => setActiveTab('editor')} className={`sidebar-link w-full ${activeTab === 'editor' ? 'active' : ''}`}>
-          <Terminal className="w-4 h-4 mr-3" /> Editor
-        </button>
         <button onClick={() => setActiveTab('automation')} className={`sidebar-link w-full ${activeTab === 'automation' ? 'active' : ''}`}>
           <Bot className="w-4 h-4 mr-3" /> Automation
         </button>
@@ -206,7 +202,6 @@ export function UserSettingsView() {
       {/* Content */}
       <div className="flex-1 industrial-card overflow-hidden self-start min-h-[600px]">
         {activeTab === 'models' && <div className="p-8"><ModelSelectionView /></div>}
-        {activeTab === 'editor' && <EditorSettingsPanel />}
         {activeTab === 'automation' && <AutomationSettingsPanel />}
         {activeTab === 'integrations' && <IntegrationsHub />}
         {activeTab === 'advanced' && (

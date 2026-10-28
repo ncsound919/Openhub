@@ -1,5 +1,6 @@
 import express from 'express';
-import { runLlm, type LlmMessage } from '../services/llmRouter';
+import { type LlmMessage } from '../services/llmRouter';
+import { runAppLlm } from '../services/appModel';
 
 /**
  * OpenAI-compatible chat endpoint for external bot clients (Open-Chat).
@@ -75,7 +76,7 @@ export function createChatCompletionsRouter(): express.Router {
     const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
 
     try {
-      const result = await runLlm(messages, model ? { model } : {});
+      const result = await runAppLlm(messages, model ? { model } : {});
       if (!result.ok || typeof result.text !== 'string') {
         return res.status(502).json({
           error: { message: result.error ?? 'Upstream model request failed.', type: 'upstream_error' },

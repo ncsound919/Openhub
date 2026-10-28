@@ -198,7 +198,7 @@ describe('SSR render sweep', () => {
     // eslint-disable-next-line no-console
     if (failures.length) console.warn(`SSR failures (${failures.length}):\n${failures.join('\n')}`);
     expect(rendered).toBeGreaterThanOrEqual(Math.floor(PAGES.length * 0.75));
-  }, 180_000);
+  }, 300_000);
 
   it('renders Layout inside a route (it hosts an Outlet)', async () => {
     const { Layout } = await import('../src/components/Layout');

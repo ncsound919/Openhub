@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "OpenHub",
+  "short_name": "OpenHub",
+  "description": "Autonomous developer orchestration OS",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0C10",
+  "theme_color": "#0A0C10",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Agent", "short_name": "Agent", "url": "/editor", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Editor", "short_name": "Editor", "url": "/editor", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,41 +1,23 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import {
-  Files, Search, GitBranch, Package, Settings, Terminal as TerminalIcon,
-  X, Play, Save, ChevronRight, RefreshCw, GitCommitHorizontal, Upload,
-  Cpu, Loader2, CircleDot, Github, Check, Zap, Wrench, Square, Bot, Orbit, Activity, Plus,
-  Server, FileDiff, GitBranchPlus, ChevronDown, CornerDownRight, AlertTriangle, ListTree, Wand2, FilePlus2, Layers, Rocket, ShieldCheck,
+  Files, Search, GitBranch, AlertTriangle, Server, Menu, Bot, Save,
+  Terminal as TerminalIcon, X, ChevronRight, RefreshCw, Loader2, CircleDot,
+  CornerDownRight, FilePlus2, GitCommitHorizontal, Upload, FileDiff, Check,
+  GitBranchPlus, ChevronDown, Plus, MessageSquarePlus,
 } from 'lucide-react';
-import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react';
 import { useStore } from '../store';
-import { driftTaskText, matchSkills, type Matchable } from '../lib/skillMatch';
-import { useModelStore } from '../lib/modelStore';
-import { DevAssistant } from '../components/DevAssistant';
-import { AgentDock } from './AgentDock';
-import { AxiomBar } from './AxiomBar';
-import { usePipelineContext } from './PipelineProvider';
-import { registerAxiomMonaco, getAxiomTabStats, subscribeAxiomTabStats } from './monacoProviders';
-import {
-  axiomEditorWarmStart,
-  axiomEditorDiagnostics,
-} from './axiomEditorClient';
-import { toMonacoMarkers, lspLanguageSupported, type LspDiagnostic } from './lspDiagnostics';
-import { loadTabPrefs, applyTabPrefs } from '../lib/editorPrefs';
 import { FileTree, type TreeNode } from './FileTree';
 import { TerminalView } from './TerminalView';
 import { ServicesDock } from './ServicesDock';
-import { ExtensionsPanel } from './ExtensionsPanel';
-import { ComposerPanel } from './ComposerPanel';
-import { MultibufferReviewPanel } from './MultibufferReviewPanel';
-import { ThreadsPanel } from './ThreadsPanel';
+import { EditorAgentPanel } from './EditorAgentPanel';
+import { buildSelectionPrompt } from './selectionContext';
+import { useIsMobile } from '../lib/useIsMobile';
 import { cn } from '../lib/utils';
 
-const VisualizerPanel = lazy(() => import('./visualize/VisualizerPanel').then((m) => ({ default: m.VisualizerPanel })));
-
-// repoId: the project a tab was opened for. Saves are refused when it no longer
-// matches the active project, so a buffer can never be written into another repo.
 type Tab = { path: string; name: string; language: string; content: string; dirty: boolean; repoId: string };
+type PanelId = 'files' | 'search' | 'git' | 'problems' | 'services';
 
 type GitFile = { status: string; path: string };
 type GitState = {
@@ -46,6 +28,8 @@ type GitState = {
   remote: string | null;
 };
 
+type TsProblem = { file: string; line: number; col: number; code: string; message: string };
+
 const LANG_MAP: Record<string, string> = {
   ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
   py: 'python', json: 'json', md: 'markdown', css: 'css', html: 'html',
@@ -53,6 +37,14 @@ const LANG_MAP: Record<string, string> = {
   cpp: 'cpp', c: 'c', rs: 'rust', go: 'go', java: 'java', rb: 'ruby',
   php: 'php', xml: 'xml', svg: 'xml', toml: 'ini', ini: 'ini', env: 'ini',
 };
+
+const PANELS: Array<{ id: PanelId; label: string; icon: typeof Files }> = [
+  { id: 'files', label: 'Files', icon: Files },
+  { id: 'search', label: 'Search', icon: Search },
+  { id: 'git', label: 'Source Control', icon: GitBranch },
+  { id: 'problems', label: 'Problems', icon: AlertTriangle },
+  { id: 'services', label: 'Services', icon: Server },
+];
 
 function parsePorcelain(lines: string[]): GitFile[] {
   return lines
@@ -82,90 +74,156 @@ const safeInt = (value: string | null, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-// Code intelligence (D1/D2)
-type TsProblem = { file: string; line: number; col: number; code: string; message: string };
-type OutlineItem = { name: string; kind: string; line: number; depth: number };
-type MonacoApi = Parameters<OnMount>[1];
-type EditorApi = Parameters<OnMount>[0];
+/** A plain monospace textarea with a synced line-number gutter. */
+function CodeEditor({
+  value,
+  onChange,
+  onSelectionChange,
+  textareaRef,
+  gutterRef,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelectionChange?: (range: { start: number; end: number } | null) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  gutterRef: React.RefObject<HTMLDivElement | null>;
+  ariaLabel: string;
+}) {
+  const lineCount = Math.min(value.split('\n').length, 50000);
+
+  // A textarea fires `select` for a mouse drag, but a phone's selection handles
+  // report through `selectionchange` and `pointerup`. Listen to all three so the
+  // "Ask agent" affordance appears however the text was selected.
+  React.useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const report = () => {
+      if (document.activeElement !== el) return;
+      onSelectionChange?.(el.selectionStart === el.selectionEnd
+        ? null
+        : { start: el.selectionStart, end: el.selectionEnd });
+    };
+    document.addEventListener('selectionchange', report);
+    el.addEventListener('pointerup', report);
+    el.addEventListener('keyup', report);
+    return () => {
+      document.removeEventListener('selectionchange', report);
+      el.removeEventListener('pointerup', report);
+      el.removeEventListener('keyup', report);
+    };
+  }, [onSelectionChange, textareaRef]);
+
+  return (
+    <div className="flex h-full min-h-0 overflow-hidden bg-[var(--color-surface-base)]">
+      <div
+        ref={gutterRef}
+        aria-hidden="true"
+        className="w-10 shrink-0 overflow-hidden border-r border-[var(--color-border-muted)] bg-[var(--color-bg-base)] py-3 text-right font-mono text-[11px] leading-5 text-[var(--color-text-muted)]"
+      >
+        {Array.from({ length: lineCount }, (_, i) => (
+          <div key={i} className="pr-2">{i + 1}</div>
+        ))}
+      </div>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onScroll={(e) => {
+          if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+        }}
+        onSelect={(e) => {
+          const el = e.currentTarget;
+          onSelectionChange?.(el.selectionStart === el.selectionEnd
+            ? null
+            : { start: el.selectionStart, end: el.selectionEnd });
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const el = e.currentTarget;
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            const next = `${value.slice(0, start)}  ${value.slice(end)}`;
+            onChange(next);
+            requestAnimationFrame(() => {
+              el.selectionStart = start + 2;
+              el.selectionEnd = start + 2;
+            });
+          }
+        }}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        aria-label={ariaLabel}
+        className="min-w-0 flex-1 resize-none overflow-auto bg-transparent px-3 py-3 font-mono text-[13px] leading-5 text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
+        wrap="off"
+        placeholder="Start typing…"
+      />
+    </div>
+  );
+}
+
+function DiffPane({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-[var(--color-border-muted)] not-last:border-b lg:not-last:border-b-0 lg:not-last:border-r">
+      <div className="shrink-0 border-b border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
+        {label}
+      </div>
+      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre px-3 py-2 font-mono text-[11px] leading-5 text-[var(--color-text-secondary)]">
+        {text || '(empty)'}
+      </pre>
+    </div>
+  );
+}
 
 export function WorkspacePage() {
-  const { activeProject, activeProjectLoading, activeProjectError, fetchActiveProject,
-    drift, driftState, refreshDrift, registryItems, fetchRegistryItems, theme } = useStore();
-  // One pipeline controller for the whole workspace: the command bar and the
-  // empty-editor actions start the same job, and only one poller exists.
-  const pipeline = usePipelineContext();
-  const [activePanel, setActivePanel] = useState<'explorer' | 'search' | 'git' | 'agent' | 'extensions' | 'autonomy' | 'services' | 'visualize' | 'problems' | 'outline' | 'composer' | 'review' | 'threads'>('agent');
+  const {
+    activeProject, activeProjectLoading, activeProjectError, fetchActiveProject,
+    drift, refreshDrift,
+  } = useStore();
+  const isMobile = useIsMobile();
+  // Desktop opens the agent beside the code; a phone starts on the file view
+  // and reaches the same mounted panel with the header toggle, so a turn is
+  // never lost when the sheet closes.
+  const [agentOpen, setAgentOpen] = useState(!isMobile);
+  const [activePanel, setActivePanel] = useState<PanelId>('files');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
-  const [showCopilot, setShowCopilot] = useState(true);
   const [gitState, setGitState] = useState<GitState | null>(null);
   const [commitMsg, setCommitMsg] = useState('');
   const [gitBusy, setGitBusy] = useState<'commit' | 'push' | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
-  const [copilotWidth, setCopilotWidth] = useState(() => safeInt(localStorage.getItem('openhub.ws.copilot'), 380));
-  const [agents, setAgents] = useState<Matchable[]>([]);
-  const [loopGoal, setLoopGoal] = useState('');
-  const [loopBusy, setLoopBusy] = useState(false);
-  const [loopId, setLoopId] = useState<string | null>(null);
-  const [loopStatus, setLoopStatus] = useState<string | null>(null);
-  const [axiomOnline, setAxiomOnline] = useState<boolean | null>(null);
-  // Tab-completion prefs are configured in Settings → Editor. The workspace
-  // only reads them and applies them to Monaco on mount — no config UI here.
-  const [tabPrefs] = useState(() => loadTabPrefs());
-  // Last message from Axiom's editor lanes (Tab completion / Ctrl+I). Previously
-  // went to console.warn only, so failed or offline completions vanished.
-  const [editorStatus, setEditorStatus] = useState<string | null>(null);
-  const [, setTabTick] = useState(0);
-  useEffect(() => { applyTabPrefs(tabPrefs); }, [tabPrefs]);
-  // Re-render the Tab status cluster only when stats actually change (was a
-  // permanent 2s interval that re-rendered the whole page on a timer).
-  useEffect(() => subscribeAxiomTabStats(() => setTabTick((n) => n + 1)), []);
-  // Diff review (A2)
   const [viewMode, setViewMode] = useState<'edit' | 'diff'>('edit');
   const [diffData, setDiffData] = useState<{ path: string; original: string; modified: string } | null>(null);
   const [diffBusy, setDiffBusy] = useState(false);
-  // Branches (A3)
   const [branchList, setBranchList] = useState<{ current: string | null; branches: string[] } | null>(null);
   const [branchOpen, setBranchOpen] = useState(false);
   const [newBranch, setNewBranch] = useState('');
-  // Search (A4)
   const [searchResults, setSearchResults] = useState<{ file: string; line: number; text: string }[]>([]);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  // Code intelligence (D1/D2)
   const [problems, setProblems] = useState<TsProblem[]>([]);
   const [problemsBusy, setProblemsBusy] = useState(false);
-  // Language-server diagnostics (Axiom LSP), keyed by repo-relative path.
-  const [lspDiags, setLspDiags] = useState<Record<string, LspDiagnostic[]>>({});
   const [problemsNote, setProblemsNote] = useState<string | null>(null);
-  const [outline, setOutline] = useState<OutlineItem[]>([]);
-  const [outlineLoading, setOutlineLoading] = useState(false);
-  const monacoRef = React.useRef<MonacoApi | null>(null);
-  const editorRef = React.useRef<EditorApi | null>(null);
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+  const [agentSeed, setAgentSeed] = useState<{ id: number; text: string } | null>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const gutterRef = React.useRef<HTMLDivElement>(null);
+  const pendingReveal = React.useRef<{ path: string; line: number; col: number } | null>(null);
 
   const projectKey = activeProject?.repoId ?? 'default';
-  const [sidebarWidth, setSidebarWidth] = useState(() => safeInt(localStorage.getItem(`openhub.ws.sidebar.${projectKey}`), 256));
-  const wsBase = activeProject?.repositoryName || '';
+  const [sidebarWidth, setSidebarWidth] = useState(() => safeInt(localStorage.getItem(`openhub.ws.sidebar.${projectKey}`), 240));
 
   useEffect(() => {
     void fetchActiveProject();
   }, [fetchActiveProject]);
 
-  // Zero-config warmth: warm the local transport once per project so the first
-  // Tab does not pay a cold handshake. Fire-and-forget; failures are harmless.
-  const warmedProjectRef = React.useRef<string | null>(null);
-  useEffect(() => {
-    const id = activeProject?.repoId;
-    if (!id || !tabPrefs.enabled || warmedProjectRef.current === id) return;
-    warmedProjectRef.current = id;
-    void axiomEditorWarmStart().catch(() => { /* warmth is best-effort */ });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProject?.repoId, tabPrefs.enabled]);
-
-  // ---- Quick Open (Ctrl+P) --------------------------------------------------
+  // ---- Quick Open (Ctrl+P, or the search button on a phone) ----------------
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickQuery, setQuickQuery] = useState('');
   const [quickIndex, setQuickIndex] = useState(0);
@@ -201,106 +259,6 @@ export function WorkspacePage() {
     void openTab({ name: path.split('/').pop() ?? path, type: 'file', path });
   };
 
-  // Copilot deep-link: open the visualizer panel (the VisualizerPanel picks the view).
-  useEffect(() => {
-    const handler = () => setActivePanel('visualize');
-    window.addEventListener('openhub:visualize', handler);
-    return () => window.removeEventListener('openhub:visualize', handler);
-  }, []);
-
-  // Automation, not button pushing: drift scan + tool catalog load themselves.
-  useEffect(() => {
-    if (activeProject && driftState === 'idle') void refreshDrift();
-  }, [activeProject, driftState, refreshDrift]);
-  useEffect(() => {
-    if (registryItems.length === 0) void fetchRegistryItems();
-  }, [registryItems.length, fetchRegistryItems]);
-  useEffect(() => {
-    if (activeProject) void fetchGit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProject?.repoId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/axiom/status', { credentials: 'include', headers: getAuthHeaders() });
-        const json = await res.json();
-        if (!cancelled) setAxiomOnline(json.ok && json.data?.status === 'ok');
-      } catch {
-        if (!cancelled) setAxiomOnline(false);
-      }
-      try {
-        const res = await fetch('/api/ecosystem/agents', { credentials: 'include', headers: getAuthHeaders() });
-        const json = await res.json();
-        const list = Array.isArray(json) ? json : Array.isArray(json?.agents) ? json.agents : [];
-        if (!cancelled) {
-          setAgents(
-            list
-              .filter((a: unknown): a is Record<string, unknown> => !!a && typeof a === 'object')
-              .slice(0, 40)
-              .map((a: Record<string, unknown>, i: number) => ({
-                id: typeof a.id === 'string' ? a.id : `agent-${i}`,
-                name: typeof a.name === 'string' ? a.name : `agent-${i}`,
-                kind: typeof a.kind === 'string' ? a.kind : typeof a.type === 'string' ? a.type : 'agent',
-              })),
-          );
-        }
-      } catch {
-        if (!cancelled) setAgents([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Global ⌘S / Ctrl+S to save the active file, ⌘W / Ctrl+W to close the tab.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void handleSave();
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
-        if (activePath) {
-          e.preventDefault();
-          closeTab(activePath);
-        }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePath, tabs]);
-
-  // Warn before a reload/navigation discards unsaved buffers.
-  useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (tabs.some((t) => t.dirty)) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [tabs]);
-
-  const suggestedSkills = React.useMemo(() => {
-    const task = driftTaskText({
-      repositoryName: activeProject?.repositoryName,
-      ahead: drift?.ahead ?? 0,
-      behind: drift?.behind ?? 0,
-      uncommitted: drift?.uncommitted ?? 0,
-      files: drift?.files ?? [],
-      goal: loopGoal,
-    });
-    if (!task.trim()) return [];
-    const tools: Matchable[] = registryItems.map((t) => ({
-      id: t.id, name: t.name, description: t.description, kind: t.type,
-    }));
-    return matchSkills(task, [...tools, ...agents], 5);
-  }, [activeProject?.repositoryName, drift, loopGoal, registryItems, agents]);
-
   const fetchGit = async () => {
     if (!activeProject) return;
     try {
@@ -316,9 +274,7 @@ export function WorkspacePage() {
     return { files, set: new Set(files.map((f) => f.path)) };
   }, [gitState]);
 
-  // Project switch: tabs belong to the project they were opened for. When the
-  // active project changes, confirm before dropping unsaved buffers, then reset
-  // the editor so the new project's saved tab list can be restored below.
+  // Project switch: tabs belong to the project they were opened for.
   const tabsRepoRef = React.useRef<string | null>(null);
   const restoredForRef = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -331,18 +287,17 @@ export function WorkspacePage() {
     if (dirty.length && !window.confirm(
       `The active project changed. Discard ${dirty.length} unsaved tab${dirty.length === 1 ? '' : 's'} from the previous project?`,
     )) {
-      // Keep the old buffers visible so they can be copied; saving them is
-      // refused because their repoId no longer matches the active project.
       return;
     }
     setTabs([]);
     setActivePath(null);
     setViewMode('edit');
     setDiffData(null);
+    setDrawerOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?.repoId]);
 
-  // Per-project layout persistence (C1): restore the last open tabs for this repo.
+  // Per-project layout persistence: restore the last open tabs for this repo.
   React.useEffect(() => {
     if (!activeProject) return;
     const repoId = activeProject.repoId;
@@ -365,13 +320,9 @@ export function WorkspacePage() {
               }
             } catch { /* skip */ }
           }
-          // The project changed while we were fetching: these contents belong
-          // to a different repo, so drop them.
           if (tabsRepoRef.current !== repoId) return;
           restoredForRef.current = repoId;
           if (restored.length) {
-            // Merge into whatever is open now instead of replacing it, so a tab
-            // the user opened during the restore is not thrown away.
             setTabs((ts) => {
               const have = new Set(ts.filter((t) => t.repoId === repoId).map((t) => t.path));
               const add = restored.filter((t) => !have.has(t.path));
@@ -390,9 +341,7 @@ export function WorkspacePage() {
   React.useEffect(() => {
     if (!activeProject) return;
     const repoId = activeProject.repoId;
-    // Don't overwrite the saved list before it has been restored for this repo.
     if (restoredForRef.current !== repoId) return;
-    // Only persist tabs that belong to this project, under this project's key.
     const paths = tabs.filter((t) => t.repoId === repoId).map((t) => t.path);
     try { localStorage.setItem(`openhub.ws.tabs.${repoId}`, JSON.stringify(paths)); } catch { /* storage unavailable */ }
   }, [tabs, activeProject?.repoId]);
@@ -405,8 +354,12 @@ export function WorkspacePage() {
       if (json.ok && json.branches) setBranchList(json.branches);
     } catch { /* offline */ }
   };
+
   useEffect(() => {
-    if (activeProject) void fetchBranches();
+    if (activeProject) {
+      void fetchGit();
+      void fetchBranches();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?.repoId]);
 
@@ -531,6 +484,7 @@ export function WorkspacePage() {
       setActivePath(node.path);
       setViewMode('edit');
       setDiffData(null);
+      setDrawerOpen(false);
       return;
     }
     try {
@@ -549,13 +503,10 @@ export function WorkspacePage() {
           dirty: false,
           repoId,
         };
-        // The project changed while the file was loading: don't open it.
         if (tabsRepoRef.current !== repoId) return;
-        // Re-check inside the updater: two quick opens of the same file must
-        // not add it twice.
         setTabs((ts) => (ts.some((t) => t.path === tab.path && t.repoId === repoId) ? ts : [...ts, tab]));
         setActivePath(node.path);
-        void loadLspDiagnostics(node.path);
+        setDrawerOpen(false);
       }
     } catch { /* offline */ }
   };
@@ -574,28 +525,7 @@ export function WorkspacePage() {
     });
   };
 
-  // Composer wrote files to disk: reload any of them that are open in a tab so
-  // the editor shows the new contents instead of a stale buffer.
-  const reloadTabs = async (paths: string[]) => {
-    const wanted = new Set(paths);
-    // Never overwrite unsaved edits: skip dirty buffers and tabs that belong
-    // to a different project.
-    const repoId = activeProject?.repoId;
-    const open = tabs.filter((t) => wanted.has(t.path) && !t.dirty && t.repoId === repoId);
-    await Promise.all(open.map(async (t) => {
-      try {
-        const res = await fetch(`/api/project/active/contents?path=${encodeURIComponent(t.path)}`, { credentials: 'include', headers: getAuthHeaders() });
-        const d = await res.json();
-        if (d.type === 'file') {
-          // Re-check dirty at apply time: the user may have typed during the fetch.
-          setTabs((ts) => ts.map((x) => (x.path === t.path && x.repoId === t.repoId && !x.dirty ? { ...x, content: d.content || '', dirty: false } : x)));
-        }
-      } catch { /* leave the buffer as-is */ }
-    }));
-  };
-
   // ---- File operations (create / rename / delete) --------------------------
-  // The tree remounts on `treeKey` change so it reloads from disk after an op.
   const [treeKey, setTreeKey] = useState(0);
   const fileOp = async (label: string, path: string, init: RequestInit): Promise<any | null> => {
     try {
@@ -649,16 +579,10 @@ export function WorkspacePage() {
     }
   };
 
-  // Proactive diagnostics: refresh tsc problems shortly after typing stops, so
-  // markers (and Axiom quick-fixes) are current without a manual save/refresh.
-  const typecheckTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateActiveContent = (content: string) => {
     if (!activePath) return;
     setTabs((ts) => ts.map((t) => (t.path === activePath ? { ...t, content, dirty: true } : t)));
-    if (typecheckTimer.current) clearTimeout(typecheckTimer.current);
-    typecheckTimer.current = setTimeout(() => { void runTypecheck(); }, 1500);
   };
-  React.useEffect(() => () => { if (typecheckTimer.current) clearTimeout(typecheckTimer.current); }, []);
 
   const handleSave = async () => {
     const active = tabs.find((t) => t.path === activePath);
@@ -684,73 +608,11 @@ export function WorkspacePage() {
       void refreshDrift();
       void fetchGit();
       void runTypecheck();
-      void loadLspDiagnostics(active.path);
     } catch {
       setSaveStatus(null);
+      setSaveError('Unable to save this file.');
     }
   };
-
-  // D1 — apply tsc diagnostics to the active model as editor markers.
-  const applyMarkers = (errs: TsProblem[]) => {
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-    if (!monaco || !editor) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
-    const rel = activePath ? norm(activePath) : '';
-    const mine = rel ? errs.filter((e) => { const f = norm(e.file); return f === rel || f.endsWith('/' + rel); }) : [];
-    monaco.editor.setModelMarkers(
-      model,
-      'tsc',
-      mine.map((e) => ({
-        severity: monaco.MarkerSeverity.Error,
-        message: `${e.code}: ${e.message}`,
-        code: e.code,
-        startLineNumber: e.line,
-        startColumn: e.col,
-        endLineNumber: e.line,
-        endColumn: e.col + 1,
-      })),
-    );
-  };
-
-  // LSP diagnostics (Axiom runs typescript-language-server / pyright). Fetched
-  // per file and painted with a distinct marker owner so real language-server
-  // errors show for TS/JS/Python without disturbing the tsc markers.
-  const loadLspDiagnostics = async (relPath: string) => {
-    if (!activeProject || !lspLanguageSupported(relPath)) return;
-    const abs = `${activeProject.path.replace(/[\\/]+$/, '')}/${relPath.replace(/\\/g, '/')}`;
-    try {
-      const r = await axiomEditorDiagnostics({ file: abs, rootDir: activeProject.path });
-      const diags = r.available && Array.isArray(r.diagnostics) ? r.diagnostics : [];
-      setLspDiags((prev) => ({ ...prev, [relPath]: diags }));
-    } catch {
-      setLspDiags((prev) => ({ ...prev, [relPath]: [] }));
-    }
-  };
-
-  const applyLspMarkers = () => {
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-    if (!monaco || !editor) return;
-    const model = editor.getModel();
-    if (!model) return;
-    const diags = activePath ? (lspDiags[activePath] ?? []) : [];
-    monaco.editor.setModelMarkers(
-      model,
-      'axiom-lsp',
-      toMonacoMarkers(diags, {
-        error: monaco.MarkerSeverity.Error,
-        warning: monaco.MarkerSeverity.Warning,
-        info: monaco.MarkerSeverity.Info,
-        hint: monaco.MarkerSeverity.Hint,
-      }),
-    );
-  };
-
-  // Repaint LSP markers when the diagnostics or the active file change.
-  React.useEffect(() => { applyLspMarkers(); }, [lspDiags, activePath]);
 
   const runTypecheck = async () => {
     if (!activeProject) return;
@@ -775,173 +637,68 @@ export function WorkspacePage() {
     }
   };
 
-  // D2 — document outline via Monaco's built-in TypeScript language service.
-  const loadOutline = async () => {
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-    if (!monaco || !editor) return;
-    const model = editor.getModel();
-    if (!model) { setOutline([]); return; }
-    const lang = model.getLanguageId();
-    if (lang !== 'typescript' && lang !== 'javascript') { setOutline([]); return; }
-    setOutlineLoading(true);
-    try {
-      const getWorker = await monaco.languages.typescript.getTypeScriptWorker();
-      const client = await getWorker(model.uri);
-      const tree = await client.getNavigationTree(model.uri.toString());
-      const flat: OutlineItem[] = [];
-      const walk = (node: { text?: string; kind?: string; spans?: Array<{ start?: number }>; childItems?: unknown[] }, depth: number) => {
-        if (flat.length >= 200) return;
-        const spans = Array.isArray(node.spans) ? node.spans : [];
-        const start = spans[0]?.start ?? 0;
-        flat.push({ name: String(node.text ?? ''), kind: String(node.kind ?? ''), line: model.getPositionAt(start).lineNumber, depth });
-        const kids = Array.isArray(node.childItems) ? node.childItems : [];
-        for (const k of kids) walk(k as typeof node, depth + 1);
-      };
-      walk(tree as never, 0);
-      setOutline(flat.filter((o) => o.name));
-    } catch {
-      setOutline([]);
-    } finally {
-      setOutlineLoading(false);
-    }
+  const revealPosition = (line: number, col: number) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const lines = el.value.split('\n');
+    const before = lines.slice(0, Math.max(0, line - 1)).reduce((n, l) => n + l.length + 1, 0);
+    const offset = before + Math.max(0, col - 1);
+    el.focus();
+    el.setSelectionRange(offset, offset);
+    el.scrollTop = Math.max(0, (line - 3) * 20);
+    if (gutterRef.current) gutterRef.current.scrollTop = el.scrollTop;
   };
 
   const openProblem = (p: TsProblem) => {
-    void openTab({ name: p.file.split('/').pop() ?? p.file, type: 'file', path: p.file }).then(() => {
-      setTimeout(() => {
-        const editor = editorRef.current;
-        if (editor) { editor.revealLineInCenter(p.line); editor.setPosition({ lineNumber: p.line, column: p.col }); editor.focus(); }
-      }, 80);
-    });
+    pendingReveal.current = { path: p.file, line: p.line, col: p.col };
+    void openTab({ name: p.file.split('/').pop() ?? p.file, type: 'file', path: p.file });
   };
 
-  const gotoOutline = (line: number) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.revealLineInCenter(line);
-    editor.setPosition({ lineNumber: line, column: 1 });
-    editor.focus();
-  };
-
-  // Re-mark the active model whenever diagnostics or the active file change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => { applyMarkers(problems); }, [problems, activePath]);
-  // Refresh the outline when the active file or view mode changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => { void loadOutline(); }, [activePath, viewMode]);
-
-  const handleLoopToggle = async () => {
-    if (loopId) {
-      try {
-        await fetch(`/api/axiom/project/stop/${loopId}`, {
-          method: 'POST', credentials: 'include',
-          headers: getAuthHeaders({ 'X-CSRF-Token': getCsrfToken() }),
-        });
-      } catch { /* best effort */ }
-      setLoopId(null);
-      setLoopStatus('stopped');
-      return;
-    }
-    if (!activeProject) return;
-    setLoopBusy(true);
-    try {
-      const res = await fetch('/api/axiom/project/run', {
-        method: 'POST',
-        credentials: 'include',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() }),
-        body: JSON.stringify({ goal: loopGoal || `Advance ${activeProject.repositoryName}`, modelRoute: useModelStore.getState().routes.axiom || 'auto', maxIterations: 8 }),
-      });
-      const json = await res.json();
-      if (json.ok && json.data?.id) {
-        setLoopId(json.data.id);
-        setLoopStatus('running');
-      }
-    } catch { /* surfaced via status */ } finally {
-      setLoopBusy(false);
-    }
-  };
+  // Reveal a problem's line once its tab has rendered.
+  React.useEffect(() => {
+    const pending = pendingReveal.current;
+    if (!pending || pending.path !== activePath) return;
+    pendingReveal.current = null;
+    requestAnimationFrame(() => revealPosition(pending.line, pending.col));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath, tabs]);
 
   const activeTab = tabs.find((t) => t.path === activePath) ?? null;
   const dirtyCount = tabs.filter((t) => t.dirty).length;
 
-  // Logical panel structure: Axiom (the agent's run surface) → Editor tooling →
-  // Advanced (everything else, out of the daily path).
-  const axiomIcons = [
-    { id: 'agent' as const, icon: Activity, label: 'Run status' },
-  ];
-  const editorIcons = [
-    { id: 'explorer' as const, icon: Files, label: 'Files' },
-    { id: 'search' as const, icon: Search, label: 'Search' },
-    { id: 'git' as const, icon: GitBranch, label: 'Source Control' },
-  ];
-  const advancedIcons = [
-    { id: 'composer' as const, icon: Wand2, label: 'Composer' },
-    { id: 'outline' as const, icon: ListTree, label: 'Outline' },
-    { id: 'problems' as const, icon: AlertTriangle, label: 'Problems' },
-    { id: 'services' as const, icon: Server, label: 'Services' },
-    { id: 'review' as const, icon: Layers, label: 'Multibuffer Review' },
-    { id: 'threads' as const, icon: GitBranchPlus, label: 'Threads' },
-    { id: 'autonomy' as const, icon: Cpu, label: 'Autonomy' },
-    { id: 'visualize' as const, icon: Orbit, label: 'Visualize' },
-    { id: 'extensions' as const, icon: Package, label: 'Extensions' },
-  ];
-
-  const startResize = (e: React.MouseEvent, side: 'sidebar' | 'copilot') => {
+  const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = side === 'sidebar' ? sidebarWidth : copilotWidth;
-    // Track the live width locally: `onUp` must persist the final value, not the
-    // width captured in this render's closure at mousedown (always the start).
+    const startW = sidebarWidth;
     let latest = startW;
     const onMove = (ev: MouseEvent) => {
-      latest = side === 'sidebar'
-        ? clamp(startW + (ev.clientX - startX), 200, 480)
-        : clamp(startW - (ev.clientX - startX), 300, 720);
-      if (side === 'sidebar') setSidebarWidth(latest);
-      else setCopilotWidth(latest);
+      latest = clamp(startW + (ev.clientX - startX), 200, 420);
+      setSidebarWidth(latest);
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      const key = side === 'sidebar' ? `openhub.ws.sidebar.${projectKey}` : 'openhub.ws.copilot';
-      localStorage.setItem(key, String(latest));
+      localStorage.setItem(`openhub.ws.sidebar.${projectKey}`, String(latest));
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
 
   const panelContent = () => {
-    if (activePanel === 'composer') {
-      const tab = tabs.find((t) => t.path === activePath) ?? null;
-      return (
-        <ComposerPanel
-          projectPath={activeProject?.path ?? ''}
-          activeFilePath={tab?.path ?? null}
-          activeFileContent={tab?.content}
-          onApplied={(paths) => {
-            void reloadTabs(paths);
-            void runTypecheck();
-            void fetchGit();
-            void refreshDrift();
-          }}
-        />
-      );
-    }
-    if (activePanel === 'explorer') {
+    if (activePanel === 'files') {
       return (
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-            <span className="min-w-0 truncate">{wsBase || (activeProjectLoading ? 'Checking project…' : 'No project loaded')}</span>
+          <div className="flex min-h-11 items-center justify-between px-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
+            <span className="min-w-0 truncate">{activeProject?.repositoryName || (activeProjectLoading ? 'Checking project…' : 'No project loaded')}</span>
             {activeProject && (
               <button
                 type="button"
                 onClick={() => void handleNewFile()}
                 aria-label="New file"
                 title="New file"
-                className="ml-2 flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 hover:text-[var(--color-text-primary)]"
+                className="ml-2 flex min-h-9 shrink-0 items-center gap-1 rounded px-1.5 hover:text-[var(--color-text-primary)]"
               >
-                <FilePlus2 className="w-3 h-3" /> New
+                <FilePlus2 className="h-3.5 w-3.5" /> New
               </button>
             )}
           </div>
@@ -968,29 +725,30 @@ export function WorkspacePage() {
         <div className="flex h-full flex-col">
           <div className="p-3">
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => void handleSearch(e.target.value)}
               placeholder="Search files…"
-              className="w-full rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1.5 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+              aria-label="Search files"
+              className="min-h-11 w-full rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
             {searchBusy ? (
               <div className="flex items-center gap-2 px-2 py-3 text-xs text-[var(--color-text-muted)]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
               </div>
             ) : searchQuery && searchResults.length === 0 ? (
               <div className="px-2 py-3 text-xs text-[var(--color-text-muted)]">No matches.</div>
             ) : (
-              searchResults.map((r, i) => (
+              searchResults.map((r) => (
                 <button
                   key={`${r.file}:${r.line}`}
                   onClick={() => void openTab({ name: r.file.split('/').pop() ?? r.file, type: 'file', path: r.file })}
-                  className="flex w-full flex-col gap-0.5 rounded px-1.5 py-1 text-left hover:bg-[var(--color-surface-hover)]"
+                  className="flex w-full flex-col gap-0.5 rounded px-2 py-2 text-left hover:bg-[var(--color-surface-hover)]"
                 >
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-text-primary)]">
-                    <CornerDownRight className="w-3 h-3 shrink-0 text-[var(--color-text-muted)]" />
+                    <CornerDownRight className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" />
                     <span className="min-w-0 flex-1 truncate">{r.file}</span>
                     <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{r.line}</span>
                   </span>
@@ -1011,37 +769,37 @@ export function WorkspacePage() {
       const count = gitChanged.files.length;
       return (
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-1 border-b border-[var(--color-border-muted)] px-3 py-1.5">
+          <div className="flex min-h-11 items-center gap-1 border-b border-[var(--color-border-muted)] px-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
               Source Control · {count}
             </span>
             <div className="relative ml-auto">
               <button
                 onClick={() => setBranchOpen((v) => !v)}
-                className="flex items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                className="flex min-h-9 items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 title="Switch branch"
               >
-                <GitBranch className="w-3 h-3 text-[var(--color-accent-text)]" />
+                <GitBranch className="h-3 w-3 text-[var(--color-accent-text)]" />
                 <span className="max-w-[90px] truncate">{branchList?.current ?? gitState?.branch ?? '—'}</span>
-                <ChevronDown className="w-3 h-3" />
+                <ChevronDown className="h-3 w-3" />
               </button>
               {branchOpen && branchList && (
-                <div className="absolute right-0 top-6 z-20 w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-overlay)] p-1.5 shadow-xl shadow-black/40">
+                <div className="absolute right-0 top-9 z-20 w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-overlay)] p-1.5 shadow-xl shadow-black/40">
                   <div className="max-h-40 overflow-y-auto">
                     {branchList.branches.map((b) => (
                       <div key={b} className="flex items-center gap-1.5">
                         <button
                           onClick={() => void handleBranch('switch', b)}
-                          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                          className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded px-1.5 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
                         >
-                          <GitBranch className="w-3 h-3 shrink-0 text-[var(--color-text-muted)]" />
+                          <GitBranch className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" />
                           <span className="truncate">{b}</span>
                           {b === branchList.current && <span className="ml-auto text-[var(--color-accent-text)]">●</span>}
                         </button>
                         {b !== branchList.current && (
                           <button
                             onClick={() => void handleBranch('delete', b)}
-                            className="shrink-0 rounded px-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
+                            className="shrink-0 rounded px-1.5 py-1 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-danger)]"
                             title={`Delete ${b}`}
                           >
                             ✕
@@ -1056,21 +814,21 @@ export function WorkspacePage() {
                       onChange={(e) => setNewBranch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && void handleBranch('create', newBranch)}
                       placeholder="New branch…"
-                      className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
+                      className="min-h-9 min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 font-mono text-[10px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
                     />
                     <button
                       onClick={() => void handleBranch('create', newBranch)}
                       disabled={!newBranch.trim()}
-                      className="flex shrink-0 items-center gap-1 rounded bg-[var(--color-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+                      className="flex min-h-9 shrink-0 items-center gap-1 rounded bg-[var(--color-accent)] px-2 text-[10px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
                     >
-                      <GitBranchPlus className="w-3 h-3" /> New
+                      <GitBranchPlus className="h-3 w-3" /> New
                     </button>
                   </div>
                 </div>
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+          <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
             {gitChanged.files.length === 0 ? (
               <div className="px-2 py-3 text-xs text-[var(--color-text-muted)]">
                 {gitState ? 'Working tree clean.' : gitBusy ? 'Reading repository…' : 'No Git repository at this path.'}
@@ -1080,21 +838,21 @@ export function WorkspacePage() {
                 <button
                   key={f.path}
                   onClick={() => { void openTab({ name: f.path.split('/').pop() ?? f.path, type: 'file', path: f.path }); void openDiff(f.path); }}
-                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                  className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
                   title={f.path}
                 >
                   <span className={cn('w-4 shrink-0 text-center font-mono text-[11px] font-bold', STATUS_TONE[f.status] ?? 'text-[var(--color-text-muted)]')}>
                     {f.status}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{f.path}</span>
-                  {f.path === diffData?.path && viewMode === 'diff' && <FileDiff className="w-3 h-3 shrink-0 text-[var(--color-accent-text)]" />}
+                  {f.path === diffData?.path && viewMode === 'diff' && <FileDiff className="h-3 w-3 shrink-0 text-[var(--color-accent-text)]" />}
                 </button>
               ))
             )}
           </div>
-          <div className="border-t border-[var(--color-border-muted)] p-3 space-y-2">
+          <div className="space-y-2 border-t border-[var(--color-border-muted)] p-3">
             <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)]">
-              <GitBranch className="w-3.5 h-3.5 text-[var(--color-accent-text)]" />
+              <GitBranch className="h-3.5 w-3.5 text-[var(--color-accent-text)]" />
               <span className="truncate font-mono">{gitState?.branch ?? '—'}</span>
               <span className="ml-auto truncate font-mono text-[10px] text-[var(--color-text-muted)]">{gitState?.subject ?? ''}</span>
             </div>
@@ -1109,18 +867,18 @@ export function WorkspacePage() {
               <button
                 onClick={handleCommit}
                 disabled={!commitMsg.trim() || gitBusy !== null || !gitChanged.files.length}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+                className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
               >
-                {gitBusy === 'commit' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitCommitHorizontal className="w-3.5 h-3.5" />}
+                {gitBusy === 'commit' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitCommitHorizontal className="h-3.5 w-3.5" />}
                 Commit
               </button>
               <button
                 onClick={handlePush}
                 disabled={gitBusy !== null || !gitState?.remote}
                 title={gitState?.remote ? `Push to ${gitState.remote}` : 'No origin remote'}
-                className="flex items-center justify-center gap-1.5 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                className="flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
               >
-                {gitBusy === 'push' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                {gitBusy === 'push' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                 Push
               </button>
             </div>
@@ -1132,112 +890,27 @@ export function WorkspacePage() {
         </div>
       );
     }
-    if (activePanel === 'autonomy') {
-      return (
-        <div className="p-3 space-y-4 overflow-y-auto">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">Drift vs last push</div>
-              <button
-                onClick={() => void refreshDrift()}
-                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                title="Re-scan drift"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${driftState === 'scanning' ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-            {driftState === 'scanning' || driftState === 'idle' ? (
-              <div className="mt-2 text-xs text-[var(--color-text-muted)]">Scanning local vs origin…</div>
-            ) : !drift?.available ? (
-              <div className="mt-2 text-xs text-[var(--color-text-muted)]">{drift?.reason || 'No remote to compare against.'}</div>
-            ) : (
-              <div className="mt-2 space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full', !drift.hasUpstream ? 'bg-[var(--color-text-muted)]' : drift.ahead + drift.behind + drift.uncommitted === 0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')} />
-                  <span className="font-semibold text-[var(--color-text-primary)]">
-                    {!drift.hasUpstream
-                      ? 'No upstream branch tracked'
-                      : drift.ahead + drift.behind + drift.uncommitted === 0
-                        ? 'In sync with last push'
-                        : `${drift.ahead} ahead · ${drift.behind} behind · ${drift.uncommitted} uncommitted`}
-                  </span>
-                </div>
-                {drift.stat && <div className="font-mono text-[11px] text-[var(--color-text-muted)]">{drift.stat}</div>}
-                {!drift.fetched && <div className="text-[11px] text-[var(--color-warning)]/80">Remote unreachable — showing cached upstream ref.</div>}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-              <Zap className="w-3.5 h-3.5 text-[var(--color-success)]" /> Axiom loop
-              <span className={cn('ml-auto text-[10px] font-mono', axiomOnline ? 'text-[var(--color-success)]' : 'text-[var(--color-text-muted)]')}>
-                {axiomOnline === null ? '…' : axiomOnline ? '● online' : '○ offline'}
-              </span>
-            </div>
-            <textarea
-              value={loopGoal}
-              onChange={(e) => setLoopGoal(e.target.value)}
-              placeholder="Goal for the loop (optional)…"
-              rows={2}
-              className="mt-2 w-full resize-none rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] p-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)] focus:outline-none"
-            />
-            <button
-              onClick={handleLoopToggle}
-              disabled={loopBusy || !activeProject}
-              className={cn(
-                'mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-40',
-                loopId ? 'bg-[var(--color-danger)] hover:brightness-110' : 'bg-[var(--color-success)] hover:brightness-110',
-              )}
-            >
-              {loopBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : loopId ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              {loopId ? `Stop loop (${loopStatus ?? 'running'})` : 'Run autonomous loop'}
-            </button>
-            <Link to="/axiom" className="mt-1.5 block text-center text-[11px] font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
-              Full loop console →
-            </Link>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-              <Wrench className="w-3.5 h-3.5 text-[var(--color-info)]" /> Suggested skills
-            </div>
-            {suggestedSkills.length === 0 ? (
-              <div className="mt-2 text-xs text-[var(--color-text-muted)]">No strong matches yet — type a loop goal to refine.</div>
-            ) : (
-              <div className="mt-2 space-y-1.5">
-                {suggestedSkills.map((s) => (
-                  <div key={s.id} className="rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1.5">
-                    <div className="truncate text-xs font-semibold text-[var(--color-text-primary)]" title={s.name}>{s.name}</div>
-                    <div className="truncate font-mono text-[10px] text-[var(--color-text-muted)]" title={s.reason}>{s.kind ?? 'tool'} · {s.reason}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
     if (activePanel === 'problems') {
       return (
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-1 border-b border-[var(--color-border-muted)] px-3 py-1.5">
+          <div className="flex min-h-11 items-center gap-1 border-b border-[var(--color-border-muted)] px-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
               Problems · {problems.length}
             </span>
             <button
               onClick={() => void runTypecheck()}
               disabled={problemsBusy || !activeProject}
-              className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+              className="ml-auto flex min-h-9 min-w-9 items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
               title="Run typecheck"
+              aria-label="Run typecheck"
             >
-              <RefreshCw className={cn('w-3.5 h-3.5', problemsBusy && 'animate-spin')} />
+              <RefreshCw className={cn('h-3.5 w-3.5', problemsBusy && 'animate-spin')} />
             </button>
           </div>
           {problemsNote && <div className="px-3 py-1 text-[10px] text-[var(--color-text-muted)]">{problemsNote}</div>}
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
             {problemsBusy ? (
-              <div className="flex items-center gap-2 px-2 py-3 text-xs text-[var(--color-text-muted)]"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Typechecking…</div>
+              <div className="flex items-center gap-2 px-2 py-3 text-xs text-[var(--color-text-muted)]"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Typechecking…</div>
             ) : problems.length === 0 ? (
               <div className="px-2 py-3 text-xs text-[var(--color-text-muted)]">{activeProject ? 'No problems.' : 'Load a project to typecheck.'}</div>
             ) : (
@@ -1245,11 +918,11 @@ export function WorkspacePage() {
                 <button
                   key={`${p.file}:${p.line}:${p.col}:${i}`}
                   onClick={() => openProblem(p)}
-                  className="flex w-full flex-col gap-0.5 rounded px-1.5 py-1 text-left hover:bg-[var(--color-surface-hover)]"
+                  className="flex w-full flex-col gap-0.5 rounded px-2 py-2 text-left hover:bg-[var(--color-surface-hover)]"
                   title={`${p.file}:${p.line}:${p.col}`}
                 >
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-danger)]">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{p.message}</span>
                   </span>
                   <span className="truncate pl-[18px] font-mono text-[10px] text-[var(--color-text-muted)]">{p.file}:{p.line}:{p.col} · {p.code}</span>
@@ -1260,173 +933,173 @@ export function WorkspacePage() {
         </div>
       );
     }
-    if (activePanel === 'outline') {
-      return (
-        <div className="flex h-full flex-col">
-          <div className="border-b border-[var(--color-border-muted)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-            Outline · {outline.length}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-            {outlineLoading ? (
-              <div className="flex items-center gap-2 px-2 py-3 text-xs text-[var(--color-text-muted)]"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading symbols…</div>
-            ) : outline.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-[var(--color-text-muted)]">No symbols. Open a TypeScript or JavaScript file.</div>
-            ) : (
-              outline.map((o, i) => (
-                <button
-                  key={`${o.name}:${o.line}:${i}`}
-                  onClick={() => gotoOutline(o.line)}
-                  className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-                  style={{ paddingLeft: 6 + o.depth * 12 }}
-                  title={`${o.kind} · line ${o.line}`}
-                >
-                  <span className="min-w-0 flex-1 truncate">{o.name}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-muted)]">{o.line}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      );
-    }
-    if (activePanel === 'services') {
-      return <ServicesDock />;
-    }
-    if (activePanel === 'agent') {
-      return (
-        <AgentDock
-          activeLoopId={loopId}
-          onLoopStopped={() => { setLoopId(null); setLoopStatus('stopped'); }}
-          onLoopStarted={(id) => { setLoopId(id); setLoopStatus('running'); }}
-        />
-      );
-    }
-    if (activePanel === 'review') {
-      return <MultibufferReviewPanel />;
-    }
-    if (activePanel === 'threads') {
-      return <ThreadsPanel projectPath={activeProject?.path ?? ''} />;
-    }
-    if (activePanel === 'visualize') {
-      return (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Suspense fallback={<div className="flex flex-1 items-center justify-center font-mono text-xs text-[var(--color-text-muted)]">Loading 3D…</div>}>
-            <VisualizerPanel />
-          </Suspense>
-        </div>
-      );
-    }
-    if (activePanel === 'extensions') {
-      return <ExtensionsPanel />;
-    }
-    return <div className="p-3 text-xs text-[var(--color-text-muted)]">Extensions</div>;
+    return <ServicesDock />;
   };
 
+  const panelTabs = (
+    <div role="tablist" aria-label="Workspace panel" className="flex shrink-0 items-center gap-0.5 border-b border-[var(--color-border-muted)] px-1 py-1">
+      {PANELS.map((p) => {
+        const Icon = p.icon;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="tab"
+            aria-selected={activePanel === p.id}
+            aria-label={p.label}
+            title={p.label}
+            onClick={() => setActivePanel(p.id)}
+            className={cn(
+              'flex h-9 flex-1 items-center justify-center rounded transition-colors',
+              activePanel === p.id
+                ? 'bg-[var(--color-surface-base)] text-[var(--color-text-primary)] shadow-sm'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)]',
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // Global ⌘S / Ctrl+S to save the active file, ⌘W / Ctrl+W to close the tab.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void handleSave();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
+        if (activePath) {
+          e.preventDefault();
+          closeTab(activePath);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath, tabs]);
+
+  // Warn before a reload/navigation discards unsaved buffers.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (tabs.some((t) => t.dirty)) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [tabs]);
+
   return (
-    <div className="flex flex-col h-full bg-[var(--color-bg-base)]">
-      {/* One unified top bar: identity + agent status/actions + file actions.
-          The breadcrumb and Save/Terminal used to be a separate row. */}
-      <AxiomBar
-        projectName={activeProject?.repositoryName}
-        hasProject={!!activeProject}
-        axiomOnline={axiomOnline}
-        onRequestChat={() => setShowCopilot(true)}
-        pipeline={pipeline}
-        leading={
-          <div className="flex min-w-0 shrink items-center gap-1.5">
-            <Link to="/" className="shrink-0 text-xs font-semibold tracking-tight text-[var(--color-text-primary)]">Workspace</Link>
-            {activeProject && <ChevronRight className="h-3 w-3 shrink-0 text-[var(--color-text-muted)]" />}
-            {activeProject && <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-secondary)]">{activeProject.repositoryName}</span>}
-            {activeProject?.defaultBranch && <span className="count-pill hidden lg:inline-block">{activeProject.defaultBranch}</span>}
-          </div>
-        }
-        trailing={
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              onClick={() => void handleSave()}
-              disabled={!activeTab || !activeTab.dirty}
-              className="flex items-center gap-1 rounded-md bg-[var(--color-accent)] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-30"
-            >
-              <Save className="w-3 h-3" /> Save
-            </button>
-            <button
-              onClick={() => setShowTerminal(!showTerminal)}
-              className="flex items-center gap-1 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            >
-              <TerminalIcon className="w-3 h-3" /> Terminal
-            </button>
-          </div>
-        }
-      />
-
-      {/* Main IDE Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Panel */}
-        <div className="flex shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-raised)]" style={{ width: sidebarWidth }}>
-          <div className="flex items-center gap-1 border-b border-[var(--color-border-muted)] px-1.5 py-1">
-            <select
-              value={activePanel}
-              onChange={(e) => setActivePanel(e.target.value as typeof activePanel)}
-              aria-label="Workspace panel"
-              className="min-w-0 flex-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)]"
-            >
-              <optgroup label="Axiom">
-                {axiomIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </optgroup>
-              <optgroup label="Editor">
-                {editorIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </optgroup>
-              <optgroup label="Advanced">
-                {advancedIcons.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </optgroup>
-            </select>
-            <button
-              onClick={() => setShowCopilot(!showCopilot)}
-              className={cn(
-                'flex h-7 w-7 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--color-surface-hover)]',
-                showCopilot ? 'text-[var(--color-accent-text)]' : 'text-[var(--color-text-muted)]',
-              )}
-              title="Ask Axiom — chat & commands"
-              aria-label="Toggle Axiom chat"
-            >
-              <Bot className="w-4 h-4" />
-            </button>
-            <Link to="/settings" aria-label="Settings" title="Settings & configuration" className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]">
-              <Settings className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="min-h-0 flex-1">{panelContent()}</div>
+    <div className="flex h-full min-h-0 flex-col bg-[var(--color-bg-base)]">
+      {/* Compact workspace bar: files, project, save, terminal, opencode. */}
+      <header className="flex min-h-12 shrink-0 items-center gap-1.5 border-b border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 sm:px-3">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] lg:hidden"
+          aria-label="Open files"
+        >
+          <Menu className="h-4 w-4" />
+          Files
+        </button>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <Link to="/" className="hidden shrink-0 text-xs font-semibold tracking-tight text-[var(--color-text-primary)] sm:block">Workspace</Link>
+          {activeProject && <ChevronRight className="hidden h-3 w-3 shrink-0 text-[var(--color-text-muted)] sm:block" />}
+          {activeProject && <span className="min-w-0 truncate text-xs font-semibold text-[var(--color-text-secondary)]">{activeProject.repositoryName}</span>}
+          {activeProject?.defaultBranch && <span className="count-pill hidden shrink-0 lg:inline-block">{activeProject.defaultBranch}</span>}
         </div>
-        <div className="w-1 shrink-0 cursor-col-resize hover:bg-[color-mix(in_srgb,var(--color-accent)_45%,transparent)]" onMouseDown={(e) => startResize(e, 'sidebar')} />
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setAgentOpen((open) => !open)}
+            aria-pressed={agentOpen}
+            className={cn(
+              'flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold',
+              agentOpen
+                ? 'border-[color-mix(in_srgb,var(--color-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-accent)_14%,transparent)] text-[var(--color-accent-text)]'
+                : 'border-[var(--color-border-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+            )}
+            title="Toggle coding agent"
+          >
+            <Bot className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Agent</span>
+          </button>
+          <button
+            type="button"
+            onClick={openQuickOpen}
+            aria-label="Quick open file"
+            title="Quick open (⌘P)"
+            className="flex min-h-10 min-w-10 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!activeTab || !activeTab.dirty}
+            className="flex min-h-10 items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2.5 text-[11px] font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-30"
+          >
+            <Save className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Save</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTerminal(!showTerminal)}
+            aria-label="Toggle terminal"
+            title="Terminal"
+            className={cn(
+              'flex min-h-10 min-w-10 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]',
+              showTerminal && 'bg-[var(--color-surface-base)] text-[var(--color-text-primary)]',
+            )}
+          >
+            <TerminalIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
 
-        {/* Editor Area */}
-        <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1">
+        {/* Desktop sidebar */}
+        <aside
+          className="hidden shrink-0 flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] lg:flex"
+          style={{ width: sidebarWidth }}
+        >
+          {panelTabs}
+          <div className="min-h-0 flex-1">{panelContent()}</div>
+        </aside>
+        <div className="hidden w-1 shrink-0 cursor-col-resize hover:bg-[color-mix(in_srgb,var(--color-accent)_45%,transparent)] lg:block" onMouseDown={startResize} />
+
+        {/* Editor */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {tabs.length > 0 ? (
             <>
-              <div className="flex items-center border-b border-[var(--color-border-muted)] overflow-x-auto">
+              <div className="flex shrink-0 items-center overflow-x-auto border-b border-[var(--color-border-muted)]">
                 {tabs.map((t) => (
                   <button
                     key={t.path}
                     onClick={() => setActivePath(t.path)}
                     onAuxClick={(e) => e.button === 1 && closeTab(t.path)}
                     className={cn(
-                      'group flex min-w-fit items-center gap-2 border-r border-[var(--color-border-muted)] px-3 py-2 text-xs',
+                      'group flex min-h-10 min-w-fit items-center gap-2 border-r border-[var(--color-border-muted)] px-3 text-xs',
                       activePath === t.path
                         ? 'bg-[var(--color-surface-raised)] text-[var(--color-text-primary)]'
                         : 'bg-[var(--color-surface-base)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]',
                     )}
                     title={t.path}
                   >
-                    {t.dirty && <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-warning)]" />}
-                    <span className="max-w-[160px] truncate">{t.name}</span>
+                    {t.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-warning)]" />}
+                    <span className="max-w-[140px] truncate sm:max-w-[180px]">{t.name}</span>
                     <X
-                      className="h-3 w-3 shrink-0 text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-text-primary)]"
+                      className="h-3 w-3 shrink-0 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                       onClick={(e) => { e.stopPropagation(); closeTab(t.path); }}
                     />
                   </button>
                 ))}
-                <button onClick={() => setActivePanel('explorer')} className="flex items-center gap-1 px-2 py-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" title="Open more files">
-                  <Plus className="w-3.5 h-3.5" />
+                <button onClick={() => setDrawerOpen(true)} className="flex min-h-10 items-center gap-1 px-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] lg:hidden" title="Open files" aria-label="Open more files">
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
                 {saveError && (
                   <span role="alert" className="ml-2 flex items-center gap-1 font-mono text-[10px] text-[var(--color-danger)]">
@@ -1435,165 +1108,168 @@ export function WorkspacePage() {
                 )}
                 {saveStatus === 'saved' && (
                   <span role="status" aria-live="polite" className="ml-2 flex items-center gap-1 font-mono text-[10px] text-[var(--color-success)]">
-                    <Check className="w-3 h-3" /> Saved
+                    <Check className="h-3 w-3" /> Saved
                   </span>
                 )}
-                <div className="ml-auto flex items-center gap-1 px-2">
-                  <Link
-                    to="/settings?tab=editor"
-                    className="flex items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                    title="Editor model is configured in Settings → Editor"
-                  >
-                    <Cpu className="w-3 h-3" />
-                    <span className="max-w-[120px] truncate">{tabPrefs.model || 'Auto'}</span>
-                  </Link>
+                <div className="ml-auto flex shrink-0 items-center gap-1 px-2">
                   {activeTab && gitChanged.set.has(activeTab.path) && (
                     <button
                       onClick={() => viewMode === 'diff' ? setViewMode('edit') : void openDiff(activeTab.path)}
-                      className="flex items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                      className="flex min-h-8 items-center gap-1 rounded border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-2 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                       title="Review changes vs HEAD"
                     >
-                      {diffBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDiff className="w-3 h-3" />}
+                      {diffBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDiff className="h-3 w-3" />}
                       {viewMode === 'diff' ? 'Edit' : 'Diff'}
                     </button>
                   )}
                 </div>
               </div>
-              <div className="flex-1">
+              <div className="min-h-0 flex-1">
                 {viewMode === 'diff' && diffData && diffData.path === activeTab?.path ? (
-                  <DiffEditor
-                    height="100%"
-                    language={activeTab?.language ?? 'plaintext'}
-                    original={diffData.original}
-                    modified={diffData.modified}
-                    theme={theme === 'light' ? 'vs' : 'vs-dark'}
-                    options={{ fontSize: 13, minimap: { enabled: false }, scrollBeyondLastLine: false, automaticLayout: true, renderSideBySide: true, readOnly: true }}
-                  />
+                  <div className="flex h-full min-h-0 flex-col lg:flex-row">
+                    <DiffPane label="HEAD" text={diffData.original} />
+                    <DiffPane label="Working tree" text={diffData.modified} />
+                  </div>
                 ) : (
-                  <Editor
-                    height="100%"
-                    language={activeTab?.language ?? 'plaintext'}
-                    value={activeTab?.content ?? ''}
-                    onChange={(v) => updateActiveContent(v || '')}
-                    theme={theme === 'light' ? 'vs' : 'vs-dark'}
-                    onMount={(editor, monaco) => {
-                      editorRef.current = editor;
-                      monacoRef.current = monaco;
-                      applyMarkers(problems);
-                      void loadOutline();
-                      registerAxiomMonaco(monaco, editor, {
-                        projectPath: activeProject?.path ?? '',
-                        completionEnabled: tabPrefs.enabled,
-                        completionDelayMs: tabPrefs.delayMs,
-                        singleLine: tabPrefs.singleLine,
-                        onStatus: (m) => setEditorStatus(m),
-                      });
-                      // Editor navigation/commands: Quick Open (our own), Go to
-                      // Line, Go to Symbol, and the editor command palette —
-                      // the VS Code bindings, backed by Monaco's built-in
-                      // language-service commands where they exist.
-                      editor.addAction({
-                        id: 'axiom.quickOpen',
-                        label: 'Axiom: Quick Open File',
-                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP],
-                        run: () => openQuickOpen(),
-                      });
-                      editor.addAction({
-                        id: 'axiom.goToLine',
-                        label: 'Axiom: Go to Line',
-                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyG],
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        run: (ed: any) => ed.trigger('axiom', 'editor.action.gotoLine', null),
-                      });
-                      editor.addAction({
-                        id: 'axiom.goToSymbol',
-                        label: 'Axiom: Go to Symbol in File',
-                        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyO],
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        run: (ed: any) => ed.trigger('axiom', 'editor.action.quickOutline', null),
-                      });
-                      editor.addAction({
-                        id: 'axiom.commandPalette',
-                        label: 'Axiom: Command Palette',
-                        keybindings: [monaco.KeyCode.F1],
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        run: (ed: any) => ed.trigger('axiom', 'editor.action.quickCommand', null),
-                      });
-                    }}
-                    options={{ fontSize: 13, minimap: { enabled: false }, scrollBeyondLastLine: false, automaticLayout: true, tabSize: 2 }}
-                  />
+                  <div className="relative h-full min-h-0">
+                    <CodeEditor
+                      key={activeTab?.path ?? 'empty'}
+                      value={activeTab?.content ?? ''}
+                      onChange={updateActiveContent}
+                      onSelectionChange={setSelection}
+                      textareaRef={textareaRef}
+                      gutterRef={gutterRef}
+                      ariaLabel={`Editing ${activeTab?.name ?? 'file'}`}
+                    />
+                    {selection && activeTab && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = buildSelectionPrompt({
+                            path: activeTab.path,
+                            language: activeTab.language,
+                            value: activeTab.content,
+                            start: selection.start,
+                            end: selection.end,
+                          });
+                          if (!text) return;
+                          setAgentSeed({ id: Date.now(), text });
+                          setAgentOpen(true);
+                        }}
+                        className="absolute bottom-3 right-3 z-10 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--color-accent)_45%,transparent)] bg-[var(--color-surface-overlay)] px-3 text-[11px] font-semibold text-[var(--color-text-primary)] shadow-xl shadow-black/40 hover:bg-[var(--color-surface-raised)]"
+                        title="Add the selected code to the agent conversation"
+                      >
+                        <MessageSquarePlus className="h-3.5 w-3.5 text-[var(--color-accent-text)]" />
+                        Ask agent about selection
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-[var(--color-text-muted)]">
-              <div className="space-y-4 text-center">
+            <div className="flex flex-1 items-center justify-center px-6 text-[var(--color-text-muted)]">
+              <div className="w-full max-w-sm space-y-4 text-center">
                 <div className="text-4xl">⌐◨-◨</div>
                 <div className="space-y-1">
                   <div className="text-sm font-semibold text-[var(--color-text-secondary)]">OpenHub Workspace</div>
                   <div className="text-xs text-[var(--color-text-muted)]">
                     {activeProject
-                      ? 'Select a file from the explorer to start editing'
+                      ? 'Open a file from Files to start editing, or ask the agent to plan and make the change.'
                       : activeProjectLoading ? 'Checking the active project…' : 'Load a project to start working.'}
                   </div>
                 </div>
-                {activeProject && (
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void pipeline.start('autopilot')}
-                      disabled={pipeline.running || pipeline.starting}
-                      className="flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-                      title="typecheck → audit → repair → agent loop → verify"
-                    >
-                      {pipeline.starting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
-                      Run Autopilot
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void pipeline.start('audit')}
-                      disabled={pipeline.running || pipeline.starting}
-                      className="flex items-center gap-1.5 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
-                      title="Audit the project and dispatch repair if it fails"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" /> Audit project
-                    </button>
-                  </div>
-                )}
-                {!activeProject && !activeProjectLoading && (
-                  <Link to="/projects" className="inline-block rounded-md bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)]">
-                    Load a project
-                  </Link>
-                )}
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {activeProject ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setDrawerOpen(true)}
+                        className="min-h-11 rounded-md bg-[var(--color-accent)] px-4 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)]"
+                      >
+                        Browse files
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAgentOpen(true)}
+                        className="flex min-h-11 items-center gap-1.5 rounded-md border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-4 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                      >
+                        <Bot className="h-3.5 w-3.5" /> Ask the agent
+                      </button>
+                    </>
+                  ) : (
+                    <Link to="/projects" className="min-h-11 rounded-md bg-[var(--color-accent)] px-4 py-3 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)]">
+                      Load a project
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Resizer + Co-Pilot */}
-        {showCopilot && (
-          <>
-            <div className="w-1 shrink-0 cursor-col-resize hover:bg-[color-mix(in_srgb,var(--color-accent)_45%,transparent)]" onMouseDown={(e) => startResize(e, 'copilot')} />
-            <div className="shrink-0 border-l border-[var(--color-border-muted)] bg-[var(--color-surface-raised)]" style={{ width: copilotWidth }}>
-              <DevAssistant embedded />
-            </div>
-          </>
-        )}
+        {/* Docked coding agent. Kept mounted while closed so a streaming turn
+            and its plan checklist survive toggling the panel. */}
+        <div
+          className={cn(
+            'z-50 bg-[var(--color-surface-base)]',
+            isMobile
+              ? 'fixed inset-y-0 right-0 w-[min(100vw,420px)] border-l border-[var(--color-border-strong)] shadow-2xl shadow-black/50'
+              : 'flex w-[380px] shrink-0 border-l border-[var(--color-border-muted)] xl:w-[440px]',
+            !agentOpen && 'hidden',
+          )}
+        >
+          <EditorAgentPanel
+            activeProjectName={activeProject?.repositoryName ?? null}
+            seed={agentSeed}
+            onClose={() => setAgentOpen(false)}
+          />
+        </div>
       </div>
 
-      {/* Terminal Panel (real shell bridge) */}
+      {isMobile && agentOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/70"
+          onClick={() => setAgentOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile file drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setDrawerOpen(false)} />
+          <aside className="absolute left-0 top-0 flex h-[100dvh] w-[min(88vw,340px)] flex-col border-r border-[var(--color-border-muted)] bg-[var(--color-surface-base)] shadow-2xl shadow-black/50">
+            <div className="flex min-h-12 shrink-0 items-center justify-between border-b border-[var(--color-border-muted)] px-3">
+              <span className="text-sm font-semibold text-[var(--color-text-primary)]">Files</span>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Close files"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {panelTabs}
+            <div className="min-h-0 flex-1">{panelContent()}</div>
+          </aside>
+        </div>
+      )}
+
+      {/* Terminal (real shell bridge) */}
       {showTerminal && (
-        <div className="h-52 border-t border-[var(--color-border-muted)]">
+        <div className="h-56 shrink-0 border-t border-[var(--color-border-muted)]">
           <div className="flex items-center justify-between bg-[var(--color-surface-base)]">
-            <div className="flex items-center gap-2">
-              <TerminalIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+            <div className="flex items-center gap-2 px-2 py-1">
+              <TerminalIcon className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
               <span className="text-xs text-[var(--color-text-secondary)]">Terminal</span>
             </div>
             <button
               type="button"
               aria-label="Close terminal"
               title="Close terminal"
-              className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              className="flex min-h-9 min-w-9 items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
               onClick={() => setShowTerminal(false)}
             >
               <X className="h-3.5 w-3.5" />
@@ -1625,7 +1301,7 @@ export function WorkspacePage() {
               }}
               placeholder="Search files by name…"
               aria-label="Search files"
-              className="w-full bg-transparent px-4 py-3 font-mono text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none"
+              className="min-h-12 w-full bg-transparent px-4 font-mono text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none"
             />
             <div className="max-h-[46vh] overflow-y-auto border-t border-[var(--color-border-muted)] py-1">
               {quickResults.length === 0 ? (
@@ -1639,7 +1315,7 @@ export function WorkspacePage() {
                     onMouseEnter={() => setQuickIndex(i)}
                     onClick={() => openQuickResult(p)}
                     className={cn(
-                      'flex w-full items-center px-4 py-1.5 text-left font-mono text-xs',
+                      'flex min-h-10 w-full items-center px-4 text-left font-mono text-xs',
                       i === quickIndex ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]',
                     )}
                   >
@@ -1652,73 +1328,30 @@ export function WorkspacePage() {
         </div>
       )}
 
-      {/* Status Bar */}
-      <div className="flex items-center justify-between border-t border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 py-1 text-[10px] text-[var(--color-text-muted)]">
-        <div className="flex items-center gap-3">
-          {axiomOnline === false ? (
-            <span className="flex items-center gap-1 text-[var(--color-danger)]" title="Axiom backend unreachable — Tab completion and loops are unavailable">
-              <CircleDot className="w-3 h-3" /> Axiom offline
-            </span>
-          ) : problems.length > 0 ? (
-            <span className="flex items-center gap-1 text-[var(--color-danger)]" title={`${problems.length} TypeScript problem${problems.length === 1 ? '' : 's'} in the active project`}>
-              <CircleDot className="w-3 h-3" /> {problems.length} error{problems.length === 1 ? '' : 's'}
+      {/* Minimal status bar */}
+      <footer className="flex h-7 shrink-0 items-center justify-between gap-3 border-t border-[var(--color-border-muted)] bg-[var(--color-surface-base)] px-3 text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex min-w-0 items-center gap-3">
+          {problems.length > 0 ? (
+            <span className="flex items-center gap-1 text-[var(--color-danger)]" title={`${problems.length} TypeScript problem${problems.length === 1 ? '' : 's'}`}>
+              <CircleDot className="h-3 w-3" /> {problems.length} error{problems.length === 1 ? '' : 's'}
             </span>
           ) : dirtyCount > 0 ? (
             <span className="flex items-center gap-1 text-[var(--color-warning)]" title="Unsaved editor buffers">
-              <CircleDot className="w-3 h-3" /> Unsaved
+              <CircleDot className="h-3 w-3" /> Unsaved
             </span>
           ) : (
             <span className="flex items-center gap-1 text-[var(--color-success)]">
-              <CircleDot className="w-3 h-3" /> Ready
+              <CircleDot className="h-3 w-3" /> Ready
             </span>
           )}
           <span className="truncate font-mono">{gitState?.branch ?? 'no branch'}</span>
           {dirtyCount > 0 && <span className="text-[var(--color-warning)]">{dirtyCount} unsaved</span>}
-          {gitChanged.files.length > 0 && <span className="text-[var(--color-text-muted)]">{gitChanged.files.length} changes</span>}
         </div>
-        <div className="relative flex items-center gap-3">
-          {editorStatus && (
-            <span
-              role="status"
-              aria-live="polite"
-              title={editorStatus}
-              className="max-w-[26rem] truncate font-mono text-[var(--color-text-secondary)]"
-            >
-              {editorStatus}
-            </span>
-          )}
-          {(() => {
-            const s = getAxiomTabStats();
-            const label = !tabPrefs.enabled
-              ? 'Tab off'
-              : s.lastTotalMs === null
-                ? 'Tab on'
-                : `Tab ${s.lastCached ? 'cache' : `${Math.round(s.lastTotalMs)}ms`}${s.lastLane ? ` · ${s.lastLane}` : ''}`;
-            return (
-              <Link
-                to="/settings?tab=editor"
-                title="Axiom Tab completion status — configure in Settings → Editor"
-                className="rounded px-1.5 py-0.5 font-mono hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-              >
-                {label}
-              </Link>
-            );
-          })()}
-          {(() => {
-            const s = getAxiomTabStats();
-            return (
-              <span className="hidden lg:inline font-mono text-[10px] text-[var(--color-text-muted)]">
-                shown {s.shown} · partial {s.partialAccepts} · Ctrl+I edit · Alt+J jump
-              </span>
-            );
-          })()}
+        <div className="flex shrink-0 items-center gap-3">
           <span className="font-mono">{activeTab?.language ?? 'plain text'}</span>
-          <span>UTF-8</span>
-          <span className="flex items-center gap-1">
-            <Github className="w-3 h-3" /> OpenHub
-          </span>
+          <span className="hidden sm:inline">UTF-8</span>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

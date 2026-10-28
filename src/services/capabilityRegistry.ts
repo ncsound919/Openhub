@@ -19,6 +19,8 @@ export interface BridgeIdentity {
   transport: ProbeTransport;
   host?: string;
   port?: number;
+  /** Public/edge base URL (no trailing slash); takes precedence over host:port. */
+  baseUrl?: string;
   cliCommand?: string;
 }
 
@@ -51,6 +53,13 @@ export interface BridgeCapabilityStatement {
   operations: BridgeOperation[];
   documentation?: string;
 }
+
+/**
+ * The Cloudflare edge in front of the phone's Sieve and Recourse deployments.
+ * Unset means those bridges are declared but honestly offline: no probe is
+ * attempted against a URL the operator did not configure.
+ */
+const MOBILE_GATEWAY_URL = (process.env.OPENHUB_MOBILE_GATEWAY_URL || '').trim().replace(/\/+$/, '');
 
 export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
   axiom: {
@@ -348,6 +357,128 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     documentation: 'Dev-Brain triage and developer task intake gateway.',
   },
 
+  'og-glass': {
+    identity: {
+      slug: 'og-glass',
+      name: 'OG-Glass Design MCP',
+      category: 'core',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 3460,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    readiness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    operations: [
+      { id: 'design.mcp', name: 'Design MCP Endpoint', description: 'Streamable HTTP MCP: presets, UI validation, tokens, design kits', kind: 'mutation', endpoint: '/mcp' },
+      { id: 'design.studio', name: 'Design Studio', description: 'Design Studio UI and REST API', kind: 'query', endpoint: '/' },
+    ],
+    documentation: 'OG-Glass UI preset MCP (stdio + HTTP). Start HTTP mode with TRANSPORT=http PORT=3460 — README default 3001 collides with open-seo.',
+  },
+
+  'math-x': {
+    identity: {
+      slug: 'math-x',
+      name: 'Math-X Compute API',
+      category: 'core',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 5000,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    readiness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    operations: [
+      { id: 'math.verify', name: 'Verify', description: 'Deterministic verification of a computation or claim', kind: 'query', endpoint: '/api/verify' },
+      { id: 'math.plan', name: 'Plan', description: 'Step plan for a mathematical/analytical task', kind: 'query', endpoint: '/api/plan' },
+      { id: 'math.codegen', name: 'Codegen', description: 'Generate code from a described computation', kind: 'mutation', endpoint: '/api/codegen' },
+      { id: 'math.literature', name: 'Literature', description: 'Literature/domain lookup behind research coding tasks', kind: 'query', endpoint: '/api/literature' },
+    ],
+    documentation: 'Math-X Express API (:5000) — verification, planning, codegen, literature, bio/OCR routes.',
+  },
+
+  bigback: {
+    identity: {
+      slug: 'bigback',
+      name: 'BigBack- Backend Generator',
+      category: 'core',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 8000,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/openapi.json',
+    },
+    liveness: {
+      type: 'http',
+      path: '/openapi.json',
+      timeoutMs: 2500,
+    },
+    readiness: {
+      type: 'http',
+      path: '/openapi.json',
+      timeoutMs: 2500,
+    },
+    operations: [
+      { id: 'backend.generate', name: 'Backend Generator', description: 'Spec to runnable FastAPI/Express/Hono/Fastify/Flask backend', kind: 'mutation', endpoint: '/docs' },
+    ],
+    documentation: 'BigBack- FastAPI generator (:8000). Probes /openapi.json so another service on 8000 (e.g. colibri) is not mistaken for it.',
+  },
+
+  'middle-man': {
+    identity: {
+      slug: 'middle-man',
+      name: 'Middle-Man MCP Gateway',
+      category: 'core',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 8085,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    readiness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    operations: [
+      { id: 'mcp.registry', name: 'MCP Registry', description: 'List registered backend MCP services with health state', kind: 'query', endpoint: '/api/mcp-registry' },
+      { id: 'mcp.relay', name: 'MCP Relay', description: 'Relay a tool call to a backend MCP endpoint with one retry and GET caching', kind: 'mutation', endpoint: '/api/mcp-registry/relay' },
+      { id: 'metrics.scrape', name: 'Prometheus Metrics', description: 'Scrape proxy/gateway metrics (pre-auth)', kind: 'query', endpoint: '/metrics' },
+    ],
+    documentation: 'Middle-Man deterministic MCP gateway (node src/server.js). Run with PORT=8085 — default 8080 collides with the local LLM; JWT_SECRET required in production; /health is excluded from JWT auth.',
+  },
+
   recourse: {
     identity: {
       slug: 'recourse',
@@ -377,6 +508,63 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
       { id: 'synergy.map', name: 'Synergy Domains', description: 'Cross-agent domain capability synergy matrix', kind: 'query', endpoint: '/api/v1/synergy' },
     ],
     documentation: 'Recourse self-learning, cross-agent memory, and capability forge.',
+  },
+
+  sieve: {
+    identity: {
+      slug: 'sieve',
+      name: 'Sieve Code Memory',
+      category: 'memory',
+      transport: 'http',
+      ...(MOBILE_GATEWAY_URL ? { baseUrl: MOBILE_GATEWAY_URL } : {}),
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/v1/sieve/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/v1/sieve/health',
+      timeoutMs: 8000,
+    },
+    readiness: {
+      type: 'http',
+      path: '/v1/sieve/health',
+      timeoutMs: 8000,
+    },
+    operations: [
+      { id: 'code.recall', name: 'Recall Code Memory', description: 'BM25 + semantic recall across indexed files and symbols', kind: 'query', endpoint: '/v1/sieve/recall' },
+      { id: 'telemetry.read', name: 'Phone Telemetry', description: 'Recent events reported by sieve-mobile, recourse-mobile and other phone apps', kind: 'query', endpoint: '/v1/sieve/telemetry' },
+    ],
+    documentation: 'Sieve on the phone, reached through the mobile-gateway deployment. Set OPENHUB_MOBILE_GATEWAY_URL to enable the probe.',
+  },
+
+  'recourse-mobile': {
+    identity: {
+      slug: 'recourse-mobile',
+      name: 'Recourse Mobile Memory',
+      category: 'memory',
+      transport: 'http',
+      ...(MOBILE_GATEWAY_URL ? { baseUrl: MOBILE_GATEWAY_URL } : {}),
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/v1/recourse/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/v1/recourse/health',
+      timeoutMs: 8000,
+    },
+    readiness: {
+      type: 'http',
+      path: '/v1/recourse/health',
+      timeoutMs: 8000,
+    },
+    operations: [
+      { id: 'memory.recall', name: 'Recall Fleet Memory', description: 'Collective memory recall from the recourse-mobile deployment', kind: 'query', endpoint: '/v1/recourse/recall' },
+    ],
+    documentation: 'Recourse on the phone, reached through the mobile-gateway deployment. Set OPENHUB_MOBILE_GATEWAY_URL to enable the probe.',
   },
 
   omniresearch: {
