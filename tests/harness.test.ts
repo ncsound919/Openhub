@@ -3,6 +3,7 @@ import { ACTION_SCHEMA, parseAction } from '../src/harness/loop';
 import { buildSystemPrompt, renderAppMap } from '../src/harness/systemMap';
 import { executeTool, requiresApproval, TOOLS } from '../src/harness/tools';
 import { serializeEvent } from '../src/harness/events';
+import { diffFleetState, fleetStateFrom } from '../src/harness/watch';
 import { APP_MANIFESTS } from '../src/harness/apps';
 
 afterEach(() => {
@@ -171,6 +172,49 @@ describe('write tools', () => {
     expect(body.title).toBe('Nightly oncology');
     expect(body.steps).toEqual(['check worker', 'run audit']);
     expect(body.budget_usd).toBe(5);
+  });
+});
+
+describe('fleet watcher', () => {
+  const base = {
+    online: 1,
+    degraded: 1,
+    offline: 0,
+    unknown: 15,
+    total: 17,
+    enabledJobs: 6,
+    totalJobs: 7,
+    failingJobs: 0,
+    runsOk: 124,
+    runsError: 1,
+  };
+
+  it('reads the control-plane overview without inventing fields', () => {
+    const state = fleetStateFrom({
+      overview: {
+        health: { online: 1, degraded: 1, offline: 0, unknown: 15 },
+        total: 17,
+        jobs: { total: 7, enabled: 6, failing: 0 },
+        runs24h: { ok: 124, error: 1 },
+      },
+    });
+    expect(state).toEqual(base);
+  });
+
+  it('is silent when nothing changed', () => {
+    expect(diffFleetState(base, base)).toEqual([]);
+  });
+
+  it('reports a new offline service, a failing job and new errors', () => {
+    const changes = diffFleetState(base, {
+      ...base,
+      offline: 1,
+      failingJobs: 1,
+      runsError: 3,
+    });
+    expect(changes.join(' ')).toContain('1 service(s) offline');
+    expect(changes.join(' ')).toContain('1 failing job(s)');
+    expect(changes.join(' ')).toContain('2 new failed run(s)');
   });
 });
 

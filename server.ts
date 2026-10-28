@@ -85,6 +85,7 @@ import { createCrmRouter } from './src/routes/crm.js';
 import { createNtfyRouter } from './src/routes/ntfy.js';
 import { createFleetKpisRouter } from './src/routes/fleetKpis.js';
 import { createHarnessRouter } from './src/routes/harness.js';
+import { startHarnessWatcher } from './src/harness/watch.js';
 import { createFleetAgentsRouter } from './src/routes/fleetAgents.js';
 import { createGithubFleetRouter } from './src/routes/githubFleet.js';
 import { createServicesLifecycleRouter } from './src/routes/servicesLifecycle.js';
@@ -2042,6 +2043,9 @@ async function startServer() {
   app.use('/api', createFleetKpisRouter({ authMiddleware: auth.middleware() }));
   // Operator chat: app map + read-only fleet/telemetry tools, one SSE stream.
   app.use('/api', createHarnessRouter({ authMiddleware: auth.middleware() }));
+  // One fleet probe per minute serves every watching chat session; messages are
+  // written only when the state actually changed.
+  startHarnessWatcher();
   app.use('/api', createAiReviewRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createSeoRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createCrmRouter({ authMiddleware: auth.middleware() }));

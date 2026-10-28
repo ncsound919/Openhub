@@ -53,6 +53,13 @@ function ensure(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_harness_approvals_session
       ON harness_approvals(session_id, created_at);
+    CREATE TABLE IF NOT EXISTS harness_watches (
+      session_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL,
+      last_state_json TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
   ensured = true;
 }
@@ -310,4 +317,49 @@ export function decideApproval(
     )
     .run(status, Date.now(), reason, result ? JSON.stringify(result) : null, id);
   return getApproval(id);
+}
+
+export interface WatchRow {
+  sessionId: string;
+  enabled: boolean;
+  lastState: Record<string, unknown> | null;
+}
+
+export function getWatch(sessionId: string): WatchRow {
+  ensure();
+  const r = getDb()
+    .prepare('SELECT session_id, enabled, last_state_json FROM harness_watches WHERE session_id = ?')
+    .get(sessionId) as { session_id: string; enabled: number; last_state_json: string | null } | undefined;
+  if (!r) return { sessionId, enabled: false, lastState: null };
+  return {
+    sessionId: r.session_id,
+    enabled: r.enabled === 1,
+    lastState: r.last_state_json ? (JSON.parse(r.last_state_json) as Record<string, unknown>) : null,
+  };
+}
+
+export function setWatch(sessionId: string, enabled: boolean): WatchRow {
+  ensure();
+  const now = Date.now();
+  getDb()
+    .prepare(
+      'INSERT INTO harness_watches (session_id, enabled, last_state_json, created_at, updated_at) VALUES (?, ?, NULL, ?, ?) ON CONFLICT(session_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at',
+    )
+    .run(sessionId, enabled ? 1 : 0, now, now);
+  return getWatch(sessionId);
+}
+
+export function listEnabledWatches(): WatchRow[] {
+  ensure();
+  const rows = getDb()
+    .prepare('SELECT session_id FROM harness_watches WHERE enabled = 1')
+    .all() as Array<{ session_id: string }>;
+  return rows.map((r) => getWatch(r.session_id));
+}
+
+export function setWatchState(sessionId: string, state: Record<string, unknown>): void {
+  ensure();
+  getDb()
+    .prepare('UPDATE harness_watches SET last_state_json = ?, updated_at = ? WHERE session_id = ?')
+    .run(JSON.stringify(state), Date.now(), sessionId);
 }

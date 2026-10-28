@@ -6,10 +6,12 @@ import {
   decideApproval,
   getApproval,
   getSession,
+  getWatch,
   listApprovals,
   listMessages,
   listSessions,
   listToolCalls,
+  setWatch,
 } from '../harness/store';
 import { publish, subscribe } from '../harness/events';
 import { runTurn } from '../harness/loop';
@@ -51,7 +53,18 @@ export function createHarnessRouter(deps: { authMiddleware: express.RequestHandl
       messages: listMessages(session.id, 100),
       toolCalls: listToolCalls(session.id, 100),
       approvals: listApprovals(session.id, 50),
+      watch: getWatch(session.id),
     });
+  });
+
+  router.post('/harness/sessions/:id/watch', (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ ok: false, error: 'session not found' });
+    if (typeof req.body?.enabled !== 'boolean') {
+      return res.status(400).json({ ok: false, error: 'enabled must be true or false' });
+    }
+    const watch = setWatch(session.id, req.body.enabled);
+    return res.json({ ok: true, watch });
   });
 
   router.get('/harness/sessions/:id/events', (req, res) => {

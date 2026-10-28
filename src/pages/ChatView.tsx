@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, Bot, Loader2, Plus, Send, ShieldCheck, User } from 'lucide-react';
+import { Activity, Bot, Eye, EyeOff, Loader2, Plus, Send, ShieldCheck, User } from 'lucide-react';
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { cn } from '../lib/utils';
 
@@ -49,6 +49,7 @@ export function ChatView() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [tools, setTools] = useState<ToolCall[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [watching, setWatching] = useState(false);
   const [deciding, setDeciding] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -69,6 +70,7 @@ export function ChatView() {
       messages?: Message[];
       toolCalls?: Array<{ tool: string; status: string; result: { summary?: string; at?: string } }>;
       approvals?: Approval[];
+      watch?: { enabled: boolean };
       error?: string;
     };
     if (!res.ok || !body.ok || !body.session) throw new Error(body.error || `HTTP ${res.status}`);
@@ -83,6 +85,7 @@ export function ChatView() {
       })),
     );
     setApprovals(body.approvals ?? []);
+    setWatching(Boolean(body.watch?.enabled));
     setStatus('Ready');
   }, []);
 
@@ -158,6 +161,11 @@ export function ChatView() {
       const data = JSON.parse((event as MessageEvent).data) as { approval: Approval };
       setApprovals((prev) => prev.map((a) => (a.id === data.approval.id ? data.approval : a)));
       setStatus('Ready');
+    });
+    es.addEventListener('watch.event', (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { text?: string };
+      setStatus(data.text ? 'Live update' : 'Ready');
+      if (session) void loadSession(session.id).catch(() => undefined);
     });
     es.addEventListener('assistant.final', (event) => {
       const data = JSON.parse((event as MessageEvent).data) as { text: string; tier?: string };
@@ -252,6 +260,25 @@ export function ChatView() {
     }
   };
 
+  const toggleWatch = async () => {
+    if (!session) return;
+    const next = !watching;
+    try {
+      const res = await fetch(`/api/harness/sessions/${session.id}/watch`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const body = (await res.json()) as { ok?: boolean; watch?: { enabled: boolean }; error?: string };
+      if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      setWatching(Boolean(body.watch?.enabled));
+      setStatus(next ? 'Watching the fleet (first check is the baseline)' : 'Fleet watch off');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const newChat = async () => {
     try {
       const created = await fetch('/api/harness/sessions', {
@@ -290,6 +317,20 @@ export function ChatView() {
               {tier}
             </span>
           ) : null}
+          <button
+            type="button"
+            onClick={() => void toggleWatch()}
+            aria-pressed={watching}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border',
+              watching
+                ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
+                : 'border-surface-overlay hover:bg-surface-overlay/50',
+            )}
+          >
+            {watching ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            {watching ? 'Watching' : 'Watch'}
+          </button>
           <button
             type="button"
             onClick={() => void newChat()}
