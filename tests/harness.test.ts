@@ -4,6 +4,7 @@ import { buildSystemPrompt, renderAppMap } from '../src/harness/systemMap';
 import { executeTool, requiresApproval, TOOLS } from '../src/harness/tools';
 import { serializeEvent } from '../src/harness/events';
 import { diffFleetState, fleetStateFrom } from '../src/harness/watch';
+import { fetchTts } from '../src/harness/tts';
 import { APP_MANIFESTS } from '../src/harness/apps';
 
 afterEach(() => {
@@ -215,6 +216,48 @@ describe('fleet watcher', () => {
     expect(changes.join(' ')).toContain('1 service(s) offline');
     expect(changes.join(' ')).toContain('1 failing job(s)');
     expect(changes.join(' ')).toContain('2 new failed run(s)');
+  });
+});
+
+describe('Kokoro loopback bridge', () => {
+  it('returns the WAV bytes from the local service', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(new Uint8Array([82, 73, 70, 70]), {
+          status: 200,
+          headers: { 'content-type': 'audio/wav' },
+        }),
+      ),
+    );
+    const result = await fetchTts('hello', {} as NodeJS.ProcessEnv);
+    expect(result.ok).toBe(true);
+    expect(result.contentType).toBe('audio/wav');
+    expect(Array.from(result.audio ?? [])).toEqual([82, 73, 70, 70]);
+  });
+
+  it('surfaces the exact unavailability reason', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ ok: false, reason: 'Kokoro is missing model.onnx' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const result = await fetchTts('hello', {} as NodeJS.ProcessEnv);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('missing model.onnx');
+  });
+
+  it('fails closed when the service is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    }));
+    const result = await fetchTts('hello', {} as NodeJS.ProcessEnv);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('unreachable');
   });
 });
 

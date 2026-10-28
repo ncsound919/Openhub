@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, Bot, Eye, EyeOff, Loader2, Plus, Send, ShieldCheck, User } from 'lucide-react';
+import { Activity, Bot, Eye, EyeOff, Loader2, Plus, Send, ShieldCheck, Square, User, Volume2 } from 'lucide-react';
 import { getAuthHeaders } from '../auth/AuthProvider';
 import { cn } from '../lib/utils';
 
@@ -50,6 +50,7 @@ export function ChatView() {
   const [tools, setTools] = useState<ToolCall[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [watching, setWatching] = useState(false);
+  const [speakingId, setSpeakingId] = useState('');
   const [deciding, setDeciding] = useState<string>('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -57,6 +58,7 @@ export function ChatView() {
   const [tier, setTier] = useState<string>('');
   const [error, setError] = useState<string>('');
   const esRef = useRef<EventSource | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const loadSession = useCallback(async (id: string) => {
@@ -260,6 +262,45 @@ export function ChatView() {
     }
   };
 
+  const speak = async (id: string, text: string) => {
+    if (speakingId === id) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setSpeakingId('');
+      return;
+    }
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setSpeakingId(id);
+    setError('');
+    try {
+      const res = await fetch('/api/harness/tts', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeaders(), 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || `Kokoro returned HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      if (blob.size === 0) throw new Error('Kokoro returned an empty audio file.');
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setSpeakingId('');
+      };
+      await audio.play();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSpeakingId('');
+    }
+  };
+
   const toggleWatch = async () => {
     if (!session) return;
     const next = !watching;
@@ -388,7 +429,24 @@ export function ChatView() {
                 )}
               >
                 {message.content}
-                <div className="mt-1 text-[10px] opacity-60 font-mono">{messageTime(message.createdAt)}</div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] opacity-60 font-mono">
+                  <span>{messageTime(message.createdAt)}</span>
+                  {message.role === 'assistant' ? (
+                    <button
+                      type="button"
+                      onClick={() => void speak(message.id, message.content)}
+                      aria-label={speakingId === message.id ? 'Stop speaking' : 'Speak with Kokoro'}
+                      title={speakingId === message.id ? 'Stop speaking' : 'Speak with Kokoro'}
+                      className="inline-flex items-center gap-1 hover:opacity-100"
+                    >
+                      {speakingId === message.id ? (
+                        <Square className="w-3 h-3" />
+                      ) : (
+                        <Volume2 className="w-3 h-3" />
+                      )}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               {message.role === 'user' ? (
                 <span className="mt-1 w-6 h-6 rounded-full bg-surface-overlay flex items-center justify-center shrink-0">

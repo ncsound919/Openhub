@@ -16,6 +16,7 @@ import {
 import { publish, subscribe } from '../harness/events';
 import { runTurn } from '../harness/loop';
 import { TOOLS, executeTool } from '../harness/tools';
+import { fetchTts } from '../harness/tts';
 
 /**
  * Harness HTTP surface. All routes are behind the normal OpenHub session auth.
@@ -99,6 +100,18 @@ export function createHarnessRouter(deps: { authMiddleware: express.RequestHandl
       addMessage(session.id, 'assistant', `Harness error: ${message}`);
       return res.status(500).json({ ok: false, error: message });
     }
+  });
+
+  router.post('/harness/tts', async (req, res) => {
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text) return res.status(400).json({ ok: false, error: 'text is required' });
+    const audio = await fetchTts(text);
+    if (!audio.ok || !audio.audio) {
+      return res.status(audio.status || 503).json({ ok: false, error: audio.error });
+    }
+    res.setHeader('Content-Type', audio.contentType || 'audio/wav');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(Buffer.from(audio.audio));
   });
 
   router.post('/harness/approvals/:id', async (req, res) => {
