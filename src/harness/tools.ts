@@ -21,7 +21,7 @@ const TELEMETRY_URL = (env: NodeJS.ProcessEnv = process.env) =>
 export const TOOL_ARGS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['service', 'window', 'limit', 'job', 'title', 'steps', 'budget_usd'],
+  required: ['service', 'window', 'limit', 'job', 'title', 'steps', 'budget_usd', 'playbook', 'run_id'],
   properties: {
     service: {
       type: ['string', 'null'],
@@ -51,8 +51,29 @@ export const TOOL_ARGS_SCHEMA = {
       type: ['number', 'null'],
       description: 'Optional budget in USD for plan.create.',
     },
+    playbook: {
+      type: ['string', 'null'],
+      description: 'Exact playbook id for agent.playbook_run.',
+    },
+    run_id: {
+      type: ['string', 'null'],
+      description: 'Exact run id for agent.playbook_runs detail.',
+    },
   },
 } as const;
+
+const AGENT_URL = (env: NodeJS.ProcessEnv = process.env) =>
+  (env.AGENT_SUPPORT_URL || 'http://127.0.0.1:8766').trim().replace(/\/+$/, '');
+
+function agentHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
+  const token = (env.AGENT_SUPPORT_TOKEN || '').trim();
+  if (!token) {
+    throw new Error(
+      'AGENT_SUPPORT_TOKEN is not set. Copy the openhub member token from Agent Support → Eco, then set it in OpenHub.',
+    );
+  }
+  return { authorization: `Bearer ${token}` };
+}
 
 const annotations = {
   readOnlyHint: true,
@@ -142,6 +163,43 @@ export const TOOLS: ToolSpec[] = [
     inputSchema: TOOL_ARGS_SCHEMA,
     annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
     risk: 'write',
+  },
+  {
+    name: 'agent.playbooks',
+    title: 'Agent Support playbooks',
+    description:
+      'List the deterministic playbooks Agent Support declares: id, domain, version, schedule and step count. Use before running one.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations,
+    risk: 'read',
+  },
+  {
+    name: 'agent.playbook_runs',
+    title: 'Agent Support playbook runs',
+    description:
+      'Without run_id: the latest durable runs with state and failure code. With run_id: that run plus its append-only event log. Use to see whether a run actually happened.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations,
+    risk: 'read',
+  },
+  {
+    name: 'agent.playbook_run',
+    title: 'Run a playbook now',
+    description:
+      'Queue one occurrence of an exact playbook id on Agent Support. It runs through WorkManager, not inline, so poll agent.playbook_runs for the result. Requires args.playbook. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: false },
+    risk: 'write',
+  },
+  {
+    name: 'agent.reconcile',
+    title: 'Reconcile stale playbook runs',
+    description:
+      'Mark runs that died mid-step as NEEDS_RECONCILIATION rather than guessing success or failure. This is a write and needs operator approval.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations: { ...annotations, readOnlyHint: false, idempotentHint: true },
+    risk: 'write',
+    idempotent: true,
   },
 ];
 
@@ -367,6 +425,103 @@ export async function executeTool(
         ok: true,
         tool: name,
         summary: `Created plan #${body.plan.id} "${title}" with ${steps.length} step(s), status draft.`,
+        data: body,
+        at,
+      };
+    }
+
+    if (name === 'agent.playbooks') {
+      const body = (await getJson(`${AGENT_URL(env)}/api/ecosystem/playbooks`, agentHeaders(env))) as {
+        ok?: boolean;
+        playbooks?: unknown;
+      };
+      const list = objects(body.playbooks);
+      const summary =
+        `${list.length} playbooks: ` +
+        list
+          .map(
+            (p) =>
+              `${String(p.id)}[${String(p.domain)}, ${
+                p.scheduleMinutes == null ? 'manual' : `every ${String(p.scheduleMinutes)}m`
+              }, ${int(p.steps)} steps]`,
+          )
+          .join(', ') +
+        '.';
+      return { ok: true, tool: name, summary, data: body, at };
+    }
+
+    if (name === 'agent.playbook_runs') {
+      const runId = typeof args.run_id === 'string' ? args.run_id.trim() : '';
+      if (runId) {
+        const body = (await getJson(
+          `${AGENT_URL(env)}/api/ecosystem/playbooks/runs/${encodeURIComponent(runId)}`,
+          agentHeaders(env),
+        )) as { ok?: boolean; run?: Record<string, unknown>; events?: unknown };
+        const run = body.run ?? {};
+        const events = objects(body.events);
+        const tail = events
+          .slice(-4)
+          .map((e) => `${int(e.seq)}:${String(e.type)}`)
+          .join(', ');
+        return {
+          ok: true,
+          tool: name,
+          summary: `${runId}: ${String(run.playbookId ?? '?')} ${String(run.state ?? '?')}${
+            run.failureCode ? ` (${String(run.failureCode)})` : ''
+          }; events ${tail || 'none'}; ${String(run.summary ?? '')}`,
+          data: body,
+          at,
+        };
+      }
+      const body = (await getJson(
+        `${AGENT_URL(env)}/api/ecosystem/playbooks/runs`,
+        agentHeaders(env),
+      )) as { ok?: boolean; runs?: unknown };
+      const runs = objects(body.runs);
+      const summary =
+        `${runs.length} recent runs: ` +
+        runs
+          .slice(0, 6)
+          .map((r) => `${String(r.playbookId)}=${String(r.state)}`)
+          .join(', ') +
+        '.';
+      return { ok: true, tool: name, summary, data: body, at };
+    }
+
+    if (name === 'agent.playbook_run') {
+      const playbook = typeof args.playbook === 'string' ? args.playbook.trim() : '';
+      if (!playbook) return errorResult(name, 'agent.playbook_run requires args.playbook (an exact id).');
+      const body = (await postJson(
+        `${AGENT_URL(env)}/api/ecosystem/playbooks/run`,
+        { playbookId: playbook },
+        agentHeaders(env),
+      )) as { ok?: boolean; accepted?: boolean; message?: string; error?: string };
+      if (!body?.ok || !body.accepted) {
+        return errorResult(name, `Run refused: ${body?.error ?? 'unknown'}`);
+      }
+      return {
+        ok: true,
+        tool: name,
+        summary: `Queued ${playbook}. ${body.message ?? 'Poll agent.playbook_runs for the result.'}`,
+        data: body,
+        at,
+      };
+    }
+
+    if (name === 'agent.reconcile') {
+      const body = (await postJson(
+        `${AGENT_URL(env)}/api/ecosystem/playbooks/reconcile`,
+        {},
+        agentHeaders(env),
+      )) as { ok?: boolean; reconciled?: number; error?: string };
+      if (!body?.ok) return errorResult(name, `Reconcile refused: ${body?.error ?? 'unknown'}`);
+      return {
+        ok: true,
+        tool: name,
+        summary:
+          int(body.reconciled) === 0
+            ? 'No stale runs to reconcile.'
+            : `Marked ${int(body.reconciled)} stale run(s) NEEDS_RECONCILIATION.`,
         data: body,
         at,
       };

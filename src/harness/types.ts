@@ -61,6 +61,8 @@ export interface HarnessAction {
     /** Newline-separated plan steps. A string keeps constrained decoding simple. */
     steps: string | null;
     budget_usd: number | null;
+    playbook: string | null;
+    run_id: string | null;
   };
   plan: {
     title: string;

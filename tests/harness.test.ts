@@ -54,6 +54,8 @@ describe('action envelope', () => {
       'title',
       'steps',
       'budget_usd',
+      'playbook',
+      'run_id',
     ]);
   });
 
@@ -130,6 +132,67 @@ describe('write tools', () => {
     expect(requiresApproval('cron.enable')).toBe(true);
     expect(requiresApproval('cron.run')).toBe(true);
     expect(requiresApproval('plan.create')).toBe(true);
+    expect(requiresApproval('agent.playbook_run')).toBe(true);
+    expect(requiresApproval('agent.reconcile')).toBe(true);
+    expect(requiresApproval('agent.playbooks')).toBe(false);
+    expect(requiresApproval('agent.playbook_runs')).toBe(false);
+  });
+
+  it('lists Agent Support playbooks through the loopback hub', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            playbooks: [
+              {
+                id: 'ops.fleet-health',
+                title: 'Fleet health',
+                domain: 'OPS',
+                scheduleMinutes: 60,
+                steps: 6,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const result = await executeTool(
+      'agent.playbooks',
+      {},
+      { AGENT_SUPPORT_TOKEN: 'token' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('ops.fleet-health');
+    expect(result.summary).toContain('every 60m');
+    expect(calls[0]).toContain('127.0.0.1:8766/api/ecosystem/playbooks');
+  });
+
+  it('queues an Agent Support playbook run by exact id', async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: String(init?.body ?? '') });
+        return new Response(
+          JSON.stringify({ ok: true, accepted: true, message: 'Queued one occurrence.' }),
+          { status: 202 },
+        );
+      }),
+    );
+    const result = await executeTool(
+      'agent.playbook_run',
+      { playbook: 'ops.fleet-health' },
+      { AGENT_SUPPORT_TOKEN: 'token' } as NodeJS.ProcessEnv,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('Queued ops.fleet-health');
+    expect(calls[0].url).toContain('/api/ecosystem/playbooks/run');
+    expect(JSON.parse(calls[0].body)).toEqual({ playbookId: 'ops.fleet-health' });
   });
 
   it('pauses a job through the control plane', async () => {
