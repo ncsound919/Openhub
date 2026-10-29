@@ -1,25 +1,46 @@
 import express from 'express';
-import { type LlmMessage } from '../services/llmRouter';
+import { type LlmMessage, type LlmTier } from '../services/llmRouter';
 import { runAppLlm } from '../services/appModel';
 
 /**
- * OpenAI-compatible chat endpoint for external bot clients (Open-Chat).
+ * OpenAI-compatible chat endpoint — the ONE model contract every app on the
+ * phone calls.
  *
- * OpenHub's normal /api/* surface is browser-cookie + CSRF auth, which a phone
- * bot cannot use. This router is mounted at the ROOT (so the path is exactly
- * `POST /v1/chat/completions`) and authenticates with a static Bearer token from
- * `OPENHUB_CHAT_TOKEN` — the same shape Open-Chat's generic HTTP protocol sends.
+ * OpenHub's normal /api/* surface is browser-cookie + CSRF auth, which an
+ * Android app or a phone bot cannot use. This router is mounted at the ROOT (so
+ * the path is exactly `POST /v1/chat/completions`) and authenticates with a
+ * static Bearer token from `OPENHUB_CHAT_TOKEN`.
  *
- * It is intentionally OpenAI-shaped (both JSON and SSE) so Open-Chat's existing
- * "hermes" protocol works with zero client changes. Credentials for the model
- * gateway stay server-side; runLlm resolves them from env.
+ * Tiers:
+ *   local  — the phone's Qwen model, tried first for short work
+ *   gateway — the shared edge gateway (`mobile-gateway`), which owns the
+ *             provider keys and runs its own task-aware free-first lane order
+ *
+ * Model aliases are resolved here, not by the edge: `auto`/`fleet-free` means
+ * "let the router decide", `code`/`reasoning`/`fast`/`free` set the lane order,
+ * and a lane id (`gemini`, `deepseek`, …) pins that lane.
  */
 
 interface ChatBody {
   model?: string;
   stream?: boolean;
   messages?: Array<{ role?: string; content?: unknown }>;
+  /** Optional task hint; the header wins when both are present. */
+  task?: string;
 }
+
+/** Aliases that mean "route by policy" rather than "use this exact model". */
+const ALIASES: Record<string, { task?: string; tier?: LlmTier }> = {
+  auto: {},
+  'fleet-free': {},
+  fast: { task: 'fast' },
+  general: { task: 'general' },
+  code: { task: 'code' },
+  coding: { task: 'code' },
+  reasoning: { task: 'reasoning' },
+  free: { task: 'free' },
+  local: { tier: 'local' },
+};
 
 function bearerToken(req: express.Request): string {
   const header = req.header('authorization') ?? '';
@@ -52,8 +73,70 @@ function toLlmMessages(raw: ChatBody['messages']): LlmMessage[] {
   return out;
 }
 
+function routeHint(model: string | undefined, headerTask: string | null, bodyTask: string | undefined): {
+  model?: string;
+  task: string;
+  tier?: LlmTier;
+} {
+  const task = (headerTask || bodyTask || 'general').toLowerCase();
+  if (!model) return { task };
+  const alias = ALIASES[model];
+  if (alias) return { task: alias.task ?? task, tier: alias.tier };
+  // A lane id or `lane/model` is a deliberate pin; the gateway validates it.
+  return { task, model };
+}
+
 export function createChatCompletionsRouter(): express.Router {
   const router = express.Router();
+
+  router.get('/v1/models', async (req, res) => {
+    if (!authorized(req)) {
+      return res.status(401).json({
+        error: {
+          message: process.env.OPENHUB_CHAT_TOKEN
+            ? 'Invalid API token.'
+            : 'Chat endpoint disabled: set OPENHUB_CHAT_TOKEN to enable it.',
+          type: 'invalid_request_error',
+        },
+      });
+    }
+
+    const local = {
+      id: process.env.OPENHUB_LOCAL_LLM_MODEL || 'qwen3.5-4b',
+      object: 'model',
+      owned_by: 'openhub-local',
+      lane: 'local',
+      tier: 'local',
+    };
+    const base = (process.env.OPENHUB_LLM_BASE_URL || '').replace(/\/+$/, '');
+    let remote: Array<Record<string, unknown>> = [];
+    let remoteError: string | null = null;
+    if (base) {
+      try {
+        const key = (process.env.OPENHUB_LLM_KEY || process.env.LITELLM_MASTER_KEY || '').trim();
+        const r = await fetch(`${base}/v1/models`, {
+          headers: key ? { authorization: `Bearer ${key}` } : {},
+          signal: AbortSignal.timeout(8000),
+        });
+        if (r.ok) {
+          const body = (await r.json()) as { data?: Array<Record<string, unknown>> };
+          remote = Array.isArray(body.data) ? body.data : [];
+        } else {
+          remoteError = `gateway HTTP ${r.status}`;
+        }
+      } catch (err) {
+        remoteError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    return res.json({
+      object: 'list',
+      data: [local, ...remote],
+      local,
+      remote,
+      remote_error: remoteError,
+    });
+  });
 
   router.post('/v1/chat/completions', async (req, res) => {
     if (!authorized(req)) {
@@ -73,10 +156,17 @@ export function createChatCompletionsRouter(): express.Router {
       return res.status(400).json({ error: { message: 'messages must be a non-empty array.', type: 'invalid_request_error' } });
     }
 
-    const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
+    const bodyModel = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
+    const hint = routeHint(bodyModel, req.header('x-llm-task') ?? null, body.task);
+    const app = (req.header('x-openhub-app') || req.header('x-llm-app') || 'external').trim() || 'external';
 
     try {
-      const result = await runAppLlm(messages, model ? { model } : {});
+      const result = await runAppLlm(messages, {
+        model: hint.model,
+        task: hint.task,
+        tier: hint.tier,
+        app,
+      });
       if (!result.ok || typeof result.text !== 'string') {
         return res.status(502).json({
           error: { message: result.error ?? 'Upstream model request failed.', type: 'upstream_error' },
@@ -85,6 +175,7 @@ export function createChatCompletionsRouter(): express.Router {
 
       const created = Math.floor(Date.now() / 1000);
       const id = `chatcmpl-openhub-${created}-${Math.random().toString(36).slice(2, 10)}`;
+      const lane = result.tier === 'local' ? 'local' : 'gateway';
 
       // Streaming: emit one content delta, a stop chunk, then [DONE]. runLlm is
       // non-streaming, so the reply arrives as a single delta — still valid SSE.
@@ -94,8 +185,8 @@ export function createChatCompletionsRouter(): express.Router {
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders?.();
         const frame = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-        frame({ id, object: 'chat.completion.chunk', created, model: model ?? 'openhub', choices: [{ index: 0, delta: { role: 'assistant', content: result.text }, finish_reason: null }] });
-        frame({ id, object: 'chat.completion.chunk', created, model: model ?? 'openhub', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+        frame({ id, object: 'chat.completion.chunk', created, model: bodyModel ?? 'openhub', choices: [{ index: 0, delta: { role: 'assistant', content: result.text }, finish_reason: null }] });
+        frame({ id, object: 'chat.completion.chunk', created, model: bodyModel ?? 'openhub', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
         res.write('data: [DONE]\n\n');
         return res.end();
       }
@@ -104,8 +195,9 @@ export function createChatCompletionsRouter(): express.Router {
         id,
         object: 'chat.completion',
         created,
-        model: model ?? 'openhub',
+        model: bodyModel ?? 'openhub',
         provider: result.provider ?? undefined,
+        _llm: { tier: result.tier ?? 'gateway', lane, task: hint.task, app },
         choices: [{ index: 0, message: { role: 'assistant', content: result.text }, finish_reason: 'stop' }],
       });
     } catch (err) {

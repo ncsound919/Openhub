@@ -329,3 +329,96 @@ describe('runLlm local-first tier', () => {
     expect(bodies[0]).toMatchObject({ response_format: { type: 'json_object' } });
   });
 });
+describe('shared gateway attribution and local escalation', () => {
+  it('sends app and task headers to the gateway', async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const { baseUrl } = await startServer((req, res) => {
+      seen.push({ app: req.headers['x-llm-app'], task: req.headers['x-llm-task'] });
+      jsonChatOk(res, 'cloud answer');
+    });
+
+    const result = await runLlm(
+      [{ role: 'user', content: 'hi' }],
+      { baseUrl, app: 'agent-support', task: 'code' },
+      {},
+    );
+    expect(result.ok).toBe(true);
+    expect(seen[0]).toEqual({ app: 'agent-support', task: 'code' });
+  });
+
+  it('skips the local tier when the context needs more than it can hold', async () => {
+    let localCalls = 0;
+    let gatewayCalls = 0;
+    const local = await startServer((_req, res) => {
+      localCalls += 1;
+      jsonChatOk(res, 'local answer');
+    });
+    const gateway = await startServer((_req, res) => {
+      gatewayCalls += 1;
+      jsonChatOk(res, 'cloud answer');
+    });
+
+    const result = await runLlm(
+      [{ role: 'user', content: 'x'.repeat(100) }],
+      { minContextTokens: 40_000 },
+      {
+        OPENHUB_LOCAL_LLM_URL: local.baseUrl,
+        OPENHUB_LLM_BASE_URL: gateway.baseUrl,
+        OPENHUB_LLM_KEY: 'k',
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, text: 'cloud answer', tier: 'gateway' });
+    expect(localCalls).toBe(0);
+    expect(gatewayCalls).toBe(1);
+  });
+
+  it('escalates when the local model does not return the requested JSON', async () => {
+    let localCalls = 0;
+    let gatewayCalls = 0;
+    const local = await startServer((_req, res) => {
+      localCalls += 1;
+      jsonChatOk(res, 'here is your answer in prose');
+    });
+    const gateway = await startServer((_req, res) => {
+      gatewayCalls += 1;
+      jsonChatOk(res, '{"decision":"allow"}');
+    });
+
+    const result = await runLlm(
+      [{ role: 'user', content: 'decide' }],
+      { jsonSchema: { name: 'decision', schema: { type: 'object' } } },
+      {
+        OPENHUB_LOCAL_LLM_URL: local.baseUrl,
+        OPENHUB_LLM_BASE_URL: gateway.baseUrl,
+        OPENHUB_LLM_KEY: 'k',
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, text: '{"decision":"allow"}', tier: 'gateway' });
+    expect(localCalls).toBe(1);
+    expect(gatewayCalls).toBe(1);
+  });
+
+  it('skips the local tier when the caller needs tool calling', async () => {
+    let localCalls = 0;
+    const local = await startServer((_req, res) => {
+      localCalls += 1;
+      jsonChatOk(res, 'local');
+    });
+    const gateway = await startServer((_req, res) => jsonChatOk(res, 'cloud'));
+
+    const result = await runLlm(
+      [{ role: 'user', content: 'use a tool' }],
+      { needsTools: true },
+      {
+        OPENHUB_LOCAL_LLM_URL: local.baseUrl,
+        OPENHUB_LLM_BASE_URL: gateway.baseUrl,
+        OPENHUB_LLM_KEY: 'k',
+      },
+    );
+
+    expect(result.tier).toBe('gateway');
+    expect(localCalls).toBe(0);
+  });
+});

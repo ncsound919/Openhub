@@ -148,6 +148,8 @@ async function complete(
   }
 
   const edge = (env.OPENHUB_HARNESS_EDGE_URL || 'https://mobile-gateway.tap4500.workers.dev/v1/chat/completions').trim();
+  const edgeKey = (env.OPENHUB_LLM_KEY || env.LLM_GATEWAY_TOKEN || '').trim();
+  let edgeError: string | null = null;
   try {
     const response = await fetch(edge, {
       method: 'POST',
@@ -155,6 +157,7 @@ async function complete(
         'content-type': 'application/json',
         'x-llm-app': 'openhub',
         'x-llm-task': 'general',
+        ...(edgeKey ? { authorization: `Bearer ${edgeKey}` } : {}),
       },
       body: JSON.stringify({
         messages,
@@ -171,28 +174,31 @@ async function complete(
     } | null;
     const content = body?.choices?.[0]?.message?.content;
     if (response.ok && content) return { ok: true, text: content, tier: 'edge' };
-    return {
-      ok: false,
-      error: body?.error?.message || `edge returned HTTP ${response.status}`,
-    };
+    edgeError = body?.error?.message || `edge returned HTTP ${response.status}`;
   } catch (error) {
-    const gateway = await runLlm(
-      messages,
-      {
-        tier: 'gateway',
-        jsonSchema: { name: 'harness_action', schema: ACTION_SCHEMA as unknown as Record<string, unknown> },
-        timeoutMs: 20_000,
-      },
-      env,
-    );
-    if (gateway.ok && gateway.text) return { ok: true, text: gateway.text, tier: 'gateway' };
-    return {
-      ok: false,
-      error: `local: ${local.error ?? 'unavailable'}; edge: ${
-        error instanceof Error ? error.message : String(error)
-      }; gateway: ${gateway.error ?? 'unavailable'}`,
-    };
+    edgeError = error instanceof Error ? error.message : String(error);
   }
+
+  // A 401/429/5xx from the edge is not the end of the chain: the router knows
+  // the token, the lane order and the fallbacks.
+  const gateway = await runLlm(
+    messages,
+    {
+      tier: 'gateway',
+      jsonSchema: { name: 'harness_action', schema: ACTION_SCHEMA as unknown as Record<string, unknown> },
+      timeoutMs: 20_000,
+      app: 'openhub',
+      task: 'general',
+    },
+    env,
+  );
+  if (gateway.ok && gateway.text) return { ok: true, text: gateway.text, tier: 'gateway' };
+  return {
+    ok: false,
+    error: `local: ${local.error ?? 'unavailable'}; edge: ${edgeError ?? 'unavailable'}; gateway: ${
+      gateway.error ?? 'unavailable'
+    }`,
+  };
 }
 
 export interface TurnResult {

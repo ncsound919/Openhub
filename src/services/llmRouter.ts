@@ -55,8 +55,30 @@ export interface RunLlmOptions {
    * produce malformed JSON); the gateway receives `json_object`, which is the
    * portable OpenAI-compatible form. Callers that need trustworthy extraction
    * SHOULD pass this — never trust raw 1B JSON.
+   *
+   * The local reply is parsed before it is accepted: a schema-constrained model
+   * can still emit prose or an empty object, and that is a reason to escalate,
+   * not a result to hand back.
    */
   jsonSchema?: { name: string; schema: Record<string, unknown> };
+  /**
+   * Which app is calling. Sent to the gateway as `x-llm-app` so Sieve can
+   * attribute spend and failures per app; never used for authorisation.
+   */
+  app?: string;
+  /**
+   * Task hint for the shared gateway's lane order: `general`, `fast`, `code`,
+   * `reasoning`, or `free`. `free` is a hard guarantee that no paid lane is used.
+   */
+  task?: string;
+  /**
+   * Skip the local tier when the request needs more context than it can hold.
+   * The phone model is a 4B/8k-class model; a 40k-token document is not a
+   * "maybe it fits" case.
+   */
+  minContextTokens?: number;
+  /** The local model has no tool-calling contract; callers that need one skip it. */
+  needsTools?: boolean;
 }
 
 export const DEFAULT_LLM_BASE_URL = 'http://localhost:4100';
@@ -81,6 +103,18 @@ function isConnectionFailure(message: string): boolean {
 }
 export const DEFAULT_LOCAL_MAX_TOKENS = 512;
 const LOCAL_LLM_TIMEOUT_MS = 45_000;
+/** Above this, the phone model is the wrong tool; go straight to the gateway. */
+const LOCAL_CONTEXT_TOKENS = 8192;
+
+/** True only when `text` is a JSON object (not an array, not prose, not empty). */
+function isJsonObject(text: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Usage ledger: which tier served what, so LLM-bill reduction is measurable.
@@ -94,6 +128,10 @@ export interface LlmUsageEntry {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** Which app made the call, for per-app spend attribution. */
+  app?: string;
+  /** Task hint passed to the shared gateway. */
+  task?: string;
 }
 
 const usageLedger: LlmUsageEntry[] = [];
@@ -165,10 +203,10 @@ async function attemptChat(
   model: string,
   messages: LlmMessage[],
   timeoutMs: number,
-  extra: { maxTokens?: number; temperature?: number; noThink?: boolean; jsonSchema?: { name: string; schema: Record<string, unknown> }; jsonObject?: boolean } = {},
+  extra: { maxTokens?: number; temperature?: number; noThink?: boolean; jsonSchema?: { name: string; schema: Record<string, unknown> }; jsonObject?: boolean; headers?: Record<string, string> } = {},
 ): Promise<ChatAttemptResult> {
   const url = `${baseUrl.replace(/\/+$/, '')}${COMPLETIONS_PATH}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(extra.headers ?? {}) };
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
   const body: Record<string, unknown> = { model, messages };
@@ -267,16 +305,39 @@ export async function runLlm(
   const skipLocal = tier === 'gateway' || tier === 'critical';
   const skipGateway = tier === 'local';
   const timeoutMs = opts.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
+  const app = (opts.app ?? 'openhub').trim() || 'openhub';
+  const task = (opts.task ?? 'general').trim().toLowerCase() || 'general';
+  const gatewayHeaders = { 'x-llm-app': app, 'x-llm-task': task };
   let lastError: string | null = null;
 
+  // A 4B phone model is the right answer for short, interactive work and the
+  // wrong answer for a 40k-token document or a tool-calling contract. Do not
+  // pretend otherwise: skip it and let the shared gateway carry the request.
+  const localTooSmall =
+    (opts.minContextTokens ?? 0) > LOCAL_CONTEXT_TOKENS || Boolean(opts.needsTools);
+
   // Local small-model tier first: bounded, no-think, fast. Failure falls through.
-  if (!skipLocal) {
+  if (!skipLocal && !localTooSmall) {
     const lt = localTier(env);
     const localOpts = { maxTokens: opts.localMaxTokens ?? DEFAULT_LOCAL_MAX_TOKENS, temperature: 0.2, noThink: true, jsonSchema: opts.jsonSchema };
     const localTimeout = Math.min(timeoutMs, LOCAL_LLM_TIMEOUT_MS);
     try {
       const r = await attemptChat(lt.base, undefined, lt.model, messages, localTimeout, localOpts);
-      usageLedger.push({ ts: Date.now(), tier: 'local', provider: lt.base, model: lt.model, ...r });
+      // Constrained decoding is a strong hint, not a guarantee. If the caller
+      // needs JSON and the local model produced something else, that is a local
+      // failure and the gateway should see the request.
+      if (opts.jsonSchema && !isJsonObject(r.text)) {
+        throw new Error('local reply was not a JSON object');
+      }
+      usageLedger.push({
+        ts: Date.now(),
+        tier: 'local',
+        provider: lt.base,
+        model: lt.model,
+        ...r,
+        app,
+        task,
+      });
       return { ok: true, text: r.text, provider: `local:${lt.base}`, tier: 'local' };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -292,7 +353,10 @@ export async function runLlm(
           const model = discovered.models.includes(lt.model) ? lt.model : (discovered.models[0] ?? lt.model);
           try {
             const r = await attemptChat(alt, undefined, model, messages, localTimeout, localOpts);
-            usageLedger.push({ ts: Date.now(), tier: 'local', provider: alt, model, ...r });
+            if (opts.jsonSchema && !isJsonObject(r.text)) {
+              throw new Error('local reply was not a JSON object');
+            }
+            usageLedger.push({ ts: Date.now(), tier: 'local', provider: alt, model, ...r, app, task });
             return { ok: true, text: r.text, provider: `local:${alt}`, tier: 'local' };
           } catch (altErr) {
             lastError = `local:${altErr instanceof Error ? altErr.message : String(altErr)}`;
@@ -302,7 +366,7 @@ export async function runLlm(
     }
   }
 
-  // Fleet gateway chain (unchanged behavior).
+  // Fleet gateway chain (unchanged behavior, plus task/app attribution).
   if (!skipGateway) {
     const baseUrl = opts.baseUrl || env.OPENHUB_LLM_BASE_URL || DEFAULT_LLM_BASE_URL;
     const model = opts.model || env.OPENHUB_LLM_MODEL || DEFAULT_LLM_MODEL;
@@ -322,8 +386,19 @@ export async function runLlm(
 
     for (const attempt of attempts) {
       try {
-        const r = await attemptChat(attempt.baseUrl, attempt.apiKey, attempt.model, messages, timeoutMs, { jsonObject: Boolean(opts.jsonSchema) });
-        usageLedger.push({ ts: Date.now(), tier: 'gateway', provider: attempt.baseUrl, model: attempt.model, ...r });
+        const r = await attemptChat(attempt.baseUrl, attempt.apiKey, attempt.model, messages, timeoutMs, {
+          jsonObject: Boolean(opts.jsonSchema),
+          headers: gatewayHeaders,
+        });
+        usageLedger.push({
+          ts: Date.now(),
+          tier: 'gateway',
+          provider: attempt.baseUrl,
+          model: attempt.model,
+          ...r,
+          app,
+          task,
+        });
         return { ok: true, text: r.text, provider: attempt.baseUrl, tier: 'gateway' };
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
