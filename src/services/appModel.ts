@@ -12,7 +12,11 @@ export const APP_MODEL = MODEL_ASSIGNMENT;
 export function runAppLlm(messages: LlmMessage[], opts: RunLlmOptions = {}): Promise<LlmResult> {
   return runLlm(messages, {
     ...opts,
-    model: opts.model ?? MODEL_ASSIGNMENT.runtimeModel,
+    // The local tier picks its own model from OPENHUB_LOCAL_LLM_MODEL. Do not
+    // leak the phone's model id (`qwen3.5-4b`) into a cloud request: a gateway
+    // may interpret an unknown id as a pin, and Sieve would attribute every
+    // cloud call to a model that never ran. `opts.model` is only present when
+    // the caller made an explicit choice.
     tier: opts.tier ?? 'auto',
   });
 }

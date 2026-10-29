@@ -83,7 +83,10 @@ export interface RunLlmOptions {
 
 export const DEFAULT_LLM_BASE_URL = 'http://localhost:4100';
 export const DEFAULT_LLM_MODEL = 'fleet-free';
-export const DEFAULT_LLM_TIMEOUT_MS = 60_000;
+// The strongest free lane (Ollama Cloud `gpt-oss:120b`) can take 60-90s on a
+// hard prompt. A 60s client timeout would abort a request the gateway would
+// have completed, so the default must outlast the slowest lane.
+export const DEFAULT_LLM_TIMEOUT_MS = 120_000;
 
 /** Local tier defaults: llama.cpp server, MiniCPM5-1B-Claude-Opus-Fable5-V2
  *  (community fine-tune: stronger instruction-following + tool-calling). */

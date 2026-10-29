@@ -186,7 +186,7 @@ async function complete(
     {
       tier: 'gateway',
       jsonSchema: { name: 'harness_action', schema: ACTION_SCHEMA as unknown as Record<string, unknown> },
-      timeoutMs: 20_000,
+      timeoutMs: 90_000,
       app: 'openhub',
       task: 'general',
     },
