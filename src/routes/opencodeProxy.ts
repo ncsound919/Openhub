@@ -20,6 +20,7 @@ import {
   eventsRaw,
 } from '../services/opencodeClient.js';
 import { startOpencodeEngine, stopOpencodeEngine } from '../services/opencodeEngine.js';
+import { injectWorkbenchContext } from '../services/workbenchClient.js';
 import { recordReceipt } from '../services/receipts.js';
 import { localOpencodeModel, LOCAL_PROVIDER_ID } from '../services/localModel.js';
 
@@ -299,7 +300,12 @@ export function createOpencodeProxyRouter(deps: {
     // A prompt without a model inherits the configured default, or the local model
     // when it is answering; an explicit client choice always wins.
     opts.model ??= await (deps.resolveDefaultModel ?? preferredPromptModel)().catch(() => undefined);
-    try { res.json({ ok: true, data: await promptSessionAsync(req.params.id, parts, opts) }); }
+    // Surround the turn with the workbench's recorded context when it is enabled:
+    // relevant lessons and the tool contract go in ahead of the user's parts.
+    // Fail-open by design — an unreachable workbench must never block a prompt,
+    // and the timeout is bounded by the settings value.
+    const forwarded = await injectWorkbenchContext(parts).catch(() => parts);
+    try { res.json({ ok: true, data: await promptSessionAsync(req.params.id, forwarded, opts), workbenchContext: forwarded.length !== parts.length }); }
     catch (err) { res.status(502).json({ ok: false, error: errorMessage(err) }); }
   };
   router.post('/opencode/sessions/:id/prompt', promptHandler);

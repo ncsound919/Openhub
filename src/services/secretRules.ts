@@ -58,7 +58,9 @@ export const SECRET_RULES: SecretRule[] = [
     id: 'dotenv-assignment',
     name: 'Secret in env file',
     kind: 'assignment',
-    regex: /^\s*(?:export\s+)?[A-Z0-9_]*(?:API_KEY|APIKEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]*\s*=\s*["']?(?<v>[^\s#'"]{12,})["']?\s*(?:#.*)?$/gm,
+    // Horizontal whitespace only around `=`: `\s*` would let an empty value
+    // consume the newline and read the NEXT assignment as this one's value.
+    regex: /^[ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:API_KEY|APIKEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|PRIVATE_KEY|ACCESS_KEY)[A-Z0-9_]*[ \t]*=[ \t]*["']?(?<v>[^\s#'"]{12,})["']?[ \t]*(?:#.*)?$/gm,
   },
   {
     id: 'named-assignment',

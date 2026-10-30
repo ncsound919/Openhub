@@ -6,6 +6,7 @@ import {
   collectDeepFiles,
   discoverTestRunners,
   executeAuditSuite,
+  resolveCodeRoot,
   parseEslintJson,
   parseRuffText,
   parseTscOutput,
@@ -130,6 +131,50 @@ describe('discoverTestRunners (all runners, root + nested)', () => {
 
   it('returns nothing when no runner is declared', () => {
     expect(discoverTestRunners(tmpProject({ 'README.md': 'x' }))).toEqual([]);
+  });
+
+  it('does not treat a bare requirements.txt as a Python test suite', () => {
+    const dir = tmpProject({
+      'requirements.txt': 'requests==2.32.0\n',
+      'package.json': JSON.stringify({ name: 'root', scripts: { test: 'jest' } }),
+    });
+    expect(discoverTestRunners(dir).map((s) => s.runner)).toEqual(['jest']);
+  });
+
+  it('finds a Python lane from a tests/ module without a manifest', () => {
+    const dir = tmpProject({ 'requirements.txt': 'pytest\n', 'tests/test_api.py': 'def test_ok(): assert True\n' });
+    expect(discoverTestRunners(dir).map((s) => s.runner)).toEqual(['pytest']);
+  });
+
+  it('finds a Gradle lane from the wrapper plus a settings file', () => {
+    const dir = tmpProject({
+      'settings.gradle.kts': 'rootProject.name = "app"\n',
+      'gradlew': '#!/bin/sh\n',
+      'app/build.gradle.kts': 'plugins { id("java") }\n',
+    });
+    const specs = discoverTestRunners(dir);
+    expect(specs).toHaveLength(1);
+    expect(specs[0]).toMatchObject({ runner: 'gradle', cwd: dir, label: 'gradlew test' });
+    expect(specs[0].args).toContain('test');
+  });
+
+  it('needs the wrapper, not just a settings file, for the Gradle lane', () => {
+    const dir = tmpProject({ 'settings.gradle.kts': 'rootProject.name = "app"\n' });
+    expect(discoverTestRunners(dir)).toEqual([]);
+  });
+
+  it('treats a Gradle build as the code root instead of a nested Python app', () => {
+    const dir = tmpProject({
+      'settings.gradle.kts': 'rootProject.name = "app"\n',
+      'app/build.gradle.kts': 'plugins { id("java") }\n',
+      'kaggle-trainer-app/requirements.txt': 'torch\n',
+    });
+    expect(resolveCodeRoot(dir)).toBe(dir);
+  });
+
+  it('treats a standalone build.gradle as a code root', () => {
+    const dir = tmpProject({ 'build.gradle': 'plugins { id "java" }\n', 'tools/requirements.txt': 'x\n' });
+    expect(resolveCodeRoot(dir)).toBe(dir);
   });
 });
 

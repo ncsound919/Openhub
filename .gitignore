@@ -35,3 +35,4 @@ __pycache__/
 
 # Engine-local opencode data root (never commit)
 .opencode-data/
+.tmp-e2e/

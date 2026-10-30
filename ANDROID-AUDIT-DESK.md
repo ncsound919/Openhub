@@ -49,6 +49,23 @@ All routes use the normal OpenHub session auth. The proxy never uploads, scans o
 mutates the desk; uploads stay on the desk UI. A desk that is down returns 503
 with a reason, never an empty success.
 
+## MCP control plane
+
+`openhub-mcp.ts` now exposes the audit desk and model mesh to agents:
+
+| Tool | Purpose |
+|---|---|
+| `openhub_android_audit_profiles` | list desk snapshots |
+| `openhub_android_audit_report` | full/md/agent-md/agent-json/sarif report by id |
+| `openhub_android_audit_tasks` | P0–P3 agent tasks for a snapshot |
+| `openhub_evidence_index` | per-app audit index (findings, score, folder) |
+| `openhub_model_status` | mesh `/v1/models` + artifact state |
+| `openhub_model_route` | deterministic lane choice for a task |
+
+All read-only; failures return `ok:false` with a reason. Set
+`ANDROID_AUDIT_DESK_URL` / `LLM_MESH_URL` if the services are not on loopback.
+Smoke test: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | npx tsx openhub-mcp.ts`.
+
 ## Smoke test
 
 ```bash

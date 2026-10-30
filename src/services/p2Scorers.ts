@@ -657,7 +657,7 @@ function secretCategory(ruleId: string): { category: string; severity: string } 
  *  scan skips these; the authoritative gitleaks scan still covers them. */
 const TEST_PATH_RE = /(^|\/)(tests?|__tests__|__mocks__|fixtures?|e2e|spec)(\/|$)|[._-](test|spec)\.[cm]?[jt]sx?$|smoke[-_]/i;
 /** Values that are obviously placeholders, not credentials. */
-const PLACEHOLDER_RE = /(example|dummy|fake|sample|placeholder|changeme|redacted|your[_-]|xxxx|not[_-]?a[_-]?real|(?:sk|pk|rk)_test_|test[_-]?key|test[_-]?token)/i;
+const PLACEHOLDER_RE = /(example|dummy|fake|sample|placeholder|change[_-]?me|replace[_-]?me|redacted|your[_-]|xxxx|not[_-]?a[_-]?real|(?:sk|pk|rk)_test_|test[_-]?key|test[_-]?token)/i;
 
 /**
  * Heuristic secret scan for one file's content. Pure, so it is unit-testable:

@@ -1,10 +1,9 @@
 /**
  * Generated from shared/llm-mesh/models.json — do not hand-edit.
  *
- * `state: adapter-only` means the trained LoRA adapter is present but there is
- * no merged/quantized GGUF in this checkout. Use `runtimeModel` for the local
- * lane; never claim the fine-tune is active on device until the state is
- * `local-ready`.
+ * `state: local-ready` means the converted LoRA GGUF is present and deployed
+ * with the phone base model. `runtimeModel` is the llama.cpp model alias; the
+ * mesh selects `loraIndex` before generation.
  */
 export const MODEL_ASSIGNMENT = {
   "appId": "openhub",
@@ -12,12 +11,14 @@ export const MODEL_ASSIGNMENT = {
   "fallback": "general",
   "privacy": "cloud-allowed",
   "task": "coding",
-  "baseModel": "unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit",
+  "baseModel": "unsloth/Qwen3.5-4B",
   "adapter": "Pulse Daw/kaggle_qwen_coding_mobile/output_v2/qwen_coding_mobile",
   "adapterBytes": 239536272,
-  "state": "adapter-only",
+  "state": "local-ready",
   "runtimeModel": "qwen3.5-4b",
-  "gguf": null
+  "ggufKind": "lora",
+  "loraIndex": 1,
+  "gguf": "models/qwen-coding-v2.lora.f16.gguf"
 } as const;
 export type ModelAssignment = typeof MODEL_ASSIGNMENT;
 export const MODEL_READY: boolean = String(MODEL_ASSIGNMENT.state) === 'local-ready';

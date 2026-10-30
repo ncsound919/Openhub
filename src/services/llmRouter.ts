@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unified fleet LLM routing through the operator's provider seam (per OPS.md):
  * a LiteLLM-style gateway at http://localhost:4100/v1/chat/completions serving
  * the `fleet-free` model group, with optional fallback base URLs from env.
@@ -13,7 +13,7 @@
  *
  * Binding rules: credentials are resolved from env only (never hardcoded,
  * never logged, never embedded in errors); real failures return
- * `{ ok: false, error }` — a review is never fabricated.
+ * `{ ok: false, error }` â€” a review is never fabricated.
  */
 
 import { probeBase } from './localModel.js';
@@ -40,9 +40,9 @@ export interface RunLlmOptions {
   model?: string;
   timeoutMs?: number;
   /**
-   * `auto` (default) — local small model first, fleet gateway on failure.
-   * `local` — local model only; honest fail when it can't answer.
-   * `gateway`/`critical` — fleet gateway only (local never consulted).
+   * `auto` (default) â€” local small model first, fleet gateway on failure.
+   * `local` â€” local model only; honest fail when it can't answer.
+   * `gateway`/`critical` â€” fleet gateway only (local never consulted).
    * An explicit `baseUrl` option is treated as gateway-only (an explicit
    * provider choice), preserving the historical contract.
    */
@@ -51,10 +51,10 @@ export interface RunLlmOptions {
   localMaxTokens?: number;
   /**
    * Request structured output. On the local tier this is enforced with llama.cpp
-   * `response_format.json_schema` (constrained decoding — a small model cannot
+   * `response_format.json_schema` (constrained decoding â€” a small model cannot
    * produce malformed JSON); the gateway receives `json_object`, which is the
    * portable OpenAI-compatible form. Callers that need trustworthy extraction
-   * SHOULD pass this — never trust raw 1B JSON.
+   * SHOULD pass this â€” never trust raw 1B JSON.
    *
    * The local reply is parsed before it is accepted: a schema-constrained model
    * can still emit prose or an empty object, and that is a reason to escalate,
@@ -90,7 +90,11 @@ export const DEFAULT_LLM_TIMEOUT_MS = 120_000;
 
 /** Local tier defaults: llama.cpp server, MiniCPM5-1B-Claude-Opus-Fable5-V2
  *  (community fine-tune: stronger instruction-following + tool-calling). */
-export const DEFAULT_LOCAL_LLM_URL = 'http://127.0.0.1:11434';
+/** Local tier default: the on-device mesh router, not raw llama.cpp.
+ *  The mesh serializes adapter switches and picks the adapter assigned to
+ *  `x-llm-app`; calling :8080 directly would bypass that and race the switch.
+ *  (llama.cpp:8080 and Ollama:11434 remain discovery fallbacks.) */
+export const DEFAULT_LOCAL_LLM_URL = 'http://127.0.0.1:8788';
 // The operator's phone-bound model: Qwen 3.5 4B GGUF (llama.cpp/Ollama).
 export const DEFAULT_LOCAL_LLM_MODEL = 'qwen3.5-4b';
 
@@ -246,7 +250,7 @@ async function attemptChat(
     try {
       detail = redactSecrets((await res.text()).slice(0, 500).trim(), apiKey);
     } catch {
-      // Body unreadable — status alone is explicit enough.
+      // Body unreadable â€” status alone is explicit enough.
     }
     throw new Error(
       `LLM request to ${url} returned HTTP ${res.status} ${res.statusText}${detail ? `: ${detail}` : ''}`,
@@ -292,7 +296,7 @@ function localFallbackBases(_env: NodeJS.ProcessEnv, configured: string): string
 /**
  * Run an LLM conversation. Default `auto`: the local small model first, then the
  * fleet gateway seam (falling back across `OPENHUB_LLM_FALLBACKS` on failure).
- * `tier: 'critical'` skips the local tier entirely — the fleet gateway is the
+ * `tier: 'critical'` skips the local tier entirely â€” the fleet gateway is the
  * only answerer, preserving the historical contract for quality-critical paths.
  * When every provider fails, the last error wins and no throw escapes.
  */
@@ -311,6 +315,10 @@ export async function runLlm(
   const app = (opts.app ?? 'openhub').trim() || 'openhub';
   const task = (opts.task ?? 'general').trim().toLowerCase() || 'general';
   const gatewayHeaders = { 'x-llm-app': app, 'x-llm-task': task };
+  // The mesh routes by app; the same headers on the local tier are what select
+  // the trained adapter. `local-first` keeps a privacy-scoped request on-device.
+  const localHeaders = { 'x-llm-app': app, 'x-llm-task': task, 'x-llm-privacy': 'local-first' };
+  const localKey = (env.LLM_MESH_AUTH_TOKEN || env.OPENHUB_LOCAL_LLM_KEY || '').trim() || undefined;
   let lastError: string | null = null;
 
   // A 4B phone model is the right answer for short, interactive work and the
@@ -325,7 +333,7 @@ export async function runLlm(
     const localOpts = { maxTokens: opts.localMaxTokens ?? DEFAULT_LOCAL_MAX_TOKENS, temperature: 0.2, noThink: true, jsonSchema: opts.jsonSchema };
     const localTimeout = Math.min(timeoutMs, LOCAL_LLM_TIMEOUT_MS);
     try {
-      const r = await attemptChat(lt.base, undefined, lt.model, messages, localTimeout, localOpts);
+      const r = await attemptChat(lt.base, localKey, lt.model, messages, localTimeout, { ...localOpts, headers: localHeaders });
       // Constrained decoding is a strong hint, not a guarantee. If the caller
       // needs JSON and the local model produced something else, that is a local
       // failure and the gateway should see the request.
@@ -355,7 +363,7 @@ export async function runLlm(
           }
           const model = discovered.models.includes(lt.model) ? lt.model : (discovered.models[0] ?? lt.model);
           try {
-            const r = await attemptChat(alt, undefined, model, messages, localTimeout, localOpts);
+            const r = await attemptChat(alt, localKey, model, messages, localTimeout, { ...localOpts, headers: localHeaders });
             if (opts.jsonSchema && !isJsonObject(r.text)) {
               throw new Error('local reply was not a JSON object');
             }

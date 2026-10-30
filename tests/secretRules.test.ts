@@ -36,6 +36,7 @@ const CLEAN: Record<string, string> = {
   'template url': 'const db = `postgres://${user}:${pass}@host/db`;',
   'url no creds': `const url = "https://api.example.com/v1/tokens";`,
   'dotenv reference': `API_TOKEN=\${VAULT_API_TOKEN}`,
+  'empty env value before next assignment': 'POSTIZ_API_KEY=\nPOSTIZ_BASE_URL=https://api.postiz.com/public/v1',
 };
 
 describe('shared secret rules — audit corpus', () => {

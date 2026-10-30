@@ -85,6 +85,8 @@ import { createCrmRouter } from './src/routes/crm.js';
 import { createNtfyRouter } from './src/routes/ntfy.js';
 import { createFleetKpisRouter } from './src/routes/fleetKpis.js';
 import { createHarnessRouter } from './src/routes/harness.js';
+import { createWorkbenchRouter } from './src/routes/workbenchRoutes.js';
+import { stopWorkbench } from './src/services/workbenchClient.js';
 import { startHarnessWatcher } from './src/harness/watch.js';
 import { createFleetAgentsRouter } from './src/routes/fleetAgents.js';
 import { createGithubFleetRouter } from './src/routes/githubFleet.js';
@@ -248,6 +250,9 @@ const MAX_CONTENTS_BYTES = Number(process.env.OPENHUB_MAX_FILE_BYTES) > 0
 // spoke to them were removed in the Axiom-only consolidation.
 
 const MAX_TERMINAL_SESSIONS = 4;
+/** One operator must not be able to consume every shell slot. */
+const MAX_TERMINAL_SESSIONS_PER_USER = 2;
+const MAX_TERMINAL_MESSAGE_CHARS = 64 * 1024;
 
 /**
  * Environment variables never handed to the interactive terminal.
@@ -305,6 +310,8 @@ function attachTerminalSocket(
   const wss = new WebSocketServer({
     server: httpServer,
     path: '/ws/terminal',
+    // Reject an oversized paste at the frame layer instead of allocating it.
+    maxPayload: MAX_TERMINAL_MESSAGE_CHARS * 2,
     verifyClient: (info, cb) => {
       const origin = info.origin || info.req.headers.origin;
       if (!origin || allowedOrigins.has(origin)) return cb(true);
@@ -318,6 +325,7 @@ function attachTerminalSocket(
     },
   });
   let active = 0;
+  const activeByUser = new Map<string, number>();
 
   wss.on('connection', async (ws, req) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -365,8 +373,15 @@ function attachTerminalSocket(
       ws.close(4001, 'Project directory missing');
       return;
     }
+    const sessionUserId = userId;
+    const userActive = activeByUser.get(sessionUserId) ?? 0;
+    if (userActive >= MAX_TERMINAL_SESSIONS_PER_USER) {
+      ws.close(4002, 'Too many terminal sessions for this user');
+      return;
+    }
 
     active++;
+    activeByUser.set(sessionUserId, userActive + 1);
     console.log(`[Server] Terminal session started in ${project.path}`);
     const shell = process.platform === 'win32' ? 'cmd.exe' : process.env.SHELL || 'bash';
     const child = spawn(shell, [], {
@@ -379,6 +394,13 @@ function attachTerminalSocket(
     const send = (chunk: Buffer) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(chunk.toString());
     };
+    // An EPIPE from a shell that exited between the writable check and the
+    // write is an unhandled 'error' on the stream, which would kill the server.
+    child.stdin?.on('error', () => { /* shell already gone */ });
+    child.on('error', (err) => {
+      console.warn('[Server] Terminal shell error:', err.message);
+      if (ws.readyState === WebSocket.OPEN) ws.close(1011, 'Shell failed');
+    });
     child.stdout?.on('data', send);
     child.stderr?.on('data', send);
     child.on('close', (code) => {
@@ -390,15 +412,28 @@ function attachTerminalSocket(
 
     ws.on('message', (data) => {
       const text = data.toString();
+      if (text.length > MAX_TERMINAL_MESSAGE_CHARS) {
+        ws.close(1009, 'Message too large');
+        return;
+      }
       if (text === '\u0003') {
         // Ctrl-C: forward a break to the child.
         child.kill('SIGINT');
         return;
       }
-      if (child.stdin.writable) child.stdin.write(text);
+      if (child.stdin && !child.stdin.destroyed && child.stdin.writable) {
+        try {
+          child.stdin.write(text);
+        } catch {
+          // The shell exited mid-write; its close handler cleans up the session.
+        }
+      }
     });
     ws.on('close', () => {
       active = Math.max(0, active - 1);
+      const remaining = (activeByUser.get(sessionUserId) ?? 1) - 1;
+      if (remaining <= 0) activeByUser.delete(sessionUserId);
+      else activeByUser.set(sessionUserId, remaining);
       try {
         child.kill();
       } catch { /* already gone */ }
@@ -2043,6 +2078,8 @@ async function startServer() {
   app.use('/api', createFleetKpisRouter({ authMiddleware: auth.middleware() }));
   // Operator chat: app map + read-only fleet/telemetry tools, one SSE stream.
   app.use('/api', createHarnessRouter({ authMiddleware: auth.middleware() }));
+  // Workbench tools (MathSpec): config, health, tool calls and prompt context.
+  app.use('/api', createWorkbenchRouter({ authMiddleware: auth.middleware() }));
   // One fleet probe per minute serves every watching chat session; messages are
   // written only when the state actually changed.
   startHarnessWatcher();
@@ -2169,6 +2206,10 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
   runFleetSync();
   const fleetSyncTimer = setInterval(runFleetSync, 5 * 60 * 1000);
   if (typeof fleetSyncTimer.unref === 'function') fleetSyncTimer.unref();
+
+  // A workbench process we started belongs to this server; do not orphan it.
+  // `exit` (not SIGINT) so the default signal behaviour stays intact.
+  process.once('exit', () => stopWorkbench());
 
   const httpServer = app.listen(PORT, HOST, () => {
     console.log(`[Server] OpenHub running on http://${HOST}:${PORT}`);

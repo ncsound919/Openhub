@@ -15,6 +15,7 @@
 import readline from "node:readline";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import "dotenv/config";
 import { executeAuditSuite, AUDIT_PRESETS, AUDIT_STAGES, type AuditPresetName, type AuditReport, type AuditStageName, type ScorerName } from "./src/services/auditSuite.js";
@@ -250,11 +251,120 @@ export const TOOLS: ToolDef[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "openhub_android_audit_profiles",
+    description:
+      "List Android Audit Desk snapshots (APK/AAB/source audits) from the loopback desk. Returns each snapshot's id, app, score/grade, finding count and scan time. A desk that is not running returns ok:false with the reason — never an empty success.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "openhub_android_audit_report",
+    description:
+      "Fetch one Android Audit Desk report. format=json returns the full report; md is the human report; agent-md is AGENT-FIX.md; agent-json is the machine-readable task bundle; sarif is SARIF 2.1.0. Large bodies are truncated with a note.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "number", description: "Audit Desk profile id." },
+        format: {
+          type: "string",
+          enum: ["json", "md", "agent-md", "agent-json", "sarif"],
+          description: "Report format (default json).",
+        },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "openhub_android_audit_tasks",
+    description:
+      "Return the agent-ready fix tasks (P0→P3, acceptance criteria, verify commands) for one Android Audit Desk snapshot.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "number", description: "Audit Desk profile id." } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "openhub_evidence_index",
+    description:
+      "Read the phone-apps audit index (audit-reports/INDEX.md + index.json): per-app active findings, score and folder. Use this to see which app needs work before launching an audit.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "openhub_model_status",
+    description:
+      "Ask the shared LLM mesh for /v1/models: which trained adapters exist, their artifact state (adapter-only/local-ready), and which lanes can serve them.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "openhub_model_route",
+    description:
+      "Ask the shared LLM mesh for /v1/route: the deterministic lane choice for a task, with reasons. Does not run inference. Use it before sending an expensive prompt.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Task class, e.g. coding, audio-mix, science, decision, agent, general." },
+        privacy: { type: "string", description: "local-first or cloud-allowed." },
+        app_id: { type: "string", description: "Calling app id, e.g. openhub." },
+      },
+      required: ["task"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "openhub_control_plane",
+    description:
+      "One aggregate view of the ecosystem: audit index (per-app findings/score), Android Audit Desk profiles, model mesh status (adapter/artifact state) and CI status (if CI_STATUS_PATH is set). Offline sources report ok:false with a reason.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "openhub_mesh_metrics",
+    description:
+      "Per-lane health for the shared LLM mesh: success rate, EWMA latency, consecutive failures, availability, plus request counts and uptime. Use to spot a degraded lane before routing an expensive prompt.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
 ];
 
 function configured(name: string): boolean {
   return Boolean(process.env[name]);
 }
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const AUDIT_REPORTS_DIR = process.env.OPENHUB_AUDIT_REPORTS || path.resolve(HERE, "..", "audit-reports");
+const AUDIT_DESK_URL = (process.env.ANDROID_AUDIT_DESK_URL || "http://127.0.0.1:8765").replace(/\/+$/, "");
+const LLM_MESH_URL = (process.env.LLM_MESH_URL || "http://127.0.0.1:8788").replace(/\/+$/, "");
+const CONTROL_PLANE_TIMEOUT_MS = Number(process.env.OPENHUB_CONTROL_PLANE_TIMEOUT_MS || 15_000);
+const MAX_TOOL_BODY = 200_000;
+
+async function httpJson(url: string, init?: RequestInit): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONTROL_PLANE_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    const text = await res.text();
+    if (!res.ok) {
+      return { ok: false, status: res.status, reason: text.slice(0, 1000) || `HTTP ${res.status}`, url };
+    }
+    try {
+      return { ok: true, status: res.status, body: JSON.parse(text) };
+    } catch {
+      return { ok: true, status: res.status, body: text.slice(0, MAX_TOOL_BODY), truncated: text.length > MAX_TOOL_BODY };
+    }
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err), url };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function positiveId(value: unknown): number {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new Error("id must be a positive integer");
+  return id;
+}
+
 
 function serviceStatus(): Record<string, unknown> {
   return {
@@ -705,6 +815,87 @@ async function dispatchTool(name: string, args: Record<string, unknown>): Promis
         ranking: result.snapshot.ranking,
       };
     }
+
+    case "openhub_android_audit_profiles":
+      return httpJson(`${AUDIT_DESK_URL}/api/profiles`);
+
+    case "openhub_android_audit_report": {
+      const id = positiveId(args.id);
+      const format = String(args.format ?? "json");
+      const allowed = new Set(["json", "md", "agent-md", "agent-json", "sarif"]);
+      if (!allowed.has(format)) throw new Error(`format must be one of ${[...allowed].join(", ")}`);
+      const res = await httpJson(`${AUDIT_DESK_URL}/api/report?id=${id}&format=${encodeURIComponent(format)}`);
+      return { ...res, id, format };
+    }
+
+    case "openhub_android_audit_tasks": {
+      const id = positiveId(args.id);
+      const res = await httpJson(`${AUDIT_DESK_URL}/api/report?id=${id}&format=agent-json`);
+      return { ...res, id, format: "agent-json" };
+    }
+
+    case "openhub_evidence_index": {
+      const jsonPath = path.join(AUDIT_REPORTS_DIR, "index.json");
+      const mdPath = path.join(AUDIT_REPORTS_DIR, "INDEX.md");
+      if (!fs.existsSync(jsonPath) && !fs.existsSync(mdPath)) {
+        return { ok: false, reason: "audit-reports index not found", dir: AUDIT_REPORTS_DIR };
+      }
+      const entries = fs.existsSync(jsonPath)
+        ? JSON.parse(fs.readFileSync(jsonPath, "utf-8"))
+        : [];
+      const markdown = fs.existsSync(mdPath)
+        ? fs.readFileSync(mdPath, "utf-8").slice(0, 20_000)
+        : "";
+      return { ok: true, dir: AUDIT_REPORTS_DIR, entries, markdown };
+    }
+
+    case "openhub_model_status":
+      return httpJson(`${LLM_MESH_URL}/v1/models`);
+
+    case "openhub_model_route": {
+      if (typeof args.task !== "string" || !args.task.trim()) throw new Error("task is required");
+      const payload = {
+        task: args.task.trim(),
+        privacy: typeof args.privacy === "string" ? args.privacy : "local-first",
+        appId: typeof args.app_id === "string" ? args.app_id : "openhub",
+      };
+      return httpJson(`${LLM_MESH_URL}/v1/route`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    case "openhub_control_plane": {
+      const jsonPath = path.join(AUDIT_REPORTS_DIR, "index.json");
+      const mdPath = path.join(AUDIT_REPORTS_DIR, "INDEX.md");
+      const evidence = fs.existsSync(jsonPath)
+        ? { ok: true, entries: JSON.parse(fs.readFileSync(jsonPath, "utf-8")) }
+        : { ok: false, reason: "audit-reports/index.json not found" };
+      const profiles = await httpJson(`${AUDIT_DESK_URL}/api/profiles`);
+      const models = await httpJson(`${LLM_MESH_URL}/v1/models`);
+      let ci: Record<string, unknown> = { configured: false, reason: "CI_STATUS_PATH not set" };
+      const ciPath = process.env.CI_STATUS_PATH;
+      if (ciPath && fs.existsSync(ciPath)) {
+        try {
+          ci = { configured: true, body: JSON.parse(fs.readFileSync(ciPath, "utf-8")) };
+        } catch (err) {
+          ci = { configured: true, ok: false, reason: err instanceof Error ? err.message : String(err) };
+        }
+      }
+      return {
+        ok: true,
+        generatedAt: new Date().toISOString(),
+        evidence,
+        desk: profiles,
+        models,
+        ci,
+        markdown: fs.existsSync(mdPath) ? fs.readFileSync(mdPath, "utf-8").slice(0, 8_000) : "",
+      };
+    }
+
+    case "openhub_mesh_metrics":
+      return httpJson(`${LLM_MESH_URL}/metrics`);
 
     default:
       throw new Error(`unknown tool ${name}`);

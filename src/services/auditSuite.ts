@@ -43,8 +43,10 @@ import {
   runApiContractScorer,
   runGitHistoryScorer,
   runIacScorer,
+  scanSecretContent,
   isP2Scorer,
 } from './p2Scorers.js';
+import { scanVulnerabilities } from './vulnerabilityScanner.js';
 import { preflightAuditTools, type PreflightReport } from './preflight.js';
 import {
   auditCacheEnabled,
@@ -884,12 +886,69 @@ function collectScannableFiles(targetDir: string, gitIgnore?: GitIgnoreMatcher):
   return out;
 }
 
+/**
+ * Local fallback when Claw-Protect has no key. It uses the same deterministic
+ * secret rules as the reviewer and git-history scan, over both source files and
+ * the config/key files Claw's collector considers high-signal.
+ */
+function runLocalSecretScan(
+  params: { repoUrl?: string; targetDir?: string; gitIgnore?: GitIgnoreMatcher },
+): ScorerResult {
+  const targetDir = params.targetDir;
+  if (!targetDir || !fs.existsSync(targetDir)) {
+    return honest('claw-protect', 'secret scan needs an existing targetDir');
+  }
+  const files: Array<{ path: string; content: string }> = [];
+  const seen = new Set<string>();
+  const add = (filePath: string, content: string): void => {
+    if (seen.has(filePath) || files.length >= CLAW_MAX_FILES) return;
+    seen.add(filePath);
+    files.push({ path: filePath, content });
+  };
+  for (const file of collectScannableFiles(targetDir, params.gitIgnore)) add(file.path, file.content);
+  for (const file of collectSourceFiles(targetDir, { maxFiles: 400, maxFileBytes: 512_000, maxDepth: 6 })) {
+    add(path.isAbsolute(file.file) ? file.file : path.join(targetDir, file.file), file.content);
+  }
+  if (files.length === 0) {
+    return honest('claw-protect', 'no scannable files in target dir — secrets not assessed');
+  }
+
+  const findings: Finding[] = [];
+  for (const file of files) {
+    const relative = path.relative(targetDir, file.path).replace(/\\/g, '/');
+    for (const hit of scanSecretContent(file.content, relative)) {
+      findings.push(createFinding({
+        source: 'claw-protect',
+        dimension: 'security',
+        category: hit.category,
+        severity: hit.severity,
+        confidence: hit.confidence,
+        determinism: hit.determinism,
+        ...(hit.location ? { location: hit.location } : {}),
+        evidence: hit.evidence,
+        ...(hit.remediation ? { remediation: hit.remediation } : {}),
+      }));
+    }
+  }
+
+  const penalty = findings.reduce((sum, f) => sum + (f.severity === 'critical' ? 30 : f.severity === 'high' ? 15 : f.severity === 'medium' ? 5 : 1), 0);
+  return attach(
+    {
+      scorer: 'claw-protect',
+      score: Math.max(0, 100 - penalty),
+      summary: `local secret scan: ${files.length} file(s), ${findings.length} potential secret(s)`,
+      details: { files: files.length, findings: findings.length },
+    },
+    { findings, dimensions: ['security'], analyzers: ['secret-rules'] },
+  );
+}
+
 export async function runClawProtectScorer(
   params: { repoUrl?: string; targetDir?: string; gitIgnore?: GitIgnoreMatcher },
 ): Promise<ScorerResult> {
-  await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
-  if (!apiKey) return honest('claw-protect', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — SCA scan skipped');
+  if (!apiKey) return runLocalSecretScan(params);
+  await ensureScorerService('claw');
 
   let scanned = 0;
   let secretsFound = 0;
@@ -1420,7 +1479,7 @@ const QA_SKIP_DIRS = new Set([
 ]);
 
 export interface TestRunnerSpec {
-  runner: 'vitest' | 'jest' | 'npm' | 'pytest';
+  runner: 'vitest' | 'jest' | 'npm' | 'pytest' | 'gradle';
   cwd: string;
   cmd: string;
   args: string[];
@@ -1436,9 +1495,39 @@ function packageTestScript(pkgPath: string): string | undefined {
   }
 }
 
+/**
+ * A dependency manifest is not a test suite. `requirements.txt` describes what a
+ * project installs, not that it has tests: treating it as a runner made the
+ * scorer execute `pytest` in a directory with none, and the "no tests ran"
+ * exit was scored as a failing gate. Require an explicit pytest config, or an
+ * actual `tests/` module, before treating the directory as a Python lane.
+ */
 function hasPythonTests(dir: string): boolean {
-  return ['pyproject.toml', 'requirements.txt', 'pytest.ini', 'tox.ini', 'setup.cfg']
+  const configured = ['pyproject.toml', 'pytest.ini', 'tox.ini', 'setup.cfg']
     .some((f) => fs.existsSync(path.join(dir, f)));
+  if (configured) return true;
+  return ['tests', 'test'].some((sub) => {
+    try {
+      return fs.readdirSync(path.join(dir, sub))
+        .some((f) => /^(test_.*|.*_test)\.py$/.test(f));
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Gradle/Android projects declare their suite in Gradle, not in package.json, so
+ * the audit had no test lane at all for them (and scored their tests as absent).
+ * A settings file plus the checked-in wrapper is the declaration; the wrapper is
+ * what makes the run reproducible against the project's own Gradle version.
+ */
+function hasGradleTests(dir: string): boolean {
+  const hasSettings = ['settings.gradle', 'settings.gradle.kts']
+    .some((f) => fs.existsSync(path.join(dir, f)));
+  const hasWrapper = ['gradlew', 'gradlew.bat']
+    .some((f) => fs.existsSync(path.join(dir, f)));
+  return hasSettings && hasWrapper;
 }
 
 /**
@@ -1466,6 +1555,19 @@ export function discoverTestRunners(targetDir: string, gitIgnore?: GitIgnoreMatc
     if (hasPythonTests(dir)) {
       specs.push({ runner: 'pytest', cwd: dir, cmd: 'pytest', args: ['-q'], label: 'pytest -q' });
     }
+    if (hasGradleTests(dir)) {
+      // Absolute path: the wrapper is not on PATH, and cmd.exe does not reliably
+      // resolve a bare `gradlew.bat` from the spawned cwd. The bat file still
+      // needs cmd.exe, which processRunner infers from its extension.
+      const wrapper = path.join(dir, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+      specs.push({
+        runner: 'gradle',
+        cwd: dir,
+        cmd: wrapper,
+        args: ['test', '--console=plain'],
+        label: 'gradlew test',
+      });
+    }
     if (depth >= LOCAL_QA_MAX_DEPTH) return;
     let entries: fs.Dirent[];
     try {
@@ -1482,6 +1584,77 @@ export function discoverTestRunners(targetDir: string, gitIgnore?: GitIgnoreMatc
   };
   walk(targetDir, 0);
   return specs;
+}
+
+/**
+ * Read Gradle's JUnit XML for a finished run. Bounded on purpose: the report
+ * tree is regenerated per run, but a pathological project could still have
+ * thousands of files and the scorer only needs their totals.
+ */
+function collectJUnitReports(root: string): string {
+  const MAX_FILES = 500;
+  const MAX_CHARS = 4 * 1024 * 1024;
+  const MAX_REPORT_DIRS = 20;
+  const parts: string[] = [];
+  let chars = 0;
+
+  // Gradle is multi-module: results live at `<module>/build/test-results/<task>`,
+  // not at the root, and an Android app's module is `app/`. Find each report dir
+  // (bounded) instead of assuming the root module.
+  const reportDirs: string[] = [];
+  const findReportDirs = (dir: string, depth: number): void => {
+    if (reportDirs.length >= MAX_REPORT_DIRS || depth > 3) return;
+    const candidate = path.join(dir, 'build', 'test-results');
+    if (fs.existsSync(candidate)) reportDirs.push(candidate);
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'build' || entry.name === '.git' || entry.name === 'node_modules'
+        || entry.name === '.gradle' || entry.name === 'src' || entry.name === 'res') continue;
+      findReportDirs(path.join(dir, entry.name), depth + 1);
+    }
+  };
+  findReportDirs(root, 0);
+
+  const collect = (dir: string, depth: number): void => {
+    if (parts.length >= MAX_FILES || chars >= MAX_CHARS || depth > 4) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (parts.length >= MAX_FILES || chars >= MAX_CHARS) return;
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        collect(abs, depth + 1);
+        continue;
+      }
+      if (!/^TEST-.*\.xml$/i.test(entry.name)) continue;
+      try {
+        const text = fs.readFileSync(abs, 'utf8');
+        parts.push(text);
+        chars += text.length;
+      } catch {
+        /* an unreadable report is simply not counted */
+      }
+    }
+  };
+  for (const dir of reportDirs) collect(dir, 0);
+  return parts.join('\n');
+}
+
+/** The language label for a set of runners, used in coverage details. */
+function localQaLanguage(specs: TestRunnerSpec[]): string {
+  if (specs.some((s) => s.runner === 'gradle')) return 'jvm';
+  if (specs.some((s) => s.runner === 'pytest')) return 'python';
+  return 'javascript';
 }
 
 interface QaRunnerOutcome {
@@ -1514,6 +1687,12 @@ async function runOneTestRunner(
     } catch {
       /* junit artifact unreadable — the text output still carries signal */
     }
+  }
+  if (spec.runner === 'gradle') {
+    // Gradle prints progress, not counts. JUnit XML under build/test-results is
+    // the machine-readable record, including one file per test task/module.
+    const xml = collectJUnitReports(spec.cwd);
+    if (xml) output += `\n${xml}`;
   }
   const parsed = parseTestOutput(output, spec.runner);
   return {
@@ -1573,7 +1752,10 @@ export async function runLocalQaScorer(targetDir?: string, opts: LocalQaOptions 
         );
       }
       return {
-        runner: /pytest/i.test(c.command) ? 'pytest' : /jest/i.test(c.command) ? 'jest' : /vitest|npm|pnpm|yarn/i.test(c.command) ? 'vitest' : 'npm',
+        runner: /pytest/i.test(c.command) ? 'pytest'
+          : /\bgradlew?\b/i.test(c.command) ? 'gradle'
+            : /jest/i.test(c.command) ? 'jest'
+              : /vitest|npm|pnpm|yarn/i.test(c.command) ? 'vitest' : 'npm',
         cwd,
         cmd: c.command,
         args: c.args,
@@ -1671,7 +1853,7 @@ export async function runLocalQaScorer(targetDir?: string, opts: LocalQaOptions 
       summary: `local QA passed (${labelStr}) — ${detail}`,
       details: baseDetails,
       status: 'ok',
-    }, { findings, files: specs.length, analyzers: specs.map((s) => s.runner), language: specs.some((s) => s.runner === 'pytest') ? 'python' : 'javascript' });
+    }, { findings, files: specs.length, analyzers: specs.map((s) => s.runner), language: localQaLanguage(specs) });
   }
 
   // A timeout is not a test failure and not a pass. It is an unknown, so the
@@ -2278,10 +2460,61 @@ export async function runLintScorer(
 // its scan into a real count. Unavailable backend = honest skip, never a 0.
 // ---------------------------------------------------------------------------
 
+/**
+ * Local SCA fallback: OpenHub already has an OSV dependency scanner for its API.
+ * Use it when the Claw/trivy backend has no key, so an offline audit can still
+ * assess dependency CVEs instead of reporting the whole run as unverifiable.
+ */
+async function runLocalOsvSca(targetDir?: string): Promise<ScorerResult> {
+  if (!targetDir || !fs.existsSync(targetDir)) {
+    return honest('sca', 'dependency CVE scan needs an existing targetDir');
+  }
+  const report = await scanVulnerabilities(targetDir);
+  if (report.scanError) {
+    return honest('sca', `OSV unreachable — dependency CVEs not assessed (${report.scanError})`);
+  }
+  if (report.packagesScanned === 0) {
+    return honest('sca', 'no supported dependency manifests (package-lock.json, requirements.txt, go.mod, Cargo.lock) — dependency CVEs not assessed');
+  }
+
+  const findings = report.advisories.map((advisory) => createFinding({
+    source: 'sca',
+    dimension: 'dependencies',
+    category: 'cve',
+    severity: advisory.severity,
+    confidence: 0.9,
+    determinism: 'static',
+    evidence: `${advisory.id} in ${advisory.packageName}@${advisory.installedVersion}${advisory.title ? `: ${advisory.title}` : ''}`,
+    remediation: advisory.remediationCommand || `Upgrade ${advisory.packageName}${advisory.fixedVersion ? ` to ${advisory.fixedVersion}` : ''}.`,
+    ...(advisory.id ? { cve: advisory.id } : {}),
+  }));
+  const counts = report.summary;
+  const parts = [
+    `local OSV: ${report.packagesScanned} package(s)`,
+    `${report.totalVulnerabilities} CVE(s)`,
+    `crit ${counts.critical}`,
+    `high ${counts.high}`,
+    `med ${counts.medium}`,
+    `low ${counts.low}`,
+  ];
+  return attach(
+    {
+      scorer: 'sca',
+      score: report.securityScore,
+      summary: parts.join(' · '),
+      details: {
+        packagesScanned: report.packagesScanned,
+        vulnerabilities: report.advisories.slice(0, 50),
+      },
+    },
+    { findings, dimensions: ['dependencies', 'security'], analyzers: ['osv'] },
+  );
+}
+
 export async function runScaScorer(targetDir?: string): Promise<ScorerResult> {
-  await ensureScorerService('claw');
   const apiKey = process.env.CLAW_PROTECT_SYSTEM_AGENT_KEY;
-  if (!apiKey) return honest('sca', 'CLAW_PROTECT_SYSTEM_AGENT_KEY not set — dependency CVE scan skipped');
+  if (!apiKey) return runLocalOsvSca(targetDir);
+  await ensureScorerService('claw');
   if (!targetDir || !fs.existsSync(targetDir)) {
     return honest('sca', 'dependency CVE scan needs an existing targetDir');
   }
@@ -2504,7 +2737,13 @@ export async function runSonarQubeScorer(targetDir?: string): Promise<ScorerResu
 // Walk down (bounded) to the nearest dir carrying `.git`/a manifest and use it.
 // ---------------------------------------------------------------------------
 
-const CODE_ROOT_MARKERS = ['.git', 'package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'pom.xml'];
+// A Gradle build is a code root too. Without these markers an Android/Kotlin
+// project was skipped in favour of any nested Python/Node app, so the audit
+// scored the wrong tree (and its test lane) entirely.
+const CODE_ROOT_MARKERS = [
+  '.git', 'package.json', 'pyproject.toml', 'requirements.txt', 'go.mod', 'Cargo.toml', 'pom.xml',
+  'settings.gradle', 'settings.gradle.kts', 'build.gradle', 'build.gradle.kts',
+];
 const CODE_ROOT_SKIP = new Set(['node_modules', '.git', 'dist', '.next', 'build', '__pycache__', '.venv', 'venv', 'env', '.idea']);
 
 export function resolveCodeRoot(targetDir: string): string {

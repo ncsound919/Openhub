@@ -16,6 +16,8 @@ describe('scanSecretContent (heuristic git-history secret scan)', () => {
     expect(scanSecretContent('const k = "AKIAIOSFODNN7EXAMPLE"', 'src/config.ts')).toEqual([]);
     expect(scanSecretContent('const stripe = "sk_test_1234567890abcdef"', 'src/pay.ts')).toEqual([]);
     expect(scanSecretContent('const apiKey = "your_api_key_here"', 'src/config.ts')).toEqual([]);
+    expect(scanSecretContent('STUDIO_INGEST_SECRET=change-me', '.env.example')).toEqual([]);
+    expect(scanSecretContent('STUDIO_INGEST_SECRET=replace-me', '.env.example')).toEqual([]);
   });
 
   it('flags a real-looking AWS key outside tests', () => {

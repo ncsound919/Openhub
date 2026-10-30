@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store';
-import { Key, Shield, User, Globe, Bell, Mail, Plus, Trash2, CheckCircle2, AlertTriangle, Fingerprint, Lock, ShieldCheck, Terminal, Cpu, Clock, Bot, PlusCircle, UploadCloud, Plug, Loader2, FlaskConical, ArrowRight } from 'lucide-react';
+import { Key, Shield, User, Globe, Bell, Mail, Plus, Trash2, CheckCircle2, AlertTriangle, Fingerprint, Lock, ShieldCheck, Terminal, Cpu, Clock, Bot, PlusCircle, UploadCloud, Plug, Loader2, FlaskConical, ArrowRight, Hammer } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { getAuthHeaders, getCsrfToken } from '../auth/AuthProvider';
 import { IntegrationsHub } from './IntegrationsHub';
 import { ModelSelectionView } from './ModelSelectionView';
 import { AutomationSettingsPanel } from '../components/AutomationSettingsPanel';
+import { WorkbenchSettingsPanel } from '../components/WorkbenchSettingsPanel';
 
-const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations', 'automation', 'advanced'];
+const VALID_TABS = ['profile', 'ssh-keys', 'security', 'emails', 'notifications', 'models', 'integrations', 'automation', 'workbench', 'advanced'];
 
 /** Surfaces deliberately kept out of the main rail. They still exist for
  *  power users and deep links, but they are not part of the daily flow. */
@@ -191,6 +192,9 @@ export function UserSettingsView() {
         <button onClick={() => setActiveTab('automation')} className={`sidebar-link w-full ${activeTab === 'automation' ? 'active' : ''}`}>
           <Bot className="w-4 h-4 mr-3" /> Automation
         </button>
+        <button onClick={() => setActiveTab('workbench')} className={`sidebar-link w-full ${activeTab === 'workbench' ? 'active' : ''}`}>
+          <Hammer className="w-4 h-4 mr-3" /> Workbench
+        </button>
         <button onClick={() => setActiveTab('integrations')} className={`sidebar-link w-full ${activeTab === 'integrations' ? 'active' : ''}`}>
           <Plug className="w-4 h-4 mr-3" /> Integrations
         </button>
@@ -203,6 +207,7 @@ export function UserSettingsView() {
       <div className="flex-1 industrial-card overflow-hidden self-start min-h-[600px]">
         {activeTab === 'models' && <div className="p-8"><ModelSelectionView /></div>}
         {activeTab === 'automation' && <AutomationSettingsPanel />}
+        {activeTab === 'workbench' && <WorkbenchSettingsPanel />}
         {activeTab === 'integrations' && <IntegrationsHub />}
         {activeTab === 'advanced' && (
           <div className="p-8 space-y-6 animate-in fade-in duration-300">

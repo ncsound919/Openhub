@@ -242,6 +242,15 @@ export function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    -- Workbench (MathSpec) integration settings. One system-wide row: the agent
+    -- harness has no user session, so per-user config could not be applied to
+    -- the tool surface without picking an arbitrary owner.
+    CREATE TABLE IF NOT EXISTS workbench_config (
+      id TEXT PRIMARY KEY,
+      config TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS dream_state (
       repo_id TEXT PRIMARY KEY,
       status TEXT NOT NULL DEFAULT 'unanalyzed',
