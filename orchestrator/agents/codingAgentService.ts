@@ -15,7 +15,7 @@ export class CodingAgentService {
   ) {}
 
   async generateCode(task: string, context: string): Promise<CodingResult> {
-    console.log(`[CodingAgent] Generating code for task: ${task}`);
+    console.info(`[CodingAgent] Generating code for task: ${task}`);
 
     const messages: ProviderMessage[] = [
       { role: 'system', content: 'You are an expert TypeScript developer. Generate production-quality code. Respond ONLY with the code content, no explanations.' },

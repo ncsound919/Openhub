@@ -24,7 +24,7 @@ export class PlannerAgent {
   ) {}
 
   async createPlan(prompt: string, context: { existingFiles: string[] }): Promise<MultiFilePlan> {
-    console.log(`[PlannerAgent] Creating plan for: ${prompt}`);
+    console.info(`[PlannerAgent] Creating plan for: ${prompt}`);
 
     if (this.multiModel) {
       return this.createPlanWithModel(prompt, context);

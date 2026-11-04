@@ -6,7 +6,7 @@
  * shims, per-argument quoting, BOM/CRLF normalization, bounded buffers, and
  * preferring a project-local `node_modules/.bin` binary over a global/PATH one.
  */
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { recordCommandReceipt } from './receipts.js';
@@ -101,11 +101,18 @@ export function killProcessTree(pid: number | undefined): void {
   if (!pid) return;
   if (IS_WINDOWS) {
     try {
-      execFile(windowsSystemBin('taskkill.exe'), ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15_000 }, () => {
-        /* best effort */
+      // Synchronous on purpose: `taskkill /T` enumerates the tree and then
+      // terminates it. Fire-and-forget let a grandchild outlive the timeout
+      // when the command was reported finished before the kill landed, which
+      // is exactly the leak the test caught under full-suite load.
+      execFileSync(windowsSystemBin('taskkill.exe'), ['/PID', String(pid), '/T', '/F'], {
+        windowsHide: true,
+        timeout: 15_000,
+        stdio: 'ignore',
       });
     } catch {
-      /* ignore */
+      // taskkill exits 128 when the root already died; its children (if any)
+      // were re-parented and cannot be reached by this pid anymore.
     }
     return;
   }

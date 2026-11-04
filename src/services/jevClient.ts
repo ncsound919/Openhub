@@ -51,8 +51,10 @@ export interface JevConfig {
 
 const GATEWAY_BASE_URL_DEFAULT = 'https://ai-gateway.vercel.sh/typesafe';
 const GATEWAY_MODEL_DEFAULT = 'typesafe-ai/jev';
-const LOCAL_BASE_URL_DEFAULT = 'http://127.0.0.1:8080';
-const LOCAL_MODEL_DEFAULT = 'jev-latest';
+// The local tier is the Hugging Face JEV model (Jev-Style 0.8B) served by
+// `jev-style serve`, not the retired in-house cross-encoder.
+const LOCAL_BASE_URL_DEFAULT = 'http://127.0.0.1:8790';
+const LOCAL_MODEL_DEFAULT = 'jev-style-0.8b-decision-v3';
 
 export function jevConfig(): JevConfig {
   const gateway: JevTierConfig = {

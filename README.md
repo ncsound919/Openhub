@@ -30,6 +30,13 @@ Recourse (`:3050`) is integrated over its HTTP API behind `/api/recourse/*`.
 - Node/Express full-stack server, better-sqlite3, WebSocket terminal
 - Axiom HTTP API as the execution engine; Keywire as the credential authority
 
+## Design QA
+
+DesignPilot is registered as a fleet MCP server, so Axiom loops can validate a web or mobile
+`DesignSpec` (contrast, tokens, grid, type ratios, states, viewports) and export the artifacts.
+It needs only a checkout and Python: set `OPENHUB_MCP_DESIGNPILOT_DIR`. See
+[DESIGN-QA.md](DESIGN-QA.md).
+
 ## Build & run
 
 ```bash

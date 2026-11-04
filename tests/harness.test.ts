@@ -17,11 +17,13 @@ describe('app map and prompt', () => {
     expect(map).toContain('agent-support');
     expect(map).toContain('ecosystem-control');
     expect(map).toContain('Sieve');
+    expect(map).toContain('Shared Kokoro voice');
     expect(map.split('\n').length).toBe(APP_MANIFESTS.length);
 
     const prompt = buildSystemPrompt('fleet: 3 online');
     expect(prompt).toContain('<apps>');
     expect(prompt).toContain('fleet.status');
+    expect(prompt).toContain('voice.status');
     expect(prompt).toContain('fleet: 3 online');
     expect(prompt).toContain('Reply with ONE JSON object');
   });
@@ -332,6 +334,64 @@ describe('fleet watcher', () => {
     expect(changes.join(' ')).toContain('1 service(s) offline');
     expect(changes.join(' ')).toContain('1 failing job(s)');
     expect(changes.join(' ')).toContain('2 new failed run(s)');
+  });
+});
+
+describe('voice status tool', () => {
+  it('reports the live service instead of assuming it is up', async () => {
+    const fetchMock = vi.fn(async (_url: string | URL | Request) =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          ready: true,
+          state: 'ready',
+          voices: Array.from({ length: 28 }, (_, i) => `voice-${i}`),
+          defaultVoice: 'bm_lewis',
+          speakers: 54,
+          requests: 7,
+          lastMs: 1412,
+          audioMs: 3900,
+          oov: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await executeTool('voice.status', {}, {} as NodeJS.ProcessEnv);
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe('http://127.0.0.1:8770/health');
+    expect(result.ok).toBe(true);
+    expect(result.summary).toContain('54 speakers');
+    expect(result.summary).toContain('28 named English');
+    expect(result.summary).toContain('default bm_lewis');
+    expect(result.summary).toContain('Last synthesis 1412 ms');
+    expect(result.summary).toContain('No words were dropped');
+  });
+
+  it('surfaces an unready service with its own reason', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ ok: false, ready: false, state: 'error', reason: 'missing model.onnx' }), {
+          status: 200,
+        }),
+      ),
+    );
+    const result = await executeTool('voice.status', {}, {} as NodeJS.ProcessEnv);
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('not ready');
+    expect(result.summary).toContain('missing model.onnx');
+  });
+
+  it('fails closed when the service is down', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    }));
+    const result = await executeTool('voice.status', {}, {} as NodeJS.ProcessEnv);
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('unavailable');
+    expect(result.summary).toContain('ECONNREFUSED');
   });
 });
 

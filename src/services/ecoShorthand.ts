@@ -437,37 +437,37 @@ const samples: Message[] = [
   { src: "axiom", dst: ["recourse", "dsh"], op: "&", path: "sync", temporal: { type: "every", value: 30, unit: "s" } },
 ];
 
-console.log("=== TEXT MODE v3 ===");
+console.info("=== TEXT MODE v3 ===");
 for (const msg of samples) {
   const enc = encode(msg);
   const dec = decode(enc);
   const json = JSON.stringify(msg);
-  console.log(`${enc}  [${tokens(enc)} tok vs ${tokens(json)} json tok]`);
-  console.log(`  decoded: ${JSON.stringify(dec)}`);
+  console.info(`${enc}  [${tokens(enc)} tok vs ${tokens(json)} json tok]`);
+  console.info(`  decoded: ${JSON.stringify(dec)}`);
 }
 
-console.log("\n=== BINARY MODE v3 ===");
+console.info("\n=== BINARY MODE v3 ===");
 for (const msg of samples) {
   const enc = encodeBinary(msg);
   const dec = decodeBinary(enc);
   const json = JSON.stringify(msg);
-  console.log(`${enc.length} bytes [~${tokens(enc.length)} tok vs ${tokens(json)} json tok]`);
-  console.log(`  decoded: ${JSON.stringify(dec)}`);
+  console.info(`${enc.length} bytes [~${tokens(enc.length)} tok vs ${tokens(json)} json tok]`);
+  console.info(`  decoded: ${JSON.stringify(dec)}`);
 }
 
-console.log("\n=== BATCH MODE v3 ===");
+console.info("\n=== BATCH MODE v3 ===");
 const batch = encodeBatch(samples);
 const decodedBatch = decodeBatch(batch);
-console.log(`Batch: ${batch.length} bytes for ${samples.length} messages`);
-decodedBatch.forEach((m, i) => console.log(`  [${i}] ${JSON.stringify(m)}`));
+console.info(`Batch: ${batch.length} bytes for ${samples.length} messages`);
+decodedBatch.forEach((m, i) => console.info(`  [${i}] ${JSON.stringify(m)}`));
 
 export function demo(): void {
-  console.log("=== ADAPTIVE DICT ===");
+  console.info("=== ADAPTIVE DICT ===");
   adaptiveDict.learn("custom.path");
   adaptiveDict.learn("custom.arg");
-  console.log(`Dict size: ${adaptiveDict.size}`);
-  console.log(`custom.path -> ${adaptiveDict.get("custom.path")}`);
-  console.log(`custom.arg -> ${adaptiveDict.get("custom.arg")}`);
+  console.info(`Dict size: ${adaptiveDict.size}`);
+  console.info(`custom.path -> ${adaptiveDict.get("custom.path")}`);
+  console.info(`custom.arg -> ${adaptiveDict.get("custom.arg")}`);
 }
 
 export { adaptiveDict };

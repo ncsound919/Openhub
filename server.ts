@@ -15,6 +15,29 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { initializeDatabase, getDb } from './src/auth/db.js';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  parseBody,
+  SshKeySchema,
+  GitHubImportSchema,
+  PushSyncSchema,
+  GenerateTestsSchema,
+  AvatarSchema,
+  EmailSchema,
+  PasswordSchema,
+  NotificationsSchema,
+  RepoCreateSchema,
+  RepoImportLocalSchema,
+  RepoContentsSchema,
+  GitHubPatConnectSchema,
+  GitHubIssueSchema,
+  GitHubDispatchSchema,
+  ScanSchema,
+  AuditLogSchema,
+  RegistryCreateSchema,
+  RegistryPatchSchema,
+  WebhookCreateSchema,
+  OllamaChatSchema,
+} from './src/services/validation.js';
 import { AuthConfigurator, type BaseUser } from 'awesome-node-auth';
 import { SQLiteUserStore, usernameFromEmail } from './src/auth/ana-user-store.js';
 import { createScimRouter } from './src/auth/scim.js';
@@ -96,6 +119,7 @@ import { createMemoryRecallRouter } from './src/routes/memoryRecall.js';
 import { createAndroidAuditRouter } from './src/routes/androidAudit.js';
 import { createAxiomProxyRouter } from './src/routes/axiomProxy.js';
 import { createOpencodeProxyRouter } from './src/routes/opencodeProxy.js';
+import { createDshProxyRouter } from './src/routes/dshProxy.js';
 import { createKaggleRouter } from './src/routes/kaggleRoutes.js';
 import { createReceiptsRouter } from './src/routes/receipts.js';
 import { createClosedLoopRouter } from './src/routes/closedLoopRoutes.js';
@@ -382,7 +406,7 @@ function attachTerminalSocket(
 
     active++;
     activeByUser.set(sessionUserId, userActive + 1);
-    console.log(`[Server] Terminal session started in ${project.path}`);
+    console.info(`[Server] Terminal session started in ${project.path}`);
     const shell = process.platform === 'win32' ? 'cmd.exe' : process.env.SHELL || 'bash';
     const child = spawn(shell, [], {
       cwd: project.path,
@@ -440,7 +464,7 @@ function attachTerminalSocket(
     });
   });
 
-  console.log('[Server] Terminal WebSocket mounted at /ws/terminal (shell access — credentials filtered from env)');
+  console.info('[Server] Terminal WebSocket mounted at /ws/terminal (shell access — credentials filtered from env)');
 }
 
 interface FallbackSecrets {
@@ -747,8 +771,9 @@ async function startServer() {
   app.post('/api/settings/ssh-keys', auth.middleware(), (req, res) => {
     const db = getDb();
 
-    const { title, key } = req.body;
-    if (!title || !key) return res.status(400).json({ error: 'Title and key required' });
+    const sshKey = parseBody(SshKeySchema, req.body);
+    if (!sshKey.ok) return res.status(400).json({ error: sshKey.error });
+    const { title, key } = sshKey.data;
 
     const id = uuidv4();
     const newKey = { id, user_id: getUser(req).sub, title, public_key: key, fingerprint: null, created_at: new Date().toISOString() };
@@ -795,10 +820,9 @@ async function startServer() {
   // Avatar upload as a base64 data URL (capped at 2MB). Stored directly on the user row.
   app.post('/api/settings/avatar', auth.middleware(), (req, res) => {
     const db = getDb();
-    const dataUrl = (req.body as { dataUrl?: unknown } | undefined)?.dataUrl;
-    if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(dataUrl)) {
-      return res.status(400).json({ error: 'A base64 data URL of a PNG/JPEG/WebP/GIF image is required' });
-    }
+    const avatar = parseBody(AvatarSchema, req.body);
+    if (!avatar.ok) return res.status(400).json({ error: avatar.error });
+    const dataUrl = avatar.data.dataUrl;
     if (dataUrl.length > 2_800_000) {
       return res.status(413).json({ error: 'Avatar too large (max ~2MB)' });
     }
@@ -808,10 +832,9 @@ async function startServer() {
 
   app.post('/api/settings/email', auth.middleware(), (req, res) => {
     const db = getDb();
-    const email = (req.body as { email?: unknown } | undefined)?.email;
-    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ error: 'A valid email is required' });
-    }
+    const emailBody = parseBody(EmailSchema, req.body);
+    if (!emailBody.ok) return res.status(400).json({ error: emailBody.error });
+    const email = emailBody.data.email;
     const taken = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, getUser(req).sub);
     if (taken) return res.status(409).json({ error: 'That email is already in use' });
     db.prepare('UPDATE users SET email = ?, updated_at = ? WHERE id = ?').run(email, new Date().toISOString(), getUser(req).sub);
@@ -822,10 +845,9 @@ async function startServer() {
     const db = getDb();
     const userId = getUser(req)?.sub;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const { current, next } = (req.body ?? {}) as { current?: unknown; next?: unknown };
-    if (typeof next !== 'string' || next.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters' });
-    }
+    const passwordBody = parseBody(PasswordSchema, req.body ?? {});
+    if (!passwordBody.ok) return res.status(400).json({ error: passwordBody.error });
+    const { current, next } = passwordBody.data;
     const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash: string | null } | undefined;
     if (!row) return res.status(404).json({ error: 'User not found' });
     if (row.password_hash) {
@@ -849,11 +871,9 @@ async function startServer() {
 
   app.put('/api/settings/notifications', auth.middleware(), (req, res) => {
     const db = getDb();
-    const prefs = (req.body ?? {}) as Record<string, unknown>;
-    const clean: Record<string, boolean> = {};
-    for (const [k, v] of Object.entries(prefs)) {
-      if (typeof v === 'boolean') clean[k] = v;
-    }
+    const prefsBody = parseBody(NotificationsSchema, req.body ?? {});
+    if (!prefsBody.ok) return res.status(400).json({ error: prefsBody.error });
+    const clean = prefsBody.data;
     const now = new Date().toISOString();
     db.prepare('INSERT OR REPLACE INTO notification_prefs (user_id, prefs, updated_at) VALUES (?, ?, ?)')
       .run(getUser(req).sub, JSON.stringify(clean), now);
@@ -947,15 +967,9 @@ async function startServer() {
   app.post('/api/repos', auth.middleware(), (req, res) => {
     const db = getDb();
 
-    const { description, isPrivate } = req.body;
-    // Reject anything that is not a plain basename: a `..` or separator would
-    // let `path.join` escape REPOS_ROOT and `git init` an arbitrary directory.
-    const name = String(req.body?.name ?? '').trim();
-    if (!name) return res.status(400).json({ error: 'Repository name required' });
-    if (name.length > 100) return res.status(400).json({ error: 'Repository name too long (max 100)' });
-    if (!/^[A-Za-z0-9._-]+$/.test(name) || name === '.' || name === '..') {
-      return res.status(400).json({ error: 'Repository name may only contain letters, numbers, dot, dash and underscore' });
-    }
+    const repoCreate = parseBody(RepoCreateSchema, req.body);
+    if (!repoCreate.ok) return res.status(400).json({ error: repoCreate.error });
+    const { name, description, isPrivate } = repoCreate.data;
 
     const id = uuidv4();
     const user = req.user as unknown as AuthUser;
@@ -1026,12 +1040,10 @@ async function startServer() {
   // active project. The folder is used in place — nothing is copied or moved.
   app.post('/api/repos/import-local', auth.middleware(), (req, res) => {
     const db = getDb();
-    const rawPath = (req.body as { path?: unknown } | undefined)?.path;
-    const rawName = (req.body as { name?: unknown } | undefined)?.name;
-    if (typeof rawPath !== 'string' || rawPath.trim() === '') {
-      return res.status(400).json({ error: 'A local folder path is required' });
-    }
-    const resolved = path.resolve(rawPath.trim());
+    const importLocal = parseBody(RepoImportLocalSchema, req.body);
+    if (!importLocal.ok) return res.status(400).json({ error: importLocal.error });
+    const resolved = path.resolve(importLocal.data.path.trim());
+    const rawName = importLocal.data.name;
     // Any logged-in account could previously register ANY directory on the host
     // — /etc, another user's home, the server's own config — as a repository,
     // which then became readable through the repo APIs.
@@ -1199,7 +1211,9 @@ async function startServer() {
 
   app.put('/api/repos/:owner/:repoName/contents', auth.middleware(), (req, res) => {
     const { owner, repoName } = req.params;
-    const { path: filePath, content, message } = req.body;
+    const contents = parseBody(RepoContentsSchema, req.body);
+    if (!contents.ok) return res.status(400).json({ error: contents.error });
+    const { path: filePath, content, message } = contents.data;
     const userId = getUser(req).sub;
     // Cross-tenant guard: resolve the repo row by full_path AND owner_id
     // before touching disk, and never push with another user's token.
@@ -1393,10 +1407,9 @@ async function startServer() {
 
   // 3. Connect via Personal Access Token (PAT)
   app.post('/api/github/pat-connect', auth.middleware(), async (req, res) => {
-    const { token } = req.body;
-    if (!token || typeof token !== 'string' || !token.trim()) {
-      return res.status(400).json({ error: 'GitHub Personal Access Token is required' });
-    }
+    const patConnect = parseBody(GitHubPatConnectSchema, req.body);
+    if (!patConnect.ok) return res.status(400).json({ error: patConnect.error });
+    const token = patConnect.data.token;
     try {
       const user = getUser(req);
       const profile = await verifyAndFetchGitHubProfile(token.trim());
@@ -1515,13 +1528,9 @@ async function startServer() {
     if (!integration) {
       return res.status(401).json({ error: 'GitHub account is not connected' });
     }
-    const { owner, repo } = req.body;
-    if (!owner || !repo) {
-      return res.status(400).json({ error: 'Owner and repository name required' });
-    }
-    if (!isSafeName(owner) || !isSafeName(repo)) {
-      return res.status(400).json({ error: 'Owner and repository name may only contain letters, numbers, dot, dash and underscore' });
-    }
+    const imported = parseBody(GitHubImportSchema, req.body);
+    if (!imported.ok) return res.status(400).json({ error: imported.error });
+    const { owner, repo } = imported.data;
     try {
       const imported = await importGitHubRepo(
         user.sub,
@@ -1545,10 +1554,9 @@ async function startServer() {
     if (!integration) {
       return res.status(401).json({ error: 'GitHub account is not connected' });
     }
-    const { repoName, path: filePath, content, message } = req.body;
-    if (!repoName || !filePath) {
-      return res.status(400).json({ error: 'repoName and filePath required' });
-    }
+    const pushSync = parseBody(PushSyncSchema, req.body);
+    if (!pushSync.ok) return res.status(400).json({ error: pushSync.error });
+    const { repoName, filePath, content, message } = pushSync.data;
     try {
       encodeContentsPath(filePath);
     } catch (err: any) {
@@ -1588,8 +1596,9 @@ async function startServer() {
     const user = getUser(req);
     const integration = getGitHubIntegration(user.sub);
     if (!integration) return res.status(401).json({ error: 'GitHub not connected' });
-    const { title, body } = req.body;
-    if (!title) return res.status(400).json({ error: 'Issue title is required' });
+    const issueBody = parseBody(GitHubIssueSchema, req.body);
+    if (!issueBody.ok) return res.status(400).json({ error: issueBody.error });
+    const { title, body } = issueBody.data;
     try {
       const issue = await createGitHubIssue(integration.accessToken, req.params.owner, req.params.repo, title, body || '');
       res.json({ success: true, issue });
@@ -1640,7 +1649,9 @@ async function startServer() {
     const user = getUser(req);
     const integration = getGitHubIntegration(user.sub);
     if (!integration) return res.status(401).json({ error: 'GitHub not connected' });
-    const { ref, inputs } = req.body;
+    const dispatchBody = parseBody(GitHubDispatchSchema, req.body);
+    if (!dispatchBody.ok) return res.status(400).json({ error: dispatchBody.error });
+    const { ref, inputs } = dispatchBody.data;
     try {
       await dispatchGitHubWorkflow(integration.accessToken, req.params.owner, req.params.repo, req.params.workflowId, ref, inputs);
       res.json({ success: true, message: 'Workflow dispatched successfully' });
@@ -1676,7 +1687,7 @@ async function startServer() {
     const payload = req.body;
 
     const recorded = recordGitHubWebhookEvent(event, payload, true);
-    console.log(`[GitHub Webhook] Received ${event}:`, recorded.summary);
+    console.info(`[GitHub Webhook] Received ${event}:`, recorded.summary);
 
     // Broadcast to OpenHub audit logs
     const db = getDb();
@@ -1709,12 +1720,9 @@ async function startServer() {
   // ===================== FILE WATCH / SCAN =====================
 
   app.post('/api/scan', auth.middleware(), (req, res) => {
-    const { content, fileName } = req.body;
-    // `content` was passed straight to RegExp.exec; a non-string body coerced
-    // to "[object Object]" and scanned that instead of erroring.
-    if (typeof content !== 'string') {
-      return res.status(400).json({ error: 'content must be a string' });
-    }
+    const scanBody = parseBody(ScanSchema, req.body);
+    if (!scanBody.ok) return res.status(400).json({ error: scanBody.error });
+    const { content, fileName } = scanBody.data;
     if (content.length > MAX_CONTENTS_BYTES) {
       return res.status(413).json({ error: 'content too large', limit: MAX_CONTENTS_BYTES });
     }
@@ -1766,7 +1774,9 @@ async function startServer() {
   app.post('/api/audit-logs', auth.middleware(), (req, res) => {
     const db = getDb();
 
-    const { action, details, repoId } = req.body;
+    const auditLog = parseBody(AuditLogSchema, req.body);
+    if (!auditLog.ok) return res.status(400).json({ error: auditLog.error });
+    const { action, details, repoId } = auditLog.data;
 
     const id = uuidv4();
     db.prepare(
@@ -1792,7 +1802,9 @@ async function startServer() {
   app.post('/api/registry', auth.middleware(), (req, res) => {
     const db = getDb();
 
-    const { name, type, description, author, version, config } = req.body;
+    const registryCreate = parseBody(RegistryCreateSchema, req.body);
+    if (!registryCreate.ok) return res.status(400).json({ error: registryCreate.error });
+    const { name, type, description, author, version, config } = registryCreate.data;
 
     const id = uuidv4();
     db.prepare(`
@@ -1806,7 +1818,9 @@ async function startServer() {
 
   app.patch('/api/registry/:id', auth.middleware(), (req, res) => {
     const db = getDb();
-    const { status, config } = req.body;
+    const registryPatch = parseBody(RegistryPatchSchema, req.body ?? {});
+    if (!registryPatch.ok) return res.status(400).json({ error: registryPatch.error });
+    const { status, config } = registryPatch.data;
 
     // Ownership: an item with owner_id is editable by its owner (or an
     // operator under a configured gate). Legacy rows (no owner_id) are
@@ -1841,8 +1855,9 @@ async function startServer() {
 
   app.post('/api/webhooks', auth.middleware(), (req, res) => {
     const db = getDb();
-    const { url, secret, events } = req.body;
-    if (!url) return res.status(400).json({ error: 'URL required' });
+    const webhookCreate = parseBody(WebhookCreateSchema, req.body);
+    if (!webhookCreate.ok) return res.status(400).json({ error: webhookCreate.error });
+    const { url, secret, events } = webhookCreate.data;
 
     const id = uuidv4();
     db.prepare(`
@@ -1983,10 +1998,9 @@ async function startServer() {
 
   app.post('/api/workspace/ollama/chat', auth.middleware(), async (req, res) => {
     try {
-      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt : '';
-      if (!prompt.trim()) {
-        return res.status(400).json({ error: 'prompt is required' });
-      }
+      const ollamaChat = parseBody(OllamaChatSchema, req.body);
+      if (!ollamaChat.ok) return res.status(400).json({ error: ollamaChat.error });
+      const prompt = ollamaChat.data.prompt;
       const result = await askOllama(prompt);
       if (!result.ok) {
         // 503 with the reason. Ollama being absent is the normal case for a
@@ -2001,8 +2015,9 @@ async function startServer() {
   });
 
   app.post('/api/workspace/test/generate', auth.middleware(), (req, res) => {
-    const { file } = req.body;
-    if (!file || typeof file !== 'string') return res.status(400).json({ error: 'File path required' });
+    const testGen = parseBody(GenerateTestsSchema, req.body);
+    if (!testGen.ok) return res.status(400).json({ error: testGen.error });
+    const { file } = testGen.data;
     // The scaffold is confined to the caller's active project (and written
     // into its tests/), never OpenHub's own tree.
     const project = getActiveProject(getUser(req).sub);
@@ -2093,6 +2108,11 @@ async function startServer() {
   app.use('/api', createAndroidAuditRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createAxiomProxyRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createOpencodeProxyRouter({ authMiddleware: auth.middleware() }));
+  // DeepSeek Harness engine seam (phase 1 of the opencode → dsh swap, see
+  // DEEPSEEK-HARNESS-SWAP.md): status, engine lifecycle and the operator
+  // approval bridge. opencode remains the default engine until the session
+  // and event surfaces land behind OPENHUB_AGENT_ENGINE=dsh.
+  app.use('/api', createDshProxyRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createKaggleRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createReceiptsRouter({ authMiddleware: auth.middleware() }));
   app.use('/api', createClosedLoopRouter({ authMiddleware: auth.middleware() }));
@@ -2201,7 +2221,7 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
 
   // Background GitHub fleet repo sync: keep ncsound919 + tap919 state current.
   const runFleetSync = () => syncFleetRepos()
-    .then((r) => console.log(`[Server] GitHub fleet sync: ${r.total} repos (${r.accounts.map((a) => `${a.owner}=${a.count}${a.error ? '!' : ''}`).join(', ')})`))
+    .then((r) => console.info(`[Server] GitHub fleet sync: ${r.total} repos (${r.accounts.map((a) => `${a.owner}=${a.count}${a.error ? '!' : ''}`).join(', ')})`))
     .catch((e: any) => console.warn('[Server] GitHub fleet sync failed:', e?.message ?? e));
   runFleetSync();
   const fleetSyncTimer = setInterval(runFleetSync, 5 * 60 * 1000);
@@ -2212,12 +2232,12 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
   process.once('exit', () => stopWorkbench());
 
   const httpServer = app.listen(PORT, HOST, () => {
-    console.log(`[Server] OpenHub running on http://${HOST}:${PORT}`);
+    console.info(`[Server] OpenHub running on http://${HOST}:${PORT}`);
     if (HOST === '0.0.0.0') {
       console.warn('[Server] OPENHUB_HOST=0.0.0.0 — OpenHub is reachable from the network. Ensure it is behind an authenticated reverse proxy with TLS.');
     }
-    console.log(`[Server] Repos root: ${REPOS_ROOT}`);
-    console.log(`[Server] ${summarizeEcosystem(loadEcosystemContext())}`);
+    console.info(`[Server] Repos root: ${REPOS_ROOT}`);
+    console.info(`[Server] ${summarizeEcosystem(loadEcosystemContext())}`);
   });
   // Node's defaults are 300s requestTimeout / 60s headersTimeout. The audit
   // suite spawns many tools and legitimately runs longer than that on a real
@@ -2240,7 +2260,7 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
   if (gateWarning) console.warn(gateWarning);
   try {
     if (process.env.OPENHUB_DISABLE_TERMINAL === '1') {
-      console.log('[Server] Terminal WebSocket disabled (OPENHUB_DISABLE_TERMINAL=1)');
+      console.info('[Server] Terminal WebSocket disabled (OPENHUB_DISABLE_TERMINAL=1)');
     } else {
       attachTerminalSocket(httpServer, ACCESS_TOKEN_SECRET, userStore, allowedOrigins);
     }

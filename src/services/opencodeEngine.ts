@@ -138,11 +138,11 @@ export async function engineConfigOverlay(env: NodeJS.ProcessEnv = process.env):
     return null;
   }
   if (withMcp.added.length) {
-    console.log(`[opencode] fleet MCP registered: ${withMcp.added.join(', ')}`);
+    console.info(`[opencode] fleet MCP registered: ${withMcp.added.join(', ')}`);
   }
   const skipped = fleet.filter((s) => !s.enabled && s.reason);
   if (skipped.length) {
-    console.log(`[opencode] fleet MCP not registered: ${skipped.map((s) => `${s.id} (${s.reason})`).join('; ')}`);
+    console.info(`[opencode] fleet MCP not registered: ${skipped.map((s) => `${s.id} (${s.reason})`).join('; ')}`);
   }
   return JSON.stringify(withMcp.config);
 }

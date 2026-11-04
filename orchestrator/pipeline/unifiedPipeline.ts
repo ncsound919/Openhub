@@ -48,7 +48,7 @@ export class UnifiedPipeline {
   }
 
   async run(spec: string) {
-    console.log(`[Pipeline] Starting execution for: ${spec}`);
+    console.info(`[Pipeline] Starting execution for: ${spec}`);
 
     try {
       // Phase 1: Planning (architect model)
@@ -164,7 +164,7 @@ export class UnifiedPipeline {
         this.broadcast('finalize', 'complete');
       }
 
-      console.log('[Pipeline] Execution finished successfully');
+      console.info('[Pipeline] Execution finished successfully');
     } catch (error: any) {
       console.error('[Pipeline] Execution failed:', error);
       this.wsServer.broadcast({

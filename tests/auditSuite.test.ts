@@ -36,11 +36,22 @@ describe('auditSuite honesty contract', () => {
     expect(r.error).toContain('GRADER_API_KEY');
   });
 
-  it('claw-protect returns null score when no system agent key is configured', async () => {
+  it('claw-protect falls back to the deterministic local secret scan without a key', async () => {
+    // Claw-Protect itself cannot run without its key, but the local secret
+    // rules can. The result must say which one ran instead of pretending the
+    // remote SCA service produced a number.
     const r = await runClawProtectScorer({ targetDir: process.cwd() });
     expect(r.scorer).toBe('claw-protect');
+    expect(r.status).toBe('ok');
+    expect(r.score).not.toBeNull();
+    expect(r.summary).toContain('local secret scan');
+  });
+
+  it('claw-protect returns null score when there is no target to scan', async () => {
+    const r = await runClawProtectScorer({ repoUrl: 'https://github.com/example/repo' });
+    expect(r.scorer).toBe('claw-protect');
     expect(r.score).toBeNull();
-    expect(r.error).toContain('CLAW_PROTECT_SYSTEM_AGENT_KEY');
+    expect(r.error).toBeTruthy();
   });
 
   it('suite with zero runnable scorers reports fail, never a fake average', async () => {

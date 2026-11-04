@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 2,
+  "tool": "dsh-sentinel",
+  "version": "0.4.4",
+  "scannedAt": "2026-11-04T06:22:19.613Z",
+  "target": {
+    "kind": "path",
+    "path": "D:\\phone ecosystem\\the system\\openhub\\dsh-plugins\\openhub-fleet",
+    "name": ""
+  },
+  "summary": {
+    "verdict": "dangerous",
+    "score": 100,
+    "scanComplete": true,
+    "incompleteScan": false,
+    "incompleteReasons": [],
+    "filesDiscovered": 3,
+    "filesAnalyzed": 3,
+    "findingsTotal": 6,
+    "findingsReturned": 6,
+    "findingsTruncated": false,
+    "scoreBasedOnAllFindings": true,
+    "filesScanned": 3,
+    "filesSkipped": 0,
+    "totalFindings": 6,
+    "bySeverity": {
+      "critical": 1,
+      "high": 4,
+      "medium": 1,
+      "low": 0,
+      "info": 0
+    },
+    "byCategory": {
+      "execution": 0,
+      "credentials": 2,
+      "exfiltration": 0,
+      "obfuscation": 0,
+      "install": 0,
+      "filesystem": 0,
+      "network": 1,
+      "manifest": 0,
+      "hygiene": 0,
+      "agent": 2,
+      "taint": 1,
+      "supplychain": 0,
+      "binary": 0,
+      "persistence": 0
+    },
+    "byContext": {
+      "source": 6,
+      "test": 0,
+      "development": 0
+    },
+    "scanMs": 97
+  },
+  "scanCoverage": {
+    "sourceFiles": 3,
+    "buildFiles": 0,
+    "binaryFiles": 0,
+    "largeFiles": 0,
+    "parseFailures": 0,
+    "hardSkippedFiles": 0,
+    "binarySkippedFiles": 0,
+    "readFailures": 0,
+    "hashFailures": 0,
+    "analysisFailures": 0,
+    "traversalFailures": 0
+  },
+  "manifest": {
+    "ok": true,
+    "name": "@overlay365/dsh-fleet",
+    "version": "0.1.0",
+    "isBundle": true,
+    "patch": "./cordis.patch.yml",
+    "license": "MIT",
+    "description": "Read-only Overlay365 fleet observability tools for the DeepSeek Harness (fleet status, service detail, telemetry, voice)."
+  },
+  "profile": {
+    "name": "",
+    "pluginsScanned": [],
+    "pluginsSkipped": [],
+    "plugins": []
+  },
+  "findings": [
+    {
+      "id": "SEN-TAINT-001",
+      "severity": "critical",
+      "category": "taint",
+      "confidence": "high",
+      "message": "凭据(env)流向网络请求,存在外传风险",
+      "file": "index.js",
+      "line": 53,
+      "snippet": "const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });",
+      "recommendation": "确认请求目标完全可信;凭据绝不应流向非官方端点。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "process.env.ECOSYSTEM_CONTROL_TOKEN"
+      },
+      "sink": {
+        "type": "network",
+        "callee": "fetch"
+      },
+      "flow": [
+        "process.env.ECOSYSTEM_CONTROL_TOKEN",
+        "fetch(...)"
+      ],
+      "flowSteps": [
+        "process.env.ECOSYSTEM_CONTROL_TOKEN",
+        "fetch"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 26,
+      "endLine": 53,
+      "endColumn": 89,
+      "fingerprint": "95193d6a05fd5929182504417da12783e4df05c2b62a0ae5891a8989e0027878"
+    },
+    {
+      "id": "SEN-CRED-002",
+      "severity": "high",
+      "category": "credentials",
+      "confidence": "medium",
+      "message": "读取环境变量中的凭据(API key / token / secret)",
+      "file": "index.js",
+      "line": 33,
+      "snippet": "(process.env.ECOSYSTEM_CONTROL_TOKEN || process.env.CONTROL_TOKEN || '').trim().length > 0;",
+      "recommendation": "确认凭据读取是否功能必需(如官方 API 客户端),以及凭据是否仅用于本机调用、绝不出网。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "4435311503381b7799119037f97a5d4534d0c10d6465447c40c14c3d11261aa4"
+    },
+    {
+      "id": "SEN-CRED-002",
+      "severity": "high",
+      "category": "credentials",
+      "confidence": "medium",
+      "message": "读取环境变量中的凭据(API key / token / secret)",
+      "file": "index.js",
+      "line": 36,
+      "snippet": "authorization: `Bearer ${(process.env.ECOSYSTEM_CONTROL_TOKEN || process.env.CONTROL_TOKEN || '').trim()}`,",
+      "recommendation": "确认凭据读取是否功能必需(如官方 API 客户端),以及凭据是否仅用于本机调用、绝不出网。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "b383631fb174b9fb02fbe251555fbb58e98a8d22e22291d2322306f109204157"
+    },
+    {
+      "id": "SEN-AGENT-004",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入网络请求目标(execute(args) → fetch/axios)",
+      "file": "index.js",
+      "line": 53,
+      "snippet": "const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });",
+      "recommendation": "模型控制 URL 即 SSRF 面。限制协议与目标(禁 localhost/内网/云元数据)。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "args.service"
+      },
+      "sink": {
+        "type": "network",
+        "callee": "fetch"
+      },
+      "flow": [
+        "args.service",
+        "fetch(...)"
+      ],
+      "flowSteps": [
+        "args.service",
+        "fetch"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute(args)",
+      "startColumn": 26,
+      "endLine": 53,
+      "endColumn": 89,
+      "fingerprint": "559ff4c9b8d60ce40e1574a1c9b728220726e7e7838336d395a5be5812bf5582"
+    },
+    {
+      "id": "SEN-AGENT-004",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入网络请求目标(execute(args) → fetch/axios)",
+      "file": "index.js",
+      "line": 53,
+      "snippet": "const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });",
+      "recommendation": "模型控制 URL 即 SSRF 面。限制协议与目标(禁 localhost/内网/云元数据)。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "args.window"
+      },
+      "sink": {
+        "type": "network",
+        "callee": "fetch"
+      },
+      "flow": [
+        "args.window",
+        "fetch(...)"
+      ],
+      "flowSteps": [
+        "args.window",
+        "fetch"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute(args)",
+      "startColumn": 26,
+      "endLine": 53,
+      "endColumn": 89,
+      "fingerprint": "e690d118cc484fda646bbe594b159965a98b419cbbca4bfe5a5a793baf9083d9"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "index.js",
+      "line": 53,
+      "snippet": "const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "21cc18128cba4a4137f0c7211d0325faf2d2659f6ba3f63e60d11dfab9cf0339"
+    }
+  ],
+  "attackChains": [],
+  "analysisLayers": {
+    "moduleGraph": {
+      "complete": true,
+      "nodes": [
+        {
+          "path": "index.js",
+          "bytes": 9197,
+          "sha256": "bb1b5bf7686388235681361cc671d7afe2e253896fc6bc2773c895194eea2b30",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-tools"
+          ]
+        }
+      ],
+      "edges": [],
+      "unresolved": [
+        {
+          "from": "index.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 1069
+        }
+      ],
+      "failures": [],
+      "warnings": [],
+      "crossFile": {
+        "findings": [],
+        "attackChains": [],
+        "reachability": [],
+        "failures": [],
+        "complete": true
+      }
+    },
+    "dependencyGraph": {
+      "complete": true,
+      "nodes": 0,
+      "edges": 0,
+      "unresolved": 0,
+      "failures": []
+    },
+    "capabilityGraph": {
+      "complete": true,
+      "tools": [
+        {
+          "name": "(unbound)",
+          "capabilities": [
+            "credential-access",
+            "network"
+          ],
+          "findingCount": 3
+        }
+      ],
+      "capabilities": [
+        "credential-access",
+        "network"
+      ],
+      "attackPaths": [],
+      "failures": []
+    },
+    "sbom": {
+      "status": "not-requested",
+      "format": null,
+      "components": 0,
+      "digest": null,
+      "failures": []
+    },
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "ignored": [],
+  "hardSkipped": [],
+  "policySkips": [],
+  "coverageSkips": [],
+  "supplyChain": {},
+  "stats": {
+    "languages": {
+      "yml": 1,
+      "js": 1,
+      "json": 1
+    },
+    "largestFiles": [
+      {
+        "file": "index.js",
+        "bytes": 9197
+      },
+      {
+        "file": "package.json",
+        "bytes": 451
+      },
+      {
+        "file": "cordis.patch.yml",
+        "bytes": 223
+      }
+    ]
+  }
+}

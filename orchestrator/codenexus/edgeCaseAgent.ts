@@ -4,7 +4,7 @@ export class EdgeCaseAgent {
   constructor(private mcpClient: MCPClient) {}
 
   async generate(spec: string, codeSummary: string): Promise<string[]> {
-    console.log('[EdgeCaseAgent] Synthesizing untested edge cases...');
+    console.info('[EdgeCaseAgent] Synthesizing untested edge cases...');
     
     // Using a tool that can call an LLM (assuming we have one or using vibe_audit as a proxy)
     const prompt = `Application Spec: ${spec}\n\nGenerated Code Summary: ${codeSummary}\n\nList 5 critical edge cases that should be tested:`;

@@ -17,6 +17,16 @@ const TELEMETRY_URL = (env: NodeJS.ProcessEnv = process.env) =>
   (env.OPENHUB_HARNESS_TELEMETRY_URL || 'https://mobile-gateway.tap4500.workers.dev/v1/sieve/telemetry')
     .trim();
 
+/** Same service the speaker button posts to (harness/tts.ts), health route. */
+const KOKORO_HEALTH_URL = (env: NodeJS.ProcessEnv = process.env) => {
+  const explicit = (env.KOKORO_HEALTH_URL || '').trim();
+  if (explicit) return explicit;
+  const base = (
+    env.KOKORO_URL || env.KOKORO_TTS_URL?.replace(/\/tts\/?$/, '') || 'http://127.0.0.1:8770'
+  ).trim();
+  return `${base.replace(/\/+$/, '')}/health`;
+};
+
 /** Shared argument envelope. Constrained decoding is happiest with one shape. */
 export const TOOL_ARGS_SCHEMA = {
   type: 'object',
@@ -121,6 +131,15 @@ export const TOOLS: ToolSpec[] = [
     title: 'Telemetry summary',
     description:
       'Aggregate ecosystem events from Sieve for a window (24h or 7d): totals, by source, by kind, errors. Never contains prompt text or PHI.',
+    inputSchema: TOOL_ARGS_SCHEMA,
+    annotations,
+    risk: 'read',
+  },
+  {
+    name: 'voice.status',
+    title: 'Shared voice status',
+    description:
+      'Probe the shared Kokoro TTS service (loopback :8770): readiness, speaker count, default voice, requests served, the last synthesis time and any words it dropped. Read-only — it reports, it does not speak. Use before saying whether the ecosystem can talk.',
     inputSchema: TOOL_ARGS_SCHEMA,
     annotations,
     risk: 'read',
@@ -390,6 +409,50 @@ export async function executeTool(
         `Telemetry ${window}: ${int(totals.events)} events, ${int(totals.errors)} errors. ` +
         `Sources: ${sources || 'none'}. Kinds: ${kinds || 'none'}.`;
       return { ok: true, tool: name, summary, data: body, at };
+    }
+
+    if (name === 'voice.status') {
+      const url = KOKORO_HEALTH_URL(env);
+      let health: {
+        ready?: boolean;
+        state?: string;
+        reason?: string | null;
+        voices?: unknown;
+        defaultVoice?: string;
+        speakers?: unknown;
+        requests?: unknown;
+        lastMs?: unknown;
+        audioMs?: unknown;
+        oov?: unknown;
+      };
+      try {
+        health = (await getJson(url)) as typeof health;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return errorResult(name, `Voice unavailable at ${url}: ${message}`);
+      }
+      if (health?.ready !== true) {
+        return errorResult(
+          name,
+          `Voice service answered at ${url} but is not ready: ${
+            health?.reason || health?.state || 'no reason given'
+          }.`,
+        );
+      }
+      const named = Array.isArray(health.voices) ? health.voices.length : 0;
+      const oov = Array.isArray(health.oov) ? health.oov.filter((w) => typeof w === 'string') : [];
+      const lastMs = int(health.lastMs);
+      const audioMs = int(health.audioMs);
+      const summary =
+        `Voice ready at ${url}: ${int(health.speakers)} speakers (${named} named English), ` +
+        `default ${String(health.defaultVoice ?? 'unknown')}, ${int(health.requests)} requests served. ` +
+        (lastMs > 0
+          ? `Last synthesis ${lastMs} ms for ${audioMs} ms of audio. `
+          : 'No synthesis yet. ') +
+        (oov.length
+          ? `Words it could not pronounce: ${oov.slice(0, 8).join(', ')}.`
+          : 'No words were dropped on the last request.');
+      return { ok: true, tool: name, summary, data: health, at };
     }
 
     if (name === 'cron.pause' || name === 'cron.enable' || name === 'cron.run') {

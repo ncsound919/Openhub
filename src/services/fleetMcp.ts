@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * fleetMcp.ts — the fleet's MCP servers registered with the opencode engine.
@@ -20,6 +21,8 @@ import path from 'node:path';
  *   - sequential-thinking  built-in  step-by-step reasoning for planning/review
  *   - og-glass             local/remote  UI preset + design validation MCP
  *                          (remote-first: design.overlay365.online serves /mcp)
+ *   - designpilot          local     deterministic design QA for web + mobile specs
+ *                          (schema, contrast, tokens, grid, gates; no model calls)
  *   - dev-brain            local     deterministic decision/triage MCP bridge
  *   - business-logic       local     domain rules / state machines / validation
  *
@@ -49,6 +52,9 @@ export interface FleetMcpServer {
 
 const SEQ_THINK_PKG = '@modelcontextprotocol/server-sequential-thinking';
 
+/** This repo — the DesignPilot launcher lives here, not in the tool's own checkout. */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
 /** Set to 0/false/no to keep sequential thinking out of the engine. */
 function seqThinkEnabled(env: NodeJS.ProcessEnv): boolean {
   const v = (env.OPENHUB_MCP_SEQTHINK ?? '').trim().toLowerCase();
@@ -68,6 +74,8 @@ function localDirServer(
   entry: string[] | null,
   command: (dirAbs: string) => string[],
   hint: string,
+  /** Overrides the build-it-first text when the checkout is not a compiled Node server. */
+  missingEntry?: (entryPath: string, dirAbs: string) => string,
 ): FleetMcpServer {
   if (!dir || !dir.trim()) {
     return { id, label, enabled: false, reason: hint, source };
@@ -81,7 +89,9 @@ function localDirServer(
     if (!isFile(entryPath)) {
       return {
         id, label, enabled: false,
-        reason: `${entryPath} not found — build it first (npm install && npm run build in ${dirAbs})`,
+        reason: missingEntry
+          ? missingEntry(entryPath, dirAbs)
+          : `${entryPath} not found — build it first (npm install && npm run build in ${dirAbs})`,
         source,
       };
     }
@@ -200,6 +210,22 @@ export function fleetMcpServers(env: NodeJS.ProcessEnv = process.env): FleetMcpS
     hint: 'UI preset + design-validation MCP not configured',
     repo: 'github.com/ncsound919/OG-Glass',
   }));
+
+  // DesignPilot — deterministic design QA: schema, contrast, tokens, grid, gates.
+  // The checkout needs no build and no pip install; scripts/designpilot_mcp.py puts
+  // its src/ on sys.path and starts the same entry point as the console script.
+  servers.push(localDirServer(
+    'designpilot',
+    'DesignPilot Design QA',
+    'OPENHUB_MCP_DESIGNPILOT_DIR',
+    env.OPENHUB_MCP_DESIGNPILOT_DIR,
+    ['pyproject.toml'],
+    (d) => ['python', path.join(REPO_ROOT, 'scripts', 'designpilot_mcp.py'), d],
+    'set OPENHUB_MCP_DESIGNPILOT_DIR to the designpilot-mcp checkout',
+    (entryPath, dirAbs) =>
+      `${entryPath} not found — ${dirAbs} is not the designpilot-mcp checkout ` +
+      '(the folder holding pyproject.toml and src/designpilot)',
+  ));
 
   // Dev-Brain — deterministic decision/triage MCP bridge (tsx, no build step).
   servers.push(localDirServer(

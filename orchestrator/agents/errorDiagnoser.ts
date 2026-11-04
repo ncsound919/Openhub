@@ -1,4 +1,9 @@
 import { MCPClient } from '../mcp-client.js';
+import {
+  createTondoResearch,
+  describeTondoResearch,
+  type TondoResearch,
+} from '../services/tondoResearch.js';
 
 export interface DiagnosisResult {
   rootCause: string;
@@ -8,31 +13,88 @@ export interface DiagnosisResult {
   fixDescription: string;
 }
 
+/** Tondo is optional: without a URL and key, OpenHub keeps its existing path. */
+function tondoFromEnv(): TondoResearch | null {
+  const baseUrl = process.env.TONDO_RESEARCH_URL ?? '';
+  const token = process.env.TONDO_RESEARCH_KEY ?? '';
+  if (!baseUrl || !token) return null;
+  return createTondoResearch({ baseUrl, appId: 'openhub', token });
+}
+
+/**
+ * Strip the shapes most likely to carry a credential or a developer's home
+ * directory before any failure text leaves the process. This is a heuristic,
+ * not a guarantee; the caller still sends only a bounded excerpt.
+ */
+function redact(value: string): string {
+  return String(value ?? '')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi, '$1[redacted]')
+    .replace(/\/Users\/[^/\s]+/g, '/Users/[user]')
+    .replace(/C:\\Users\\[^\\\s]+/gi, 'C:\\Users\\[user]')
+    .slice(0, 900);
+}
+
 export class ErrorDiagnoser {
-  constructor(private mcpClient: MCPClient) {}
+  constructor(
+    private mcpClient: MCPClient,
+    private tondo: TondoResearch | null = tondoFromEnv(),
+  ) {}
 
   async diagnose(error: { stderr: string; command: string }): Promise<DiagnosisResult> {
-    console.log(`[ErrorDiagnoser] Diagnosing error: ${error.stderr.slice(0, 100)}...`);
+    console.info(`[ErrorDiagnoser] Diagnosing error: ${error.stderr.slice(0, 100)}...`);
 
-    // Use the vibe_audit tool or a dedicated LLM call through MCP
-    // Here we'll use vibe_audit with specific requirements to act as a diagnoser
-    const response = await this.mcpClient.callTool('vibe_audit', {
-      files: [],
-      requirements: [
-        `Diagnose this build error:\nCommand: ${error.command}\nStderr: ${error.stderr}`,
-        `Provide a fix in JSON format: { rootCause, fixStrategy, fixCode, affectedFile, fixDescription }`
-      ]
-    });
+    let response: any = null;
+    let mcpError: string | null = null;
+    try {
+      response = await this.mcpClient.callTool('vibe_audit', {
+        files: [],
+        requirements: [
+          `Diagnose this build error:\nCommand: ${error.command}\nStderr: ${error.stderr}`,
+          `Provide a fix in JSON format: { rootCause, fixStrategy, fixCode, affectedFile, fixDescription }`,
+        ],
+      });
+    } catch (cause: any) {
+      mcpError = cause?.message ? String(cause.message).slice(0, 300) : 'vibe_audit failed';
+    }
 
-    // In a real implementation, we'd parse the LLM response more carefully
-    // For this migration, we'll assume the audit tool returns a structured recommendation
-    
+    // The local audit tool can answer without a patch. That is the moment the
+    // agent is stuck; ask Tondo for evidence and a safe next step rather than
+    // pretending a file rewrite is known. Only a non-empty fixCode counts as
+    // actionable from the audit tool.
+    const mcpPatch = typeof response?.fixCode === 'string' ? response.fixCode.trim() : '';
+    const needsHelp = Boolean(mcpError) || !mcpPatch;
+    if (needsHelp && this.tondo) {
+      try {
+        const research = await this.tondo.assist({
+          operation: 'build diagnosis',
+          question: `Diagnose the ${error.command} failure and name the smallest safe next step.`,
+          symptom: redact(error.stderr),
+          context: `command: ${error.command.slice(0, 400)}\napp: OpenHub`,
+          dataClass: 'internal',
+        });
+        return {
+          rootCause: research.findings[0]?.claim ?? research.summary ?? mcpError ?? 'Unknown',
+          fixStrategy: 'unknown',
+          fixCode: '',
+          affectedFile: '',
+          fixDescription: describeTondoResearch(research),
+        };
+      } catch (cause: any) {
+        console.warn(
+          `[ErrorDiagnoser] Tondo did not answer: ${String(cause?.message ?? cause).slice(0, 120)}`,
+        );
+      }
+    }
+
     return {
-      rootCause: response.recommendation === 'revise' ? 'Build failure' : 'Unknown',
-      fixStrategy: 'replace', // Defaulting for now
-      fixCode: '// Fix to be applied',
-      affectedFile: 'src/App.tsx',
-      fixDescription: 'Applied automated fix'
+      rootCause: mcpError ?? 'Unknown',
+      fixStrategy: 'unknown',
+      fixCode: '',
+      affectedFile: '',
+      fixDescription: mcpError
+        ? 'No diagnosis was produced; the agent should not rewrite a file.'
+        : 'The audit tool returned no actionable diagnosis.',
     };
   }
 }

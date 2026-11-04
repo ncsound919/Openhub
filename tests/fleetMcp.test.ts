@@ -50,13 +50,14 @@ describe('fleetMcpServers', () => {
   it('lists every fleet server, disabled ones with the env var to set', () => {
     const servers = fleetMcpServers({});
     expect(servers.map((s) => s.id)).toEqual([
-      'sequential-thinking', 'og-glass', 'dev-brain', 'business-logic',
+      'sequential-thinking', 'og-glass', 'designpilot', 'dev-brain', 'business-logic',
     ]);
     for (const s of servers.filter((x) => !x.enabled)) {
       expect(s.reason, `${s.id} must say why`).toBeTruthy();
       expect(s.config).toBeUndefined();
     }
     expect(byId(servers, 'og-glass').reason).toContain('OPENHUB_MCP_OG_GLASS_DIR');
+    expect(byId(servers, 'designpilot').reason).toContain('OPENHUB_MCP_DESIGNPILOT_DIR');
     expect(byId(servers, 'business-logic').reason).toContain('OPENHUB_MCP_BUSINESS_LOGIC_DIR');
   });
 
@@ -79,6 +80,36 @@ describe('fleetMcpServers', () => {
     const og = byId(fleetMcpServers({ OPENHUB_MCP_OG_GLASS_DIR: '/no/such/checkout' }), 'og-glass');
     expect(og.enabled).toBe(false);
     expect(og.reason).toContain('does not exist');
+  });
+
+  it('wires a DesignPilot checkout through the repo launcher, no pip install', () => {
+    const dir = tmpDir();
+    tmpFile(dir, 'pyproject.toml');
+    const dp = byId(fleetMcpServers({ OPENHUB_MCP_DESIGNPILOT_DIR: dir }), 'designpilot');
+    expect(dp.enabled).toBe(true);
+    expect(dp.source).toBe('OPENHUB_MCP_DESIGNPILOT_DIR');
+    if (!dp.config || dp.config.type !== 'local') throw new Error('expected a local stdio config');
+    const [python, launcher, checkout] = dp.config.command;
+    expect(python).toBe('python');
+    // The launcher must be a real file in this repo, or the advertised server cannot start.
+    expect(fs.existsSync(launcher)).toBe(true);
+    expect(path.basename(launcher)).toBe('designpilot_mcp.py');
+    expect(checkout).toBe(dir);
+  });
+
+  it('refuses a DesignPilot directory that is not the checkout', () => {
+    const dir = tmpDir();
+    tmpFile(dir, 'package.json');
+    const dp = byId(fleetMcpServers({ OPENHUB_MCP_DESIGNPILOT_DIR: dir }), 'designpilot');
+    expect(dp.enabled).toBe(false);
+    expect(dp.config).toBeUndefined();
+    expect(dp.reason).toContain('not the designpilot-mcp checkout');
+  });
+
+  it('refuses a missing DesignPilot path', () => {
+    const dp = byId(fleetMcpServers({ OPENHUB_MCP_DESIGNPILOT_DIR: '/no/such/designpilot' }), 'designpilot');
+    expect(dp.enabled).toBe(false);
+    expect(dp.reason).toContain('does not exist');
   });
 
   it('wires the Dev-Brain tsx bridge without a build step', () => {

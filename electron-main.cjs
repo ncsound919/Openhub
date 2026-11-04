@@ -33,9 +33,10 @@ async function isOpenHubServer() {
       if (res.ok) {
         const body = await res.json();
         // OpenHub's /api/health reports its execution engine plus a timestamp.
-        // 'opencode' is the current engine; 'axiom' is accepted so an older
-        // server already running on the port still loads in the shell.
-        const engines = ['opencode', 'axiom'];
+        // 'opencode' is the current default engine; 'dsh' is accepted ahead of
+        // the phase-4 flip (DEEPSEEK-HARNESS-SWAP.md); 'axiom' is accepted so an
+        // older server already running on the port still loads in the shell.
+        const engines = ['opencode', 'dsh', 'axiom'];
         if (body && engines.includes(body.engine) && typeof body.timestamp === 'string') {
           return true;
         }

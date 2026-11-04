@@ -62,7 +62,7 @@ export class ModelRouter {
   }
 
   async discover(): Promise<Set<string>> {
-    console.log('[Router] Discovering available models...');
+    console.info('[Router] Discovering available models...');
     const available: string[] = [];
     
     for (const [name, provider] of this.providers) {
@@ -71,12 +71,12 @@ export class ModelRouter {
         if (ok) {
           this.available.add(name);
           available.push(name);
-          console.log(`[Router] ${name}: available`);
+          console.info(`[Router] ${name}: available`);
         } else {
-          console.log(`[Router] ${name}: unavailable`);
+          console.info(`[Router] ${name}: unavailable`);
         }
       } catch (e) {
-        console.log(`[Router] ${name}: unavailable (${(e as Error).message})`);
+        console.info(`[Router] ${name}: unavailable (${(e as Error).message})`);
       }
     }
     

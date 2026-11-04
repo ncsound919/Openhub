@@ -4,7 +4,7 @@ export class E2ERunner {
   constructor(private mcpClient: MCPClient) {}
 
   async runTests(projectPath: string = '.'): Promise<{ success: boolean; output: string }> {
-    console.log('[E2ERunner] Running Playwright test suite...');
+    console.info('[E2ERunner] Running Playwright test suite...');
     
     const result = await this.mcpClient.callTool('run_playwright', { path: projectPath });
     

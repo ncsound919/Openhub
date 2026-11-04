@@ -1,0 +1,3252 @@
+{
+  "generatedAt": "2026-10-31T20:55:45.448Z",
+  "cases": [
+    {
+      "id": "review/88c05a7",
+      "family": "review",
+      "source": "openhub@88c05a7 — chore: check in pending local work",
+      "state": {
+        "action": "code_review",
+        "fileCount": 25,
+        "addedLines": 2456,
+        "removedLines": 59,
+        "diffSummary": "commit: chore: check in pending local work\nfiles: .env.example, .gitignore, ANDROID-AUDIT-DESK.md, openhub-mcp.ts, server.ts, src/auth/db.ts, src/components/WorkbenchSettingsPanel.tsx, src/pages/UserSettingsView.tsx, …\n# provider is consulted. The default target is the on-device mesh router (:8788),\n# which serializes llama.cpp adapter switches and picks the adapter assigned to\n# `x-llm-app`. Raw llama.cpp (:8080) and Ollama (:11434) remain discovery\n# fallbacks. Both vars unset = the local tier is off and nothing is registered.\n#   node phone-apps/shared/llm-mesh/src/server.mjs   (mesh, :8788)\n#   llama-server -m Qwen3.5-4B-Q4_K_M.gguf --port 8080 --jinja   (raw upstream)\nOPENHUB_LOCAL_LLM_URL=http://127.0.0.1:8788\n# The mesh's bearer when LLM_MESH_AUTH_TOKEN is set on the device.\nLLM_MES"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "request_changes",
+        "merge": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: addedLines=2456 files=25 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          ".gitignore",
+          "ANDROID-AUDIT-DESK.md",
+          "openhub-mcp.ts",
+          "server.ts",
+          "src/auth/db.ts",
+          "src/components/WorkbenchSettingsPanel.tsx",
+          "src/pages/UserSettingsView.tsx",
+          "src/routes/opencodeProxy.ts",
+          "src/routes/workbenchRoutes.ts",
+          "src/services/auditSuite.ts",
+          "src/services/ecosystemEvent.ts",
+          "src/services/llmRouter.ts",
+          "src/services/modelAssignment.ts",
+          "src/services/p2Scorers.ts",
+          "src/services/secretRules.ts",
+          "src/services/vulnerabilityScanner.ts",
+          "src/services/workbenchClient.ts",
+          "tests/auditLocalFallbacks.test.ts",
+          "tests/auditScoringV2.test.ts",
+          "tests/gitHistorySecrets.test.ts",
+          "tests/openhubMcpControlPlane.test.ts",
+          "tests/secretRules.test.ts",
+          "tests/vulnerabilityScanner.test.ts",
+          "tests/workbench.routes.test.ts"
+        ],
+        "addedLines": 2456,
+        "removedLines": 59
+      }
+    },
+    {
+      "id": "review/c0f5c36",
+      "family": "review",
+      "source": "openhub@c0f5c36 — fix(llm): app-key attribution, 120s timeout, no local id in cloud calls",
+      "state": {
+        "action": "code_review",
+        "fileCount": 4,
+        "addedLines": 12,
+        "removedLines": 5,
+        "diffSummary": "commit: fix(llm): app-key attribution, 120s timeout, no local id in cloud calls\nfiles: .env.example, src/harness/loop.ts, src/services/appModel.ts, src/services/llmRouter.ts\n# DeepSeek -> OpenCode -> Vercel). OPENHUB_LLM_KEY is this app's key from the\n# Worker's LLM_APP_KEYS map; the app id is derived from it.\n      timeoutMs: 90_000,\n    // The local tier picks its own model from OPENHUB_LOCAL_LLM_MODEL. Do not\n    // leak the phone's model id (`qwen3.5-4b`) into a cloud request: a gateway\n    // may interpret an unknown id as a pin, and Sieve would attribute every\n    // cloud call to a model that never ran. `opts.model` is only present when\n    // the caller made an explicit choice.\n// The strongest free lane (Ollama Cloud `gpt-oss:120b`) can take 60-90s on a\n// hard prompt. A 60s clien"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: addedLines=12 files=4 tests=false",
+      "meta": {
+        "files": [
+          ".env.example",
+          "src/harness/loop.ts",
+          "src/services/appModel.ts",
+          "src/services/llmRouter.ts"
+        ],
+        "addedLines": 12,
+        "removedLines": 5
+      }
+    },
+    {
+      "id": "review/b1ab217",
+      "family": "review",
+      "source": "openhub@b1ab217 — docs(env): lane order includes Ollama Cloud",
+      "state": {
+        "action": "code_review",
+        "fileCount": 1,
+        "addedLines": 3,
+        "removedLines": 2,
+        "diffSummary": "commit: docs(env): lane order includes Ollama Cloud\nfiles: .env.example\n# task-aware lane order (Gemini free -> Ollama Cloud -> OpenRouter free ->\n# DeepSeek -> OpenCode -> Vercel). OPENHUB_LLM_KEY is that Worker's\n# LLM_GATEWAY_TOKEN secret."
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: addedLines=3 files=1 tests=false",
+      "meta": {
+        "files": [
+          ".env.example"
+        ],
+        "addedLines": 3,
+        "removedLines": 2
+      }
+    },
+    {
+      "id": "review/7989036",
+      "family": "review",
+      "source": "openhub@7989036 — feat(llm): one shared gateway contract with local-first escalation",
+      "state": {
+        "action": "code_review",
+        "fileCount": 5,
+        "addedLines": 318,
+        "removedLines": 47,
+        "diffSummary": "commit: feat(llm): one shared gateway contract with local-first escalation\nfiles: .env.example, src/harness/loop.ts, src/routes/chatCompletions.ts, src/services/llmRouter.ts, tests/llmRouter.test.ts\n# ========== Shared LLM gateway (capability #4) ==========\n# One contract for every app: OpenHub tries the phone model first, then this\n# gateway. The Worker (mobile-gateway) owns the provider keys and runs the\n# task-aware lane order (Gemini free -> OpenRouter free -> DeepSeek -> OpenCode\n# -> Vercel). OPENHUB_LLM_KEY is that Worker's LLM_GATEWAY_TOKEN secret.\n#   GET /v1/models        -> local model + every configured cloud lane\n#   POST /v1/chat/completions {model:\"auto\"|\"code\"|\"reasoning\"|\"fast\"|\"free\"}\nOPENHUB_LLM_BASE_URL=https://mobile-gateway.tap4500.workers.dev\nOPENHUB_LLM_MODEL=auto\n "
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=318 files=5 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          "src/harness/loop.ts",
+          "src/routes/chatCompletions.ts",
+          "src/services/llmRouter.ts",
+          "tests/llmRouter.test.ts"
+        ],
+        "addedLines": 318,
+        "removedLines": 47
+      }
+    },
+    {
+      "id": "review/5831da3",
+      "family": "review",
+      "source": "openhub@5831da3 — feat(harness): cron.create/cron.delete tools with approval",
+      "state": {
+        "action": "code_review",
+        "fileCount": 5,
+        "addedLines": 151,
+        "removedLines": 9,
+        "diffSummary": "commit: feat(harness): cron.create/cron.delete tools with approval\nfiles: src/harness/loop.ts, src/harness/systemMap.ts, src/harness/tools.ts, src/harness/types.ts, tests/harness.test.ts\n        'cron',\n        'verbs',\n        cron: { type: ['string', 'null'] },\n        verbs: { type: ['string', 'null'] },\n        cron: typeof args.cron === 'string' ? args.cron : null,\n        verbs: typeof args.verbs === 'string' ? args.verbs : null,\n          '{\"type\":\"tool\"|\"final\"|\"ask\"|\"plan\",\"say\":\"...\",\"tool\":null,\"args\":{\"service\":null,\"window\":null,\"limit\":null,\"job\":null,\"title\":null,\"steps\":null,\"budget_usd\":null,\"playbook\":null,\"run_id\":null,\"cron\":null,\"verbs\":null},\"plan\":null}',\n        `  args: service:string|null, window:\"24h\"|\"7d\"|null, limit:integer|null, job:string|null, title:string|n"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=151 files=5 tests=true",
+      "meta": {
+        "files": [
+          "src/harness/loop.ts",
+          "src/harness/systemMap.ts",
+          "src/harness/tools.ts",
+          "src/harness/types.ts",
+          "tests/harness.test.ts"
+        ],
+        "addedLines": 151,
+        "removedLines": 9
+      }
+    },
+    {
+      "id": "review/33ff9e5",
+      "family": "review",
+      "source": "openhub@33ff9e5 — feat(harness): Agent Support playbook tools + approvals",
+      "state": {
+        "action": "code_review",
+        "fileCount": 6,
+        "addedLines": 246,
+        "removedLines": 7,
+        "diffSummary": "commit: feat(harness): Agent Support playbook tools + approvals\nfiles: .env.example, src/harness/loop.ts, src/harness/systemMap.ts, src/harness/tools.ts, src/harness/types.ts, tests/harness.test.ts\n# Agent Support hub (deterministic playbooks). Copy the openhub member token from Agent Support -> Eco.\nAGENT_SUPPORT_URL=http://127.0.0.1:8766\nAGENT_SUPPORT_TOKEN=\n      required: [\n        'service',\n        'window',\n        'limit',\n        'job',\n        'title',\n        'steps',\n        'budget_usd',\n        'playbook',\n        'run_id',\n      ],"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=246 files=6 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          "src/harness/loop.ts",
+          "src/harness/systemMap.ts",
+          "src/harness/tools.ts",
+          "src/harness/types.ts",
+          "tests/harness.test.ts"
+        ],
+        "addedLines": 246,
+        "removedLines": 7
+      }
+    },
+    {
+      "id": "review/a7085ed",
+      "family": "review",
+      "source": "openhub@a7085ed — feat(harness): Kokoro voice proxy + speak button (phase 3)",
+      "state": {
+        "action": "code_review",
+        "fileCount": 5,
+        "addedLines": 175,
+        "removedLines": 2,
+        "diffSummary": "commit: feat(harness): Kokoro voice proxy + speak button (phase 3)\nfiles: .env.example, src/harness/tts.ts, src/pages/ChatView.tsx, src/routes/harness.ts, tests/harness.test.ts\n# Kokoro loopback voice (Concordance serves this on 127.0.0.1:8770).\nKOKORO_TTS_URL=http://127.0.0.1:8770/tts\n/**\n * Kokoro loopback bridge. The browser talks to OpenHub, never to :8770\n * directly, so an HTTPS OpenHub deployment does not hit mixed-content rules.\n */\nexport interface TtsResult {\n  ok: boolean;\n  status: number;\n  audio?: Uint8Array;\n  contentType?: string;\n  error?: string;\n}\nexport async function fetchTts("
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=175 files=5 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          "src/harness/tts.ts",
+          "src/pages/ChatView.tsx",
+          "src/routes/harness.ts",
+          "tests/harness.test.ts"
+        ],
+        "addedLines": 175,
+        "removedLines": 2
+      }
+    },
+    {
+      "id": "review/4734590",
+      "family": "review",
+      "source": "openhub@4734590 — feat(harness): live fleet watcher + watch toggle (phase 3)",
+      "state": {
+        "action": "code_review",
+        "fileCount": 6,
+        "addedLines": 263,
+        "removedLines": 1,
+        "diffSummary": "commit: feat(harness): live fleet watcher + watch toggle (phase 3)\nfiles: server.ts, src/harness/store.ts, src/harness/watch.ts, src/pages/ChatView.tsx, src/routes/harness.ts, tests/harness.test.ts\nimport { startHarnessWatcher } from './src/harness/watch.js';\n  // One fleet probe per minute serves every watching chat session; messages are\n  // written only when the state actually changed.\n  startHarnessWatcher();\n    CREATE TABLE IF NOT EXISTS harness_watches (\n      session_id TEXT PRIMARY KEY,\n      enabled INTEGER NOT NULL,\n      last_state_json TEXT,\n      created_at INTEGER NOT NULL,\n      updated_at INTEGER NOT NULL\n    );\nexport interface WatchRow {\n  sessionId: string;\n  enabled: boolean;"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=263 files=6 tests=true",
+      "meta": {
+        "files": [
+          "server.ts",
+          "src/harness/store.ts",
+          "src/harness/watch.ts",
+          "src/pages/ChatView.tsx",
+          "src/routes/harness.ts",
+          "tests/harness.test.ts"
+        ],
+        "addedLines": 263,
+        "removedLines": 1
+      }
+    },
+    {
+      "id": "review/458ad2b",
+      "family": "review",
+      "source": "openhub@458ad2b — feat(harness): approval-gated writes + plan/cron tools (phase 2)",
+      "state": {
+        "action": "code_review",
+        "fileCount": 8,
+        "addedLines": 520,
+        "removedLines": 17,
+        "diffSummary": "commit: feat(harness): approval-gated writes + plan/cron tools (phase 2)\nfiles: src/harness/loop.ts, src/harness/store.ts, src/harness/systemMap.ts, src/harness/tools.ts, src/harness/types.ts, src/pages/ChatView.tsx, src/routes/harness.ts, tests/harness.test.ts\nimport { addMessage, addToolCall, createApproval, listMessages } from './store';\nimport { TOOLS, executeTool, requiresApproval, toolByName } from './tools';\nimport type { ApprovalRecord, HarnessAction, ToolResult } from './types';\n      required: ['service', 'window', 'limit', 'job', 'title', 'steps', 'budget_usd'],\n        job: { type: ['string', 'null'] },\n        title: { type: ['string', 'null'] },\n        steps: { type: ['string', 'null'] },\n        budget_usd: { type: ['number', 'null'] },\n        job: typeof args.job === 'str"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=520 files=8 tests=true",
+      "meta": {
+        "files": [
+          "src/harness/loop.ts",
+          "src/harness/store.ts",
+          "src/harness/systemMap.ts",
+          "src/harness/tools.ts",
+          "src/harness/types.ts",
+          "src/pages/ChatView.tsx",
+          "src/routes/harness.ts",
+          "tests/harness.test.ts"
+        ],
+        "addedLines": 520,
+        "removedLines": 17
+      }
+    },
+    {
+      "id": "review/36a7da1",
+      "family": "review",
+      "source": "openhub@36a7da1 — snapshot: operator chat harness phase 1 + full working tree (2026-10-28)",
+      "state": {
+        "action": "code_review",
+        "fileCount": 106,
+        "addedLines": 10423,
+        "removedLines": 3187,
+        "diffSummary": "commit: snapshot: operator chat harness phase 1 + full working tree (2026-10-28)\nfiles: .env.example, .gitignore, ANDROID-AUDIT-DESK.md, AUDIT-MOBILE-2026-10-26.md, MOBILE-PLAN.md, PHONE-GPU.md, electron-main.cjs, index.html, …\n# ========== OpenHub Config ==========\nPORT=3000\nNODE_ENV=development\n# Bind address. Keep 127.0.0.1 and reach the server through `cloudflared tunnel`\n# on a phone; 0.0.0.0 exposes the repo/shell surface to the LAN.\nOPENHUB_HOST=127.0.0.1\n# Behind the Cloudflare tunnel TLS terminates at the edge. Set BOTH when the\n# public hostname is HTTPS (browsers also accept Secure cookies on localhost):\n# OPENHUB_TRUST_PROXY=1\n# OPENHUB_SECURE_COOKIES=1\n# Repo root (where local git repos live)\nOPENHUB_REPOS_ROOT=%USERPROFILE%/Documents/openhub/repos\n# Session secret for express"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "request_changes",
+        "merge": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: addedLines=10423 files=106 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          ".gitignore",
+          "ANDROID-AUDIT-DESK.md",
+          "AUDIT-MOBILE-2026-10-26.md",
+          "MOBILE-PLAN.md",
+          "PHONE-GPU.md",
+          "electron-main.cjs",
+          "index.html",
+          "package-lock.json",
+          "package.json",
+          "public/apple-touch-icon.png",
+          "public/icon-192.png",
+          "public/icon-512.png",
+          "public/icon-maskable-512.png",
+          "public/manifest.webmanifest",
+          "public/sw.js",
+          "scripts/phone-mcp-setup.sh",
+          "scripts/smoke-android-audit.ts",
+          "server.ts",
+          "smoke-fleet.mjs",
+          "src/App.tsx",
+          "src/auth/AuthProvider.tsx",
+          "src/components/EditorSettingsPanel.tsx",
+          "src/components/Layout.tsx",
+          "src/components/MemoryRecallPanel.tsx",
+          "src/components/MobileHomeRedirect.tsx",
+          "src/config/loadEnv.ts",
+          "src/harness/apps.ts",
+          "src/harness/events.ts",
+          "src/harness/loop.ts",
+          "src/harness/store.ts",
+          "src/harness/systemMap.ts",
+          "src/harness/tools.ts",
+          "src/harness/types.ts",
+          "src/ide/EditorAgentPanel.tsx",
+          "src/ide/FileTree.tsx",
+          "src/ide/WorkspacePage.tsx",
+          "src/ide/agentPlan.ts",
+          "src/ide/monacoProviders.ts",
+          "src/ide/monacoSetup.ts",
+          "src/ide/selectionContext.ts",
+          "src/lib/editorPrefs.ts",
+          "src/lib/nav.ts",
+          "src/lib/useIsMobile.ts",
+          "src/main.tsx",
+          "src/mission/GoalComposer.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "src/mission/MissionTranscript.tsx",
+          "src/mission/transcript.ts",
+          "src/mission/useMission.ts",
+          "src/pages/AndroidAuditDeskView.tsx",
+          "src/pages/AssuranceView.tsx",
+          "src/pages/ChatView.tsx",
+          "src/pages/FleetPanel.tsx",
+          "src/pages/IntegrationsHub.tsx",
+          "src/pages/ReporterView.tsx",
+          "src/pages/UserSettingsView.tsx",
+          "src/routes/androidAudit.ts",
+          "src/routes/chatCompletions.ts",
+          "src/routes/harness.ts",
+          "src/routes/kaggleRoutes.ts",
+          "src/routes/memoryRecall.ts",
+          "src/routes/opencodeProxy.ts",
+          "src/routes/selfReport.ts",
+          "src/services/appModel.ts",
+          "src/services/auditDesk.ts",
+          "src/services/capabilityProbe.ts",
+          "src/services/capabilityRegistry.ts",
+          "src/services/cloudProviders.ts",
+          "src/services/ecosystemRegistry.ts",
+          "src/services/fleetMcp.ts",
+          "src/services/kaggleJobs.ts",
+          "src/services/llmRouter.ts",
+          "src/services/localModel.ts",
+          "src/services/modelAssignment.ts",
+          "src/services/opencodeClient.ts",
+          "src/services/opencodeEngine.ts",
+          "src/services/providerHealth.ts",
+          "src/services/selfReportVoice.ts",
+          "tests/agentPlan.test.ts",
+          "tests/auditSuite.coverage.test.ts",
+          "tests/capabilityRegistry.test.ts",
+          "tests/cloudProviders.test.ts",
+          "tests/e2e/monaco-providers.spec.ts",
+          "tests/editorAgentPanel.test.tsx",
+          "tests/fleetMcp.test.ts",
+          "tests/harness.test.ts",
+          "tests/localModel.test.ts",
+          "tests/memoryRecall.test.ts",
+          "tests/memoryRecallPanel.test.tsx",
+          "tests/missionControlPage.test.tsx",
+          "tests/missionTranscript.test.tsx",
+          "tests/monacoProviders.test.ts",
+          "tests/nav.test.ts",
+          "tests/opencodeClient.test.ts",
+          "tests/opencodeEngine.test.ts",
+          "tests/opencodeProxy.test.ts",
+          "tests/providerHealth.test.ts",
+          "tests/pwaAssets.test.ts",
+          "tests/selectionContext.test.ts",
+          "tests/selfReportLocalNarration.test.ts",
+          "tests/ssrRender.test.ts",
+          "tests/transcript.test.ts",
+          "tests/useMission.test.ts",
+          "vite.config.ts"
+        ],
+        "addedLines": 10423,
+        "removedLines": 3187
+      }
+    },
+    {
+      "id": "review/e31becb",
+      "family": "review",
+      "source": "openhub@e31becb — chore(catchup): snapshot working-tree changes",
+      "state": {
+        "action": "code_review",
+        "fileCount": 11,
+        "addedLines": 1065,
+        "removedLines": 0,
+        "diffSummary": "commit: chore(catchup): snapshot working-tree changes\nfiles: CONTROL_PLANE_PLAN.md, OPENCODE-INTEGRATION-HANDOFF.md, openhub.pid, scripts/create-agent-owner.mjs, scripts/opencode-capture.ps1, src/services/lessonsBridge.ts, tests/dbLockDrill.mjs, tests/fixtures/opencode-events.live.txt, …\n# CONTROL_PLANE_PLAN.md — service lifecycle contract\n- **Date:** 2026-10-08\n- **Status:** active\n- **Scope:** how OpenHub may start/stop the fleet's services. Referenced by\n  `src/services/autonomyLoop.ts` (\"NEVER spawns or stops fleet services … see\n  CONTROL_PLANE_PLAN.md\"). This file previously did not exist — the contract it\n  named was undocumented. It does now.\n## The boundary\n1. **Autonomy never spawns or stops speculative services.** The heartbeat\n   (`autonomyLoop.ts`) probes, learns, and resumes "
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "request_changes",
+        "merge": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: addedLines=1065 files=11 tests=true",
+      "meta": {
+        "files": [
+          "CONTROL_PLANE_PLAN.md",
+          "OPENCODE-INTEGRATION-HANDOFF.md",
+          "openhub.pid",
+          "scripts/create-agent-owner.mjs",
+          "scripts/opencode-capture.ps1",
+          "src/services/lessonsBridge.ts",
+          "tests/dbLockDrill.mjs",
+          "tests/fixtures/opencode-events.live.txt",
+          "tests/lessonsBridge.test.ts",
+          "tests/opencodeGoProvider.test.ts",
+          "tests/sqliteContention.test.ts"
+        ],
+        "addedLines": 1065,
+        "removedLines": 0
+      }
+    },
+    {
+      "id": "review/afd209e",
+      "family": "review",
+      "source": "openhub@afd209e — chore(catchup): snapshot working-tree changes",
+      "state": {
+        "action": "code_review",
+        "fileCount": 32,
+        "addedLines": 1016,
+        "removedLines": 152,
+        "diffSummary": "commit: chore(catchup): snapshot working-tree changes\nfiles: .env.example, ecosystem.config.json, openhub-mcp.ts, orchestrator/models/providers.ts, run-deep-audit.mjs, src/auth/db.ts, src/core/config.ts, src/lib/sqliteRetry.ts, …\n# <KEYWIRE_ROOT>/data/keywire-keys.json, then ~/Downloads/BUSINESS/INFRASTRUCTURE/Keywire/...\nDRAYMOND_URL=http://localhost:3444\nKEYWIRE_URL=http://127.0.0.1:4700\n}\nimport { resolveLessonsConfig, loadLessonsFindings, summarizeLessons } from \"./src/services/lessonsBridge.js\";\n        lessons: {\n          type: \"boolean\",\n          description: \"When core is on, route the Coding-lessons corpus (known history for this repo) into it. Defaults to the repo's openhub.yaml lessons.enabled; set false to skip.\",\n        },\n        lessons: {\n          type: \"boolean\",\n     "
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "request_changes",
+        "merge": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: addedLines=1016 files=32 tests=true",
+      "meta": {
+        "files": [
+          ".env.example",
+          "ecosystem.config.json",
+          "openhub-mcp.ts",
+          "orchestrator/models/providers.ts",
+          "run-deep-audit.mjs",
+          "src/auth/db.ts",
+          "src/core/config.ts",
+          "src/lib/sqliteRetry.ts",
+          "src/mission/EngineStatusBar.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/useMission.ts",
+          "src/routes/opencodeProxy.ts",
+          "src/routes/servicesLifecycle.ts",
+          "src/services/alertEngine.ts",
+          "src/services/auditSuite.ts",
+          "src/services/autonomyLoop.ts",
+          "src/services/axiomClient.ts",
+          "src/services/dreamState.ts",
+          "src/services/ecosystemRegistry.ts",
+          "src/services/findings.ts",
+          "src/services/githubRepos.ts",
+          "src/services/keywire.ts",
+          "src/services/opencodeClient.ts",
+          "src/services/opencodeEngine.ts",
+          "src/services/providerHealth.ts",
+          "tests/core.config.test.ts",
+          "tests/findings.test.ts",
+          "tests/opencodeEngine.test.ts",
+          "tests/opencodeProxy.test.ts",
+          "tests/serviceManager.coverage.test.ts",
+          "tests/serviceManagerGuardrails.test.ts",
+          "tests/useMission.test.ts"
+        ],
+        "addedLines": 1016,
+        "removedLines": 152
+      }
+    },
+    {
+      "id": "review/6faa1cb",
+      "family": "review",
+      "source": "openhub@6faa1cb — ci: restore fleet guardrail workflow from the stale Openhub remote",
+      "state": {
+        "action": "code_review",
+        "fileCount": 1,
+        "addedLines": 61,
+        "removedLines": 0,
+        "diffSummary": "commit: ci: restore fleet guardrail workflow from the stale Openhub remote\nfiles: .github/workflows/fleet-ci.yml\nname: fleet-ci\n# Universal guardrail workflow for every fleet keep repo.\n# - secrets-scan: gitleaks over full history (leaked keys bit us before)\n# - hygiene: fails if secret-looking files are TRACKED (.env, .pem, keys)\n# - node/python: stack-conditional build+test\n# - fleet-audit: advisory hook for the fleet's own RepoRank/Grader/Deep\n#   (continue-on-error until the scorers are reachable from CI)\non:\n  push:\n    branches: [main, master]\n  pull_request:\nconcurrency:\n  group: fleet-ci-${{ github.ref }}\n  cancel-in-progress: true"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=61 files=1 tests=false",
+      "meta": {
+        "files": [
+          ".github/workflows/fleet-ci.yml"
+        ],
+        "addedLines": 61,
+        "removedLines": 0
+      }
+    },
+    {
+      "id": "review/ee2af56",
+      "family": "review",
+      "source": "openhub@ee2af56 — feat(services): retire Draymond/Mutly/Vibe-Reality from the on-demand catalog",
+      "state": {
+        "action": "code_review",
+        "fileCount": 5,
+        "addedLines": 252,
+        "removedLines": 157,
+        "diffSummary": "commit: feat(services): retire Draymond/Mutly/Vibe-Reality from the on-demand catalog\nfiles: src/services/capabilityRegistry.ts, src/services/serviceGateway.ts, src/services/serviceManager.ts, tests/serviceGateway.test.ts, tests/serviceManager.test.ts\n      endpointOrArgs: '/health/liveliness',\n      path: '/health/liveliness',\n      path: '/health/liveliness',\n      endpointOrArgs: '/api/recourse/scheduler',\n      path: '/api/recourse/scheduler',\n      path: '/api/recourse/scheduler',\nimport {\n  MANAGED_SERVICES,\n  probeHttp,\n  startServiceSafe,\n  touchServiceActivity,\n} from './serviceManager.js';\n/**\n * serviceGateway.ts — the one choke point for \"bring a capability up on demand\"."
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=252 files=5 tests=true",
+      "meta": {
+        "files": [
+          "src/services/capabilityRegistry.ts",
+          "src/services/serviceGateway.ts",
+          "src/services/serviceManager.ts",
+          "tests/serviceGateway.test.ts",
+          "tests/serviceManager.test.ts"
+        ],
+        "addedLines": 252,
+        "removedLines": 157
+      }
+    },
+    {
+      "id": "review/d50e640",
+      "family": "review",
+      "source": "openhub@d50e640 — test(hermetic): make the vitest suite independent of ambient .env",
+      "state": {
+        "action": "code_review",
+        "fileCount": 6,
+        "addedLines": 100,
+        "removedLines": 7,
+        "diffSummary": "commit: test(hermetic): make the vitest suite independent of ambient .env\nfiles: src/services/fleetInterconnect.ts, tests/auditSuite.coverage.test.ts, tests/fleetInterconnect.test.ts, tests/p2Scorers.test.ts, tests/setup.ts, vitest.config.ts\n    { id: 'draymond', label: 'Draymond', baseUrl: (env.DRAYMOND_URL || 'http://localhost:3444').replace(/\\/+$/, ''), token: env.DRAYMOND_CRON_SECRET },\n    { id: 'keywire', label: 'Keywire', baseUrl: (env.KEYWIRE_URL || 'http://127.0.0.1:4700').replace(/\\/+$/, '') },\n  const PREV_URL = process.env.REPORANK_URL;\n  // A guaranteed-closed port. The test must not depend on a real RepoRank being\n  // down: on an on-demand host it is up, and the error becomes HTTP 401 instead\n  // of a transport failure.\n  const CLOSED_REPORANK = 'http://127.0.0.1:9';\n    if"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=100 files=6 tests=true",
+      "meta": {
+        "files": [
+          "src/services/fleetInterconnect.ts",
+          "tests/auditSuite.coverage.test.ts",
+          "tests/fleetInterconnect.test.ts",
+          "tests/p2Scorers.test.ts",
+          "tests/setup.ts",
+          "vitest.config.ts"
+        ],
+        "addedLines": 100,
+        "removedLines": 7
+      }
+    },
+    {
+      "id": "review/9900c8b",
+      "family": "review",
+      "source": "openhub@9900c8b — polish(mission): type scale, focus rings, scoped live region, skip-link, 100dvh",
+      "state": {
+        "action": "code_review",
+        "fileCount": 12,
+        "addedLines": 263,
+        "removedLines": 74,
+        "diffSummary": "commit: polish(mission): type scale, focus rings, scoped live region, skip-link, 100dvh\nfiles: src/App.tsx, src/components/Layout.tsx, src/index.css, src/mission/EngineStatusBar.tsx, src/mission/GoalComposer.tsx, src/mission/MissionControlPage.tsx, src/mission/MissionInspector.tsx, src/mission/MissionRail.tsx, …\n  if (isLoading) return <div data-loading=\"auth\" className=\"min-h-[100dvh] flex items-center justify-center\" style={{ background: 'var(--color-bg-base)' }}><div className=\"text-gray-400\">Loading OpenHub…</div></div>;\n      <div className=\"min-h-[100dvh] flex items-center justify-center\" style={{ background: 'var(--color-bg-base)' }}>\n    <>\n      <a href=\"#main\" className=\"skip-link\">Skip to content</a>\n      <ErrorBoundary>\n        <BrowserRouter>\n          <AuthProvider>\n        "
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=263 files=12 tests=true",
+      "meta": {
+        "files": [
+          "src/App.tsx",
+          "src/components/Layout.tsx",
+          "src/index.css",
+          "src/mission/EngineStatusBar.tsx",
+          "src/mission/GoalComposer.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionInspector.tsx",
+          "src/mission/MissionRail.tsx",
+          "src/mission/MissionStatusHeader.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "src/mission/StatusPill.tsx",
+          "tests/missionPolish.test.tsx"
+        ],
+        "addedLines": 263,
+        "removedLines": 74
+      }
+    },
+    {
+      "id": "review/ed1fecf",
+      "family": "review",
+      "source": "openhub@ed1fecf — fix(mission): completion transition, honest stop/revert, dedupe timers, sse reconnect, win32 process-tree kill",
+      "state": {
+        "action": "code_review",
+        "fileCount": 10,
+        "addedLines": 525,
+        "removedLines": 94,
+        "diffSummary": "commit: fix(mission): completion transition, honest stop/revert, dedupe timers, sse reconnect, win32 process-tree kill\nfiles: src/mission/MissionControlPage.tsx, src/mission/MissionInspector.tsx, src/mission/MissionStatusHeader.tsx, src/mission/useMission.ts, src/services/opencodeEngine.ts, tests/missionControlPage.test.tsx, tests/missionInspector.test.tsx, tests/missionStatusHeader.test.tsx, …\nimport { useMissionStore, type MissionEvent } from '../lib/missionStore.js';\n/**\n * Stable empty array so the events selector never returns a fresh reference —\n * `useStore` treats a new snapshot on every call as an infinite render loop.\n */\nconst EMPTY_EVENTS: MissionEvent[] = [];\n  const events = useMissionStore((s) => (s.activeId ? (s.events[s.activeId] ?? EMPTY_EVENTS) : EMPTY_EVENTS));\n  const "
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=525 files=10 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionInspector.tsx",
+          "src/mission/MissionStatusHeader.tsx",
+          "src/mission/useMission.ts",
+          "src/services/opencodeEngine.ts",
+          "tests/missionControlPage.test.tsx",
+          "tests/missionInspector.test.tsx",
+          "tests/missionStatusHeader.test.tsx",
+          "tests/opencodeEngine.test.ts",
+          "tests/useMission.test.ts"
+        ],
+        "addedLines": 525,
+        "removedLines": 94
+      }
+    },
+    {
+      "id": "review/126fd87",
+      "family": "review",
+      "source": "openhub@126fd87 — feat(mission): review inspector, steer, rewind, todos, step grouping",
+      "state": {
+        "action": "code_review",
+        "fileCount": 10,
+        "addedLines": 959,
+        "removedLines": 37,
+        "diffSummary": "commit: feat(mission): review inspector, steer, rewind, todos, step grouping\nfiles: src/mission/MissionControlPage.tsx, src/mission/MissionInspector.tsx, src/mission/MissionTimeline.tsx, src/mission/useMission.ts, src/routes/opencodeProxy.ts, src/services/opencodeClient.ts, tests/missionInspector.test.tsx, tests/missionTimeline.test.ts, …\n  steer,\n  const [steerText, setSteerText] = useState('');\n  const [steering, setSteering] = useState(false);\n  // Bumped whenever the active mission or its status changes, so the inspector\n  // re-reads the diff/todos as a run progresses.\n  const [inspectorRefreshKey, setInspectorRefreshKey] = useState(0);\n  // Re-read the inspector whenever the active mission or its status changes.\n  useEffect(() => {\n    setInspectorRefreshKey((k) => k + 1);\n  }, [acti"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=959 files=10 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionInspector.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "src/mission/useMission.ts",
+          "src/routes/opencodeProxy.ts",
+          "src/services/opencodeClient.ts",
+          "tests/missionInspector.test.tsx",
+          "tests/missionTimeline.test.ts",
+          "tests/opencodeProxy.test.ts",
+          "tests/useMission.test.ts"
+        ],
+        "addedLines": 959,
+        "removedLines": 37
+      }
+    },
+    {
+      "id": "review/0e1bba4",
+      "family": "review",
+      "source": "openhub@0e1bba4 — feat(mission): status header, missions rail, real telemetry, visual polish",
+      "state": {
+        "action": "code_review",
+        "fileCount": 9,
+        "addedLines": 693,
+        "removedLines": 39,
+        "diffSummary": "commit: feat(mission): status header, missions rail, real telemetry, visual polish\nfiles: src/mission/GoalComposer.tsx, src/mission/MissionControlPage.tsx, src/mission/MissionRail.tsx, src/mission/MissionStatusHeader.tsx, src/mission/MissionTimeline.tsx, src/mission/StatusPill.tsx, src/mission/useMission.ts, tests/missionRail.test.tsx, …\n        {/* Fill is the light accent variant so the dark label clears WCAG AA:\n            text-bg-base on accent is 4.16:1 (fail); on accent-text it is 7.0:1. */}\n          className=\"inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent-text)] px-3 py-1.5 text-xs font-semibold text-[var(--color-bg-base)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40\"\nimport {\n  abortMission,\n  createMission,\n  fetchSession,\n  fet"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=693 files=9 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/GoalComposer.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionRail.tsx",
+          "src/mission/MissionStatusHeader.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "src/mission/StatusPill.tsx",
+          "src/mission/useMission.ts",
+          "tests/missionRail.test.tsx",
+          "tests/missionStatusHeader.test.tsx"
+        ],
+        "addedLines": 693,
+        "removedLines": 39
+      }
+    },
+    {
+      "id": "review/d99c513",
+      "family": "review",
+      "source": "openhub@d99c513 — fix(mission): subscribe-before-prompt, session-id extraction, stop control, a11y, robustness",
+      "state": {
+        "action": "code_review",
+        "fileCount": 10,
+        "addedLines": 233,
+        "removedLines": 57,
+        "diffSummary": "commit: fix(mission): subscribe-before-prompt, session-id extraction, stop control, a11y, robustness\nfiles: src/mission/EngineStatusBar.tsx, src/mission/GoalComposer.tsx, src/mission/MissionControlPage.tsx, src/mission/MissionInspector.tsx, src/mission/MissionTimeline.tsx, src/mission/useMission.ts, src/routes/opencodeProxy.ts, src/services/opencodeEngine.ts, …\n * Compact opencode engine health chip. Prefer passing `status` (from a single\n * shared `useEngineStatus()` on the page) so the page polls once, not twice.\n * With no prop it self-polls, which keeps standalone use working.\nexport function EngineStatusBar({ status }: { status?: EngineStatus | null } = {}) {\n  // A provided prop (including explicit `null`) means the caller owns polling.\n  if (status !== undefined) return <EngineStatu"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=233 files=10 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/EngineStatusBar.tsx",
+          "src/mission/GoalComposer.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionInspector.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "src/mission/useMission.ts",
+          "src/routes/opencodeProxy.ts",
+          "src/services/opencodeEngine.ts",
+          "tests/goalComposer.test.tsx",
+          "tests/useMission.test.ts"
+        ],
+        "addedLines": 233,
+        "removedLines": 57
+      }
+    },
+    {
+      "id": "review/75c8f2f",
+      "family": "review",
+      "source": "openhub@75c8f2f — feat(ui): mission-centric nav and routes",
+      "state": {
+        "action": "code_review",
+        "fileCount": 3,
+        "addedLines": 24,
+        "removedLines": 3,
+        "diffSummary": "commit: feat(ui): mission-centric nav and routes\nfiles: src/App.tsx, src/lib/nav.ts, tests/nav.test.ts\nconst MissionControlPage = lazy(() => import('./mission/MissionControlPage').then((m) => ({ default: m.MissionControlPage })));\n          <Route path=\"workspace\" element={<Navigate to=\"/editor\" replace />} />\n          <Route path=\"workspace/:owner/:repo\" element={<Navigate to=\"/editor\" replace />} />\n          <Route path=\"missions\" element={<MissionControlPage />} />\n          <Route path=\"editor\" element={<WorkspacePage />} />\n      { to: '/missions', label: 'Missions', icon: Workflow, keywords: ['missions', 'agents', 'autonomous', 'runs', 'goals', 'missions control'] },\n      { to: '/editor', label: 'Editor', icon: Terminal, keywords: ['code', 'editor', 'terminal', 'drift', 'files'] }"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=24 files=3 tests=true",
+      "meta": {
+        "files": [
+          "src/App.tsx",
+          "src/lib/nav.ts",
+          "tests/nav.test.ts"
+        ],
+        "addedLines": 24,
+        "removedLines": 3
+      }
+    },
+    {
+      "id": "review/01bec27",
+      "family": "review",
+      "source": "openhub@01bec27 — feat(ui): mission control skeleton",
+      "state": {
+        "action": "code_review",
+        "fileCount": 8,
+        "addedLines": 405,
+        "removedLines": 1,
+        "diffSummary": "commit: feat(ui): mission control skeleton\nfiles: src/mission/EngineStatusBar.tsx, src/mission/GoalComposer.tsx, src/mission/MissionControlPage.tsx, src/mission/MissionInspector.tsx, src/mission/MissionTimeline.tsx, tests/engineStatusBar.test.tsx, tests/goalComposer.test.tsx, vitest.config.ts\nimport { useEffect, useState } from 'react';\nimport { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';\nimport { getAuthHeaders } from '../auth/AuthProvider';\nexport interface EngineStatus {\n  available: boolean;\n  error?: string;\n  version?: string;\n}\nconst POLL_MS = 10_000;\n/**\n * Poll `GET /api/opencode/status` (the OpenHub proxy that fronts the opencode\n * engine) and expose the parsed health. Shared by the status chip and the page\n * so the composer's gate and the chip never disagree ab"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=405 files=8 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/EngineStatusBar.tsx",
+          "src/mission/GoalComposer.tsx",
+          "src/mission/MissionControlPage.tsx",
+          "src/mission/MissionInspector.tsx",
+          "src/mission/MissionTimeline.tsx",
+          "tests/engineStatusBar.test.tsx",
+          "tests/goalComposer.test.tsx",
+          "vitest.config.ts"
+        ],
+        "addedLines": 405,
+        "removedLines": 1
+      }
+    },
+    {
+      "id": "review/3658d75",
+      "family": "review",
+      "source": "openhub@3658d75 — feat(ui): mission API + SSE layer",
+      "state": {
+        "action": "code_review",
+        "fileCount": 2,
+        "addedLines": 238,
+        "removedLines": 0,
+        "diffSummary": "commit: feat(ui): mission API + SSE layer\nfiles: src/mission/useMission.ts, tests/useMission.test.ts\n/**\n * Mission API + SSE layer — turns opencode sessions into missions.\n *\n * Browser-side only. It talks to OpenHub's own `/api/opencode/*` proxy (Task A4),\n * which authenticates the user and forwards to the opencode engine. It must NOT\n * import `services/opencodeClient` (the server client): that pulls node\n * `Buffer`/`process`, which Vite stubs to `{}` in the browser.\n *\n * Auth headers come from the same helper the editor bridge uses\n * (`axiomEditorClient` -> `auth/AuthProvider#getAuthHeaders`), so cookie + CSRF\n * handling stays in one place. Every request is relative (`/api/...`).\n */\nimport { getAuthHeaders } from '../auth/AuthProvider';\nimport { useMissionStore, type MissionEvent"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=238 files=2 tests=true",
+      "meta": {
+        "files": [
+          "src/mission/useMission.ts",
+          "tests/useMission.test.ts"
+        ],
+        "addedLines": 238,
+        "removedLines": 0
+      }
+    },
+    {
+      "id": "review/73a5e86",
+      "family": "review",
+      "source": "openhub@73a5e86 — feat(ui): mission store",
+      "state": {
+        "action": "code_review",
+        "fileCount": 2,
+        "addedLines": 80,
+        "removedLines": 0,
+        "diffSummary": "commit: feat(ui): mission store\nfiles: src/lib/missionStore.ts, tests/missionStore.test.ts\nimport { create } from 'zustand';\nexport type MissionStatus = 'draft' | 'planned' | 'running' | 'review' | 'done' | 'failed';\nexport interface Mission {\n  id: string;\n  goal: string;\n  sessionId: string | null;\n  status: MissionStatus;\n  createdAt: string;\n}\nexport interface MissionEvent {\n  at: number;\n  kind: string;\n  text: string;\n  taskId?: string;"
+      },
+      "questions": {
+        "verdict": {
+          "type": "choice",
+          "instructions": "What is the right code-review verdict for this change?",
+          "criteria": {
+            "approve": "Approve as-is",
+            "request_changes": "Request changes",
+            "block": "Block the change"
+          }
+        },
+        "merge": {
+          "type": "noul",
+          "instructions": "Is this change safe to merge now?",
+          "criteria": {
+            "true": "Safe to merge",
+            "false": "Hold"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the regression risk of this change.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "verdict": "approve",
+        "merge": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: addedLines=80 files=2 tests=true",
+      "meta": {
+        "files": [
+          "src/lib/missionStore.ts",
+          "tests/missionStore.test.ts"
+        ],
+        "addedLines": 80,
+        "removedLines": 0
+      }
+    },
+    {
+      "id": "repair/aetherdesk-mobile-SEC-004-27",
+      "family": "repair",
+      "source": "audit-reports/aetherdesk-mobile/report.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "SEC-004 HIGH: Cleartext HTTP traffic allowed: <application android:name=\".MainApplication\" android:label=\"@string/app_name\" android:icon (app/src/main/AndroidManifest.xml:27)",
+        "brief": "category=Security; autofix=none; hint=Use HTTPS. For localhost dev servers, scope an exception in a debug-only network_security_config."
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "hold",
+        "urgent": true
+      },
+      "labelBasis": "Policy: severity=HIGH category=Security autofix=false",
+      "meta": {
+        "app": "aetherdesk-mobile",
+        "rule": "SEC-004",
+        "severity": "HIGH"
+      }
+    },
+    {
+      "id": "repair/marketing-studio-CONC-004-42",
+      "family": "repair",
+      "source": "audit-reports/marketing-studio/report.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "CONC-004 MEDIUM: Thread.sleep in app code: if (retryable && attempt <= maxRetries) { Thread.sleep(backoffMs * attempt); continue } (app/src/main/java/com/agency/core/Llm.kt:42)",
+        "brief": "category=Concurrency/lifecycle; autofix=none; hint=Use delay() in coroutines; never sleep on the main thread."
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "dispatch",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=MEDIUM category=Concurrency/lifecycle autofix=false",
+      "meta": {
+        "app": "marketing-studio",
+        "rule": "CONC-004",
+        "severity": "MEDIUM"
+      }
+    },
+    {
+      "id": "repair/openhub-web-console-log-385",
+      "family": "repair",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "console.log LOW: console.log( (server.ts:385)",
+        "brief": "category=lint; autofix=available; hint=mechanical lint finding"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=LOW category=lint autofix=available",
+      "meta": {
+        "app": "openhub",
+        "rule": "console.log",
+        "severity": "LOW"
+      }
+    },
+    {
+      "id": "repair/openhub-web-insecure-http-//-331",
+      "family": "repair",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "insecure http:// LOW: http:// (server.ts:331)",
+        "brief": "category=lint; autofix=available; hint=mechanical lint finding"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=LOW category=lint autofix=available",
+      "meta": {
+        "app": "openhub",
+        "rule": "insecure http://",
+        "severity": "LOW"
+      }
+    },
+    {
+      "id": "repair/openhub-web-console-log-28",
+      "family": "repair",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "console.log LOW: console.log( (orchestrator/index.ts:28)",
+        "brief": "category=lint; autofix=available; hint=mechanical lint finding"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=LOW category=lint autofix=available",
+      "meta": {
+        "app": "openhub",
+        "rule": "console.log",
+        "severity": "LOW"
+      }
+    },
+    {
+      "id": "repair/openhub-web-console-log-14",
+      "family": "repair",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "console.log LOW: console.log( (orchestrator/mcp-client.ts:14)",
+        "brief": "category=lint; autofix=available; hint=mechanical lint finding"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=LOW category=lint autofix=available",
+      "meta": {
+        "app": "openhub",
+        "rule": "console.log",
+        "severity": "LOW"
+      }
+    },
+    {
+      "id": "repair/openhub-web-insecure-http-//-31",
+      "family": "repair",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "repair_triage",
+        "finding": "insecure http:// LOW: http:// (orchestrator/ws-server.ts:31)",
+        "brief": "category=lint; autofix=available; hint=mechanical lint finding"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=LOW category=lint autofix=available",
+      "meta": {
+        "app": "openhub",
+        "rule": "insecure http://",
+        "severity": "LOW"
+      }
+    },
+    {
+      "id": "repair/audit-upgrade-C1",
+      "family": "repair",
+      "source": "openhub/AUDIT-UPGRADE.md",
+      "state": {
+        "action": "repair_triage",
+        "finding": "SECURITY: unauthenticated /api/auth/quick-access creates an account and returns tokens (server.ts)",
+        "brief": "category=security; autofix=none; hint=remove or gate the endpoint behind a dev-only flag"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "hold",
+        "urgent": true
+      },
+      "labelBasis": "Policy: severity=CRITICAL category=security",
+      "meta": {
+        "app": "openhub",
+        "rule": "C1",
+        "severity": "CRITICAL"
+      }
+    },
+    {
+      "id": "repair/audit-upgrade-C2",
+      "family": "repair",
+      "source": "openhub/AUDIT-UPGRADE.md",
+      "state": {
+        "action": "repair_triage",
+        "finding": "SECURITY: seeded accounts with hardcoded password123 (server.ts)",
+        "brief": "category=security; autofix=none; hint=remove demo seeding from boot"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "hold",
+        "urgent": true
+      },
+      "labelBasis": "Policy: severity=CRITICAL category=security",
+      "meta": {
+        "app": "openhub",
+        "rule": "C2",
+        "severity": "CRITICAL"
+      }
+    },
+    {
+      "id": "repair/audit-upgrade-C3",
+      "family": "repair",
+      "source": "openhub/AUDIT-UPGRADE.md",
+      "state": {
+        "action": "repair_triage",
+        "finding": "Theater: /api/pipeline/run advances stages with setTimeout and fabricates success",
+        "brief": "category=correctness; autofix=none; hint=replace with the real verification pipeline"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "dispatch",
+        "urgent": true
+      },
+      "labelBasis": "Policy: severity=HIGH category=correctness",
+      "meta": {
+        "app": "openhub",
+        "rule": "C3",
+        "severity": "HIGH"
+      }
+    },
+    {
+      "id": "repair/audit-upgrade-C4",
+      "family": "repair",
+      "source": "openhub/AUDIT-UPGRADE.md",
+      "state": {
+        "action": "repair_triage",
+        "finding": "Config: hardcoded fallback JWT secrets and reflect-any-origin credentialed CORS",
+        "brief": "category=security; autofix=none; hint=persistent key file + ALLOWED_ORIGINS allowlist"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "hold",
+        "urgent": true
+      },
+      "labelBasis": "Policy: severity=CRITICAL category=security",
+      "meta": {
+        "app": "openhub",
+        "rule": "C4",
+        "severity": "CRITICAL"
+      }
+    },
+    {
+      "id": "repair/audit-upgrade-C5",
+      "family": "repair",
+      "source": "openhub/AUDIT-UPGRADE.md",
+      "state": {
+        "action": "repair_triage",
+        "finding": "Type safety: non-strict TypeScript hides 5 real type errors",
+        "brief": "category=type_safety; autofix=available; hint=enable strict and fix the five errors"
+      },
+      "questions": {
+        "lane": {
+          "type": "choice",
+          "instructions": "Which repair lane should handle this?",
+          "criteria": {
+            "autofix": "Automated fix",
+            "dispatch": "Dispatch to the repair team",
+            "hold": "Hold for human review"
+          }
+        },
+        "urgent": {
+          "type": "noul",
+          "instructions": "Does this need immediate repair?",
+          "criteria": {
+            "true": "Immediate",
+            "false": "Can wait"
+          }
+        }
+      },
+      "expected": {
+        "lane": "autofix",
+        "urgent": false
+      },
+      "labelBasis": "Policy: severity=MEDIUM category=type_safety",
+      "meta": {
+        "app": "openhub",
+        "rule": "C5",
+        "severity": "MEDIUM"
+      }
+    },
+    {
+      "id": "audit/aetherdesk-mobile",
+      "family": "audit",
+      "source": "audit-reports/aetherdesk-mobile/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "fail",
+        "factCount": 1,
+        "passedFacts": 0,
+        "discrepancies": [
+          "SEC-004 HIGH: Cleartext HTTP traffic allowed: <application android:name=\".MainApplication\" android:label=\"@string/app_name\" android:icon"
+        ]
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 3,
+        "next": "flag"
+      },
+      "labelBasis": "Policy: 1 open / 1 facts, status=fail",
+      "meta": {
+        "app": "aetherdesk-mobile",
+        "beforeTotal": 1,
+        "afterTotal": 1
+      }
+    },
+    {
+      "id": "audit/agent-support-clean",
+      "family": "audit",
+      "source": "audit-reports/agent-support/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "agent-support"
+      }
+    },
+    {
+      "id": "audit/concordance-clean",
+      "family": "audit",
+      "source": "audit-reports/concordance/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "concordance"
+      }
+    },
+    {
+      "id": "audit/concordance-oss-clean",
+      "family": "audit",
+      "source": "audit-reports/concordance-oss/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "concordance-oss"
+      }
+    },
+    {
+      "id": "audit/marketing-studio",
+      "family": "audit",
+      "source": "audit-reports/marketing-studio/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "fail",
+        "factCount": 1,
+        "passedFacts": 0,
+        "discrepancies": [
+          "CONC-004 MEDIUM: Thread.sleep in app code: if (retryable && attempt <= maxRetries) { Thread.sleep(backoffMs * attempt); continue }"
+        ]
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 3,
+        "next": "flag"
+      },
+      "labelBasis": "Policy: 1 open / 1 facts, status=fail",
+      "meta": {
+        "app": "marketing-studio",
+        "beforeTotal": 1,
+        "afterTotal": 1
+      }
+    },
+    {
+      "id": "audit/nc-studio-clean",
+      "family": "audit",
+      "source": "audit-reports/nc-studio/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "nc-studio"
+      }
+    },
+    {
+      "id": "audit/phone-beat-clean",
+      "family": "audit",
+      "source": "audit-reports/phone-beat/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "phone-beat"
+      }
+    },
+    {
+      "id": "audit/recourse-clean",
+      "family": "audit",
+      "source": "audit-reports/recourse/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "recourse"
+      }
+    },
+    {
+      "id": "audit/sieve-clean",
+      "family": "audit",
+      "source": "audit-reports/sieve/report.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "pass",
+        "factCount": 1,
+        "passedFacts": 1,
+        "discrepancies": []
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 0,
+        "next": "accept"
+      },
+      "labelBasis": "Policy: zero findings -> accept",
+      "meta": {
+        "app": "sieve"
+      }
+    },
+    {
+      "id": "audit/openhub-web",
+      "family": "audit",
+      "source": "audit-reports/openhub/web_findings.json",
+      "state": {
+        "action": "audit_verdict",
+        "status": "fail",
+        "factCount": 50,
+        "passedFacts": 0,
+        "discrepancies": [
+          "console.log LOW",
+          "insecure http:// LOW",
+          "localStorage token LOW",
+          "TODO/FIXME LOW",
+          "dangerouslySetInnerHTML LOW",
+          "eval( LOW"
+        ]
+      },
+      "questions": {
+        "severity": {
+          "type": "score",
+          "instructions": "How severe are the audit findings?",
+          "criteria": [
+            "None / trivial",
+            "Minor",
+            "Moderate",
+            "Severe / blocking"
+          ]
+        },
+        "next": {
+          "type": "choice",
+          "instructions": "What should happen next?",
+          "criteria": {
+            "accept": "Accept",
+            "autofix": "Auto-fix",
+            "flag": "Flag for review",
+            "reject": "Reject"
+          }
+        }
+      },
+      "expected": {
+        "severity": 3,
+        "next": "flag"
+      },
+      "labelBasis": "Policy: 50 low/mechanical findings, 0 fixed",
+      "meta": {
+        "app": "openhub"
+      }
+    },
+    {
+      "id": "workspace/01-read-src-services-llmRouter-ts",
+      "family": "workspace",
+      "source": "openhub working tree: src/services/llmRouter.ts",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "src/services/llmRouter.ts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=src/services/llmRouter.ts operation=read",
+      "meta": {
+        "path": "src/services/llmRouter.ts",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/02-write-src-services-llmRouter-ts",
+      "family": "workspace",
+      "source": "openhub working tree: src/services/llmRouter.ts",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "src/services/llmRouter.ts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: path=src/services/llmRouter.ts operation=write",
+      "meta": {
+        "path": "src/services/llmRouter.ts",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/03-write-server-ts",
+      "family": "workspace",
+      "source": "openhub working tree: server.ts",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "server.ts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: path=server.ts operation=write",
+      "meta": {
+        "path": "server.ts",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/04-read-tests-agentBrowser-test-ts",
+      "family": "workspace",
+      "source": "openhub working tree: tests/agentBrowser.test.ts",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "tests/agentBrowser.test.ts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=tests/agentBrowser.test.ts operation=read",
+      "meta": {
+        "path": "tests/agentBrowser.test.ts",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/05-write-package-json",
+      "family": "workspace",
+      "source": "openhub working tree: package.json",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "package.json"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: path=package.json operation=write",
+      "meta": {
+        "path": "package.json",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/06-write-README-md",
+      "family": "workspace",
+      "source": "openhub working tree: README.md",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "README.md"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 1
+      },
+      "labelBasis": "Policy: path=README.md operation=write",
+      "meta": {
+        "path": "README.md",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/07-read-README-md",
+      "family": "workspace",
+      "source": "openhub working tree: README.md",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "README.md"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=README.md operation=read",
+      "meta": {
+        "path": "README.md",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/08-read--env",
+      "family": "workspace",
+      "source": "openhub working tree: .env",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": ".env"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=.env operation=read",
+      "meta": {
+        "path": ".env",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/09-write--env",
+      "family": "workspace",
+      "source": "openhub working tree: .env",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": ".env"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=.env operation=write",
+      "meta": {
+        "path": ".env",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/10-write--env-example",
+      "family": "workspace",
+      "source": "openhub working tree: .env.example",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": ".env.example"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: path=.env.example operation=write",
+      "meta": {
+        "path": ".env.example",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/11-read--git-config",
+      "family": "workspace",
+      "source": "openhub working tree: .git/config",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": ".git/config"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=.git/config operation=read",
+      "meta": {
+        "path": ".git/config",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/12-write--git-config",
+      "family": "workspace",
+      "source": "openhub working tree: .git/config",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": ".git/config"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=.git/config operation=write",
+      "meta": {
+        "path": ".git/config",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/13-read-node-modules-react-package-json",
+      "family": "workspace",
+      "source": "openhub working tree: node_modules/react/package.json",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "node_modules/react/package.json"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=node_modules/react/package.json operation=read",
+      "meta": {
+        "path": "node_modules/react/package.json",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/14-write-node-modules-react-package-json",
+      "family": "workspace",
+      "source": "openhub working tree: node_modules/react/package.json",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "node_modules/react/package.json"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=node_modules/react/package.json operation=write",
+      "meta": {
+        "path": "node_modules/react/package.json",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/15-read-Logo-21055-png",
+      "family": "workspace",
+      "source": "openhub working tree: Logo/21055.png",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "Logo/21055.png"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 0
+      },
+      "labelBasis": "Policy: path=Logo/21055.png operation=read",
+      "meta": {
+        "path": "Logo/21055.png",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/16-write--outside-workspace-txt",
+      "family": "workspace",
+      "source": "openhub working tree: ../outside-workspace.txt",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "../outside-workspace.txt"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=../outside-workspace.txt operation=write",
+      "meta": {
+        "path": "../outside-workspace.txt",
+        "operation": "write"
+      }
+    },
+    {
+      "id": "workspace/17-read-C-Windows-System32-drivers-etc-hosts",
+      "family": "workspace",
+      "source": "openhub working tree: C:/Windows/System32/drivers/etc/hosts",
+      "state": {
+        "action": "workspace",
+        "operation": "read",
+        "path": "C:/Windows/System32/drivers/etc/hosts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": false,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=C:/Windows/System32/drivers/etc/hosts operation=read",
+      "meta": {
+        "path": "C:/Windows/System32/drivers/etc/hosts",
+        "operation": "read"
+      }
+    },
+    {
+      "id": "workspace/18-delete-docs-notes-md",
+      "family": "workspace",
+      "source": "openhub working tree: docs/notes.md",
+      "state": {
+        "action": "workspace",
+        "operation": "delete",
+        "path": "docs/notes.md"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=docs/notes.md operation=delete",
+      "meta": {
+        "path": "docs/notes.md",
+        "operation": "delete"
+      }
+    },
+    {
+      "id": "workspace/19-delete-src-App-tsx",
+      "family": "workspace",
+      "source": "openhub working tree: src/App.tsx",
+      "state": {
+        "action": "workspace",
+        "operation": "delete",
+        "path": "src/App.tsx"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 3
+      },
+      "labelBasis": "Policy: path=src/App.tsx operation=delete",
+      "meta": {
+        "path": "src/App.tsx",
+        "operation": "delete"
+      }
+    },
+    {
+      "id": "workspace/20-write-src-auth-tokenService-ts",
+      "family": "workspace",
+      "source": "openhub working tree: src/auth/tokenService.ts",
+      "state": {
+        "action": "workspace",
+        "operation": "write",
+        "path": "src/auth/tokenService.ts"
+      },
+      "questions": {
+        "allow": {
+          "type": "noul",
+          "instructions": "Is this workspace operation safe to run now?",
+          "criteria": {
+            "true": "Safe",
+            "false": "Risky"
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": "Rate the blast radius of this operation.",
+          "criteria": [
+            "None",
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      },
+      "expected": {
+        "allow": true,
+        "risk": 2
+      },
+      "labelBasis": "Policy: path=src/auth/tokenService.ts operation=write",
+      "meta": {
+        "path": "src/auth/tokenService.ts",
+        "operation": "write"
+      }
+    }
+  ]
+}

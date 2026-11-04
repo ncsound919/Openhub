@@ -147,7 +147,9 @@ describe('projectGit coverage', () => {
     git(repo, ['reset', '--hard', 'HEAD~1']);
     const behind = await readProjectDrift(repo);
     expect(behind.behind).toBe(1);
-  }, 60_000);
+    // Six git invocations against a temp repo; under the full 183-file suite
+    // the 60 s budget was occasionally exhausted by process contention.
+  }, 120_000);
 
   itGit('pushes the current branch and clears the ahead count', async () => {
     process.env.OPENHUB_GIT_ALLOW_FILE_PROTOCOL = '1';

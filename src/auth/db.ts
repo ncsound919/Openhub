@@ -320,7 +320,7 @@ export function initializeDatabase() {
     migrateRepoStatusTables(db);
   }, { attempts: 12 });
 
-  console.log('[DB] Database initialized at', dbPath());
+  console.info('[DB] Database initialized at', dbPath());
 }
 
 /** The status ledger was first created by repo-status-ledger.mjs, which picked

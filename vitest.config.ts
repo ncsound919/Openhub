@@ -14,6 +14,11 @@ export default defineConfig({
     // real failure. Assertions are unaffected.
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // Vitest starts a worker per test file. On this 185-file suite the default
+    // (CPU-count) fan-out starved rtlRender.test.ts's worker past Vitest's fixed
+    // 60s startup timeout, so `npm test` exited 1 with every test passing. Four
+    // workers runs the whole suite in ~100s without that startup failure.
+    maxWorkers: 4,
     // Unit tests exercise the process runner, which emits receipts. Keep those
     // in-memory during tests so the suite never writes to data/receipts/.
     // Point the suite at a throwaway DB. Without this, tests/auth.test.ts ran

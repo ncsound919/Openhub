@@ -10,7 +10,7 @@ import { cn } from '../lib/utils';
  * A central, graphic build visualizer: every pipeline stage is a robot
  * attachment (head / arms / torso / drive / visor) that materializes as its
  * stage runs and locks in when it finishes. The running attachment pulses with
- * a NOW WORKING card carrying the vital details; pending stages are the TODO
+ * a NOW WORKING card carrying the vital details; pending stages are the QUEUED
  * list; finished stages are the DONE list. Pure render of `PipelineJobView` —
  * no timers, no browser APIs, SSR-safe.
  */
@@ -33,7 +33,7 @@ export const ROBOT_PARTS: PartDef[] = [
 ];
 
 /** Fixed stage → robot attachment mapping. Unknown/custom stages render as
- *  bolt-on modules (still listed in TODO/DONE), never as a wrong body part. */
+ *  bolt-on modules (still listed in QUEUED/DONE), never as a wrong body part. */
 const STAGE_PART: Record<string, RobotPartKey> = {
   typecheck: 'head',
   adversary: 'arm-left',
@@ -52,7 +52,7 @@ export function partDefForStage(stageId: string): PartDef | null {
   return key ? (ROBOT_PARTS.find((p) => p.key === key) ?? null) : null;
 }
 
-/** Stages that haven't started — the TODO list. */
+/** Stages that haven't started — the queued list. */
 export function todosForStages(stages: PipelineStageView[]): PipelineStageView[] {
   return stages.filter((s) => s.status === 'pending');
 }
@@ -383,7 +383,7 @@ export function PipelineRobot({
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* TODO */}
+            {/* Stages that have not started yet. */}
             <div className="rounded-xl border border-[var(--color-border-muted)] p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">Todo · {todos.length}</div>
               {todos.length === 0 ? (

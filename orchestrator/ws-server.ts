@@ -25,7 +25,7 @@ export class WSServer extends EventEmitter {
     super();
     const host = process.env.WS_HOST || '127.0.0.1';
     this.wss = new WebSocketServer({ port, host });
-    console.log(`WebSocket server started on ${host}:${port}${AUTH_ENABLED ? ' (auth enabled)' : ''}`);
+    console.info(`WebSocket server started on ${host}:${port}${AUTH_ENABLED ? ' (auth enabled)' : ''}`);
 
     this.wss.on('connection', (ws, req) => {
       const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -43,7 +43,7 @@ export class WSServer extends EventEmitter {
       }
 
       this.clients.add(ws);
-      console.log('Client connected to WebSocket');
+      console.info('Client connected to WebSocket');
 
       ws.send(JSON.stringify({
         type: 'PIPELINE_EVENT',
@@ -61,7 +61,7 @@ export class WSServer extends EventEmitter {
       ws.on('close', () => {
         clearInterval(interval);
         this.clients.delete(ws);
-        console.log('Client disconnected');
+        console.info('Client disconnected');
       });
 
       ws.on('pong', () => {});
@@ -79,7 +79,7 @@ export class WSServer extends EventEmitter {
 
   private handleMessage(ws: WebSocket, message: any) {
     if (message.type === 'RUN_PIPELINE') {
-      console.log('Starting pipeline run with spec:', message.spec || message.repos);
+      console.info('Starting pipeline run with spec:', message.spec || message.repos);
       this.emit('RUN_PIPELINE', message);
     }
   }

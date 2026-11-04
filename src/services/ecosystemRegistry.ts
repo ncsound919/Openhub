@@ -429,6 +429,19 @@ const SEED: EcosystemEntity[] = [
     evidence: [GRADING + ' (service litellm :4100 UP)'],
   }),
   entity({
+    id: 'kokoro', name: 'Shared Kokoro Voice', kind: 'service', pillar: 'core',
+    stack: ['Python', 'sherpa-onnx', 'ONNX'],
+    purpose: 'One Kokoro TTS process for the machine (54 speakers, 24 kHz WAV on loopback :8770) that OpenHub chat and Field speak through.',
+    repo: 'phone-apps/shared/voice', port: 8770, bridge: 'kokoro', tags: ['voice', 'tts', 'shared'],
+    auditScore: null,
+    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: false, integrated: true, documented: true }),
+    blockers: [
+      'Not a service: start_kokoro.cmd must be re-run after a reboot.',
+      'WAV only — no mp3 and no streaming; a sentence is generated in full before the first byte.',
+    ],
+    evidence: ['shared/voice/tests (16 tests, live synthesis)', 'shared/voice/README.md'],
+  }),
+  entity({
     id: 'dsh-harness', name: 'DSH Harness', kind: 'service', pillar: 'llm',
     stack: ['TypeScript', 'Node.js'],
     purpose: 'DeepSeek harness service used as a model lane by the fleet router.',

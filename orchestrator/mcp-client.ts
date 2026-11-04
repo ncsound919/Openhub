@@ -11,7 +11,7 @@ export class MCPClient {
   constructor(private pythonPath: string, private projectRoot: string) {}
 
   async start() {
-    console.log(`Starting MCP Server: ${this.pythonPath} -m vibeserve (root: ${this.projectRoot})`);
+    console.info(`Starting MCP Server: ${this.pythonPath} -m vibeserve (root: ${this.projectRoot})`);
     const vibeserveDir = path.join(this.projectRoot, 'vibeserve');
     const env = { ...process.env, PYTHONPATH: vibeserveDir };
     this.process = spawn(this.pythonPath, ['-m', 'vibeserve'], {

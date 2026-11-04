@@ -25,10 +25,10 @@ export async function startOrchestrator() {
 
   try {
     await mcpClient.start();
-    console.log('[Orchestrator] MCP client ready');
+    console.info('[Orchestrator] MCP client ready');
 
     const availableModels = await multiModel.initialize();
-    console.log(`[Orchestrator] Available models: ${availableModels.join(', ')}`);
+    console.info(`[Orchestrator] Available models: ${availableModels.join(', ')}`);
 
     wsServer.broadcast({
       type: 'PIPELINE_EVENT',
@@ -39,7 +39,7 @@ export async function startOrchestrator() {
 
     wsServer.on('RUN_PIPELINE', async (data: any) => {
       const spec = data.spec || data.repos?.join(' + ') || 'Default Spec';
-      console.log(`[Orchestrator] Triggering pipeline for: ${spec}`);
+      console.info(`[Orchestrator] Triggering pipeline for: ${spec}`);
       await pipeline.run(spec);
 
       const summary = multiModel.getSummary();

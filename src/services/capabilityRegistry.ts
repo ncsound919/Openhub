@@ -9,7 +9,7 @@
  * without a successful probe, and probe outcomes are keyed to evidence receipts.
  */
 
-export type BridgeCategory = 'core' | 'audit' | 'repair' | 'llm' | 'memory' | 'queue';
+export type BridgeCategory = 'core' | 'audit' | 'repair' | 'llm' | 'memory' | 'queue' | 'voice';
 export type ProbeTransport = 'http' | 'tcp' | 'cli';
 
 export interface BridgeIdentity {
@@ -605,6 +605,40 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
       { id: 'ecosystem.axiom-repair', name: 'Dispatch Axiom Repair', description: 'Hand Axiom a project loop via Recourse bridge', kind: 'mutation', endpoint: '/api/ecosystem/axiom-repair' },
     ],
     documentation: 'OmniResearch 2 deep-research agent (LiteLLM :4100, MCP at /api/mcp). Port 3012 — 3010 is OpenHub.',
+  },
+
+  kokoro: {
+    identity: {
+      slug: 'kokoro',
+      name: 'Shared Kokoro Voice',
+      category: 'voice',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 8770,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/health',
+    },
+    // The process starts before the model finishes loading, so /health is the
+    // only honest readiness signal: HTTP 200 {ready:false, reason} means the
+    // port is open but it cannot speak yet.
+    liveness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 4000,
+    },
+    readiness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 4000,
+    },
+    operations: [
+      { id: 'voice.speak', name: 'Speak Text', description: 'Synthesize one utterance to 24 kHz mono WAV (Concordance contract)', kind: 'mutation', endpoint: '/tts' },
+      { id: 'voice.speak_openai', name: 'Speak (OpenAI compatible)', description: 'POST /v1/audio/speech for any OpenAI client pointed at this base URL', kind: 'mutation', endpoint: '/v1/audio/speech' },
+      { id: 'voice.voices', name: 'List Voices', description: '54 speaker ids with names and language', kind: 'query', endpoint: '/v1/audio/voices' },
+    ],
+    documentation: 'One Kokoro TTS process for the machine (shared/voice, loopback :8770). 54 speakers, 24 kHz WAV, no streaming; /health lists dropped words in `oov`.',
   },
 };
 

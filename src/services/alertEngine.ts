@@ -113,7 +113,7 @@ async function tick(): Promise<number> {
 /** Start the security-alert bridge. Returns a stop function. */
 export function startAlertEngine(intervalMs = Number(process.env.OPENHUB_ALERTS_INTERVAL_MS || 120_000)): () => void {
   if (process.env.OPENHUB_ALERTS === '0') {
-    console.log('[alertEngine] disabled (OPENHUB_ALERTS=0)');
+    console.info('[alertEngine] disabled (OPENHUB_ALERTS=0)');
     return () => {};
   }
   let running = false;
@@ -127,6 +127,6 @@ export function startAlertEngine(intervalMs = Number(process.env.OPENHUB_ALERTS_
   const timer = setInterval(run, Math.max(30_000, intervalMs));
   if (typeof timer.unref === 'function') timer.unref();
   run();
-  console.log(`[alertEngine] bridging Draymond + Keywire security alerts every ${Math.max(30_000, intervalMs)}ms`);
+  console.info(`[alertEngine] bridging Draymond + Keywire security alerts every ${Math.max(30_000, intervalMs)}ms`);
   return () => clearInterval(timer);
 }

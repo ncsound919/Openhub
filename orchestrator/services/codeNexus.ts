@@ -12,7 +12,7 @@ export class CodeNexusService {
   constructor(private mcpClient: MCPClient) {}
 
   async runReview(context: any): Promise<ReviewResult> {
-    console.log('[CodeNexus] Running comprehensive system audit...');
+    console.info('[CodeNexus] Running comprehensive system audit...');
 
     // Call the vibe_audit tool from MCP
     const auditResult = await this.mcpClient.callTool('vibe_audit', {

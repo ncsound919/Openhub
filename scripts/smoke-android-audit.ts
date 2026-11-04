@@ -17,20 +17,20 @@ const server = app.listen(PORT, '127.0.0.1', async () => {
   const base = `http://127.0.0.1:${PORT}/api/android-audit`;
   try {
     const health = await fetch(`${base}/health`).then((r) => r.json());
-    console.log('health:', JSON.stringify(health));
+    console.info('health:', JSON.stringify(health));
     if (!health.ok) throw new Error(health.reason || 'desk offline');
 
     const profiles = await fetch(`${base}/profiles`).then((r) => r.json());
     const first = profiles.profiles?.[0];
-    console.log('profiles:', profiles.profiles?.length ?? 0, first ? `first=#${first.id} ${first.app_name}` : '');
+    console.info('profiles:', profiles.profiles?.length ?? 0, first ? `first=#${first.id} ${first.app_name}` : '');
 
     if (first) {
       const tasks = await fetch(`${base}/report?id=${first.id}&format=agent-json`).then((r) => r.json());
-      console.log('agent tasks:', tasks.tasks?.length ?? 0, 'schema:', tasks.schema);
+      console.info('agent tasks:', tasks.tasks?.length ?? 0, 'schema:', tasks.schema);
       const md = await fetch(`${base}/report?id=${first.id}&format=agent-md`).then((r) => r.text());
-      console.log('agent markdown:', md.split('\n')[0], '| bytes:', md.length);
+      console.info('agent markdown:', md.split('\n')[0], '| bytes:', md.length);
     }
-    console.log('SMOKE OK');
+    console.info('SMOKE OK');
   } catch (err) {
     console.error('SMOKE FAILED:', err instanceof Error ? err.message : err);
     process.exitCode = 1;

@@ -1,0 +1,5 @@
+# Layer applied when a profile lists @overlay365/dsh-fleet as a bundle.
+# Plugin rows reference the package by name so Node resolves the installed code.
+- insert:
+    - id: overlay-fleet
+      name: '@overlay365/dsh-fleet'

@@ -46,7 +46,7 @@ export class MultiModelPipeline {
   async initialize(): Promise<string[]> {
     if (this.config.enableHealthCheck) {
       const available = await this.router.discover();
-      console.log(`[Pipeline] Discovered ${available.size} models`);
+      console.info(`[Pipeline] Discovered ${available.size} models`);
       return Array.from(available);
     }
     return this.router.getAvailable();
@@ -77,7 +77,7 @@ export class MultiModelPipeline {
       }
 
       try {
-        console.log(`[Pipeline] ${task}: trying ${provider.name} (attempt ${attempt + 1})`);
+        console.info(`[Pipeline] ${task}: trying ${provider.name} (attempt ${attempt + 1})`);
         
         const result = await provider.call(messages);
         
@@ -90,13 +90,13 @@ export class MultiModelPipeline {
         
         this.tracker = this.tracker.add(record);
         
-        console.log(`[Pipeline] ${task}: ${provider.name} succeeded (${result.latencyMs}ms, $${record.costUsd.toFixed(4)})`);
+        console.info(`[Pipeline] ${task}: ${provider.name} succeeded (${result.latencyMs}ms, $${record.costUsd.toFixed(4)})`);
         
         return { result, record };
         
       } catch (error) {
         lastError = error as Error;
-        console.log(`[Pipeline] ${task}: ${provider.name} failed (${lastError.message})`);
+        console.info(`[Pipeline] ${task}: ${provider.name} failed (${lastError.message})`);
         
         if (attempt === chain.length - 1) {
           break;
@@ -142,7 +142,7 @@ export class MultiModelPipeline {
     }
     
     const result = await this.desloppify.run(rootDir);
-    console.log(`[Pipeline] Desloppify: ${result.filesProcessed} files cleaned`);
+    console.info(`[Pipeline] Desloppify: ${result.filesProcessed} files cleaned`);
     return { filesProcessed: result.filesProcessed, changesMade: result.changes };
   }
 

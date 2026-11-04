@@ -14,7 +14,7 @@ export class DebtScorer {
     securityResult: any; 
     testResult: any;
   }): DebtScore {
-    console.log('[DebtScorer] Computing technical debt score...');
+    console.info('[DebtScorer] Computing technical debt score...');
     
     const complexityScore = Math.max(0, 100 - (context.reviewIssues.length * 5));
     const securityScore = context.securityResult.passed ? 100 : 50;

@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+/* No remote font import: the CSP allows same-origin styles only, so the
+   Google Fonts request was blocked on every load (and failed offline). The
+   stacks in @theme already fall back to system UI / monospace fonts. */
 @import "tailwindcss";
 
 /* ---- OpenHub design tokens ----

@@ -223,13 +223,13 @@ export function startDreamLoop(intervalMs = 120_000): NodeJS.Timeout {
     // lock instead of skipping cleanly. Skipping is the correct behaviour for a
     // best-effort monitor: the next tick sees current state.
     if (inFlight) {
-      if (process.env.OPENHUB_VERBOSE === '1') console.log(`[dream] tick skipped (${when}): previous tick still running`);
+      if (process.env.OPENHUB_VERBOSE === '1') console.info(`[dream] tick skipped (${when}): previous tick still running`);
       return;
     }
     inFlight = true;
     try {
       const n = dreamTick();
-      if (process.env.OPENHUB_VERBOSE === '1') console.log(`[dream] ${when}: analyzed ${n} repo(s)`);
+      if (process.env.OPENHUB_VERBOSE === '1') console.info(`[dream] ${when}: analyzed ${n} repo(s)`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[dream] tick failed (${when}): ${msg}`);

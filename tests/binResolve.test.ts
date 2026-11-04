@@ -113,7 +113,14 @@ describe('runLocalCommand tree kill', () => {
     const parent = `require('child_process').spawn(process.execPath, ['-e', ${JSON.stringify(grandchild)}], { stdio: 'ignore' }); setTimeout(() => {}, 60000)`;
     const r = await runLocalCommand('node', ['-e', parent], { cwd: process.cwd(), timeoutMs: 1000, noReceipt: true });
     expect(r.timedOut).toBe(true);
-    await new Promise((res) => setTimeout(res, 3500));
+    // taskkill /T is a separate process and can take seconds on a loaded
+    // Windows box. The marker fires at 2.5s; poll long enough that a slow kill
+    // is not mistaken for a leaked grandchild, but fail immediately if it
+    // appears.
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline && !fs.existsSync(marker)) {
+      await new Promise((res) => setTimeout(res, 100));
+    }
     expect(fs.existsSync(marker)).toBe(false);
-  }, 20_000);
+  }, 30_000);
 });

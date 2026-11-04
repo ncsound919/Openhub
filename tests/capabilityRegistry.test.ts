@@ -42,6 +42,15 @@ describe('Capability Registry (C1)', () => {
     expect(sieve?.liveness.path).toBe('/v1/sieve/health');
     expect(sieve?.operations.map((o) => o.id)).toContain('code.recall');
     expect(getBridgeStatement('recourse-mobile')?.liveness.path).toBe('/v1/recourse/health');
+
+    // The shared voice service is declared like every other bridge: loopback,
+    // /health readiness, and only the operations it really serves.
+    const kokoro = getBridgeStatement('kokoro');
+    expect(kokoro?.identity.category).toBe('voice');
+    expect(kokoro?.identity.port).toBe(8770);
+    expect(kokoro?.liveness.path).toBe('/health');
+    expect(kokoro?.operations.map((o) => o.id)).toContain('voice.speak');
+    expect(kokoro?.operations.map((o) => o.id)).toContain('voice.voices');
   });
 });
 

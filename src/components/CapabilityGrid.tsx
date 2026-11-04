@@ -14,6 +14,7 @@ import {
   Database,
   Radio,
   Sparkles,
+  Volume2,
   Search,
   Filter,
   Layers,
@@ -30,9 +31,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   llm: Sparkles,
   memory: Database,
   queue: Radio,
+  voice: Volume2,
 };
 
-const CATEGORIES = ['all', 'core', 'audit', 'repair', 'llm', 'memory', 'queue'] as const;
+const CATEGORIES = ['all', 'core', 'audit', 'repair', 'llm', 'memory', 'queue', 'voice'] as const;
 const STATUS_OPTIONS = ['all', 'online', 'degraded', 'offline'] as const;
 
 export function CapabilityGrid() {

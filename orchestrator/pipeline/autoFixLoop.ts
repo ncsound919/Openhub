@@ -13,12 +13,20 @@ export class AutoFixLoop {
     error: { stderr: string; command: string };
     retryFn: () => Promise<any>;
   }, maxAttempts: number = 3): Promise<boolean> {
-    console.log(`[AutoFixLoop] Starting loop for ${context.phase}...`);
+    console.info(`[AutoFixLoop] Starting loop for ${context.phase}...`);
     
     for (let i = 1; i <= maxAttempts; i++) {
-      console.log(`[AutoFixLoop] Attempt ${i}/${maxAttempts}`);
+      console.info(`[AutoFixLoop] Attempt ${i}/${maxAttempts}`);
       
       const diagnosis = await this.diagnoser.diagnose(context.error);
+
+      // A diagnosis without a patch is research, not a fix. Writing a
+      // placeholder comment over a real file is worse than stopping and
+      // letting the caller read the diagnosis.
+      if (!diagnosis.fixCode.trim()) {
+        console.warn('[AutoFixLoop] Diagnosis had no patch; refusing to write a placeholder.');
+        return false;
+      }
       
       // Apply the fix using MCP tools
       if (diagnosis.fixStrategy === 'add_dep') {
@@ -33,7 +41,7 @@ export class AutoFixLoop {
       
       try {
         await context.retryFn();
-        console.log(`[AutoFixLoop] Fix successful on attempt ${i}`);
+        console.info(`[AutoFixLoop] Fix successful on attempt ${i}`);
         return true;
       } catch (retryErr: any) {
         console.warn(`[AutoFixLoop] Attempt ${i} failed to resolve error.`);

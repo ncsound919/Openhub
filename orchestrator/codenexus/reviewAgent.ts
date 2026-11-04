@@ -11,7 +11,7 @@ export class ReviewAgent {
   constructor(private mcpClient: MCPClient) {}
 
   async review(files: { path: string; content?: string }[]): Promise<ReviewIssue[]> {
-    console.log(`[ReviewAgent] Analyzing ${files.length} files...`);
+    console.info(`[ReviewAgent] Analyzing ${files.length} files...`);
     
     // We'll use an LLM via MCP to perform the AST-level analysis
     // In a real scenario, we might use a specific tool that runs an AST parser

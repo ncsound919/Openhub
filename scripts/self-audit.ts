@@ -19,19 +19,19 @@ const targetDir = path.resolve(args.find((a) => a.startsWith('.')) ?? process.cw
 const t0 = Date.now();
 const report = await executeAuditSuite({ targetDir, preset });
 
-console.log(`=== SELF-AUDIT (${preset}) ===`);
-console.log(`target:  ${targetDir}`);
-console.log(`overall: ${report.overallStatus}  score=${report.overallScore}  grade=${report.grade}  critical=${report.criticalFindings}`);
-console.log(`verdict: ${report.verdictReason ?? 'n/a'} — ${report.verdictDetail ?? ''}`);
-console.log(`coverage: ${report.coveragePercent}%  findings=${report.findings.length}`);
-console.log('--- scorers ---');
+console.info(`=== SELF-AUDIT (${preset}) ===`);
+console.info(`target:  ${targetDir}`);
+console.info(`overall: ${report.overallStatus}  score=${report.overallScore}  grade=${report.grade}  critical=${report.criticalFindings}`);
+console.info(`verdict: ${report.verdictReason ?? 'n/a'} — ${report.verdictDetail ?? ''}`);
+console.info(`coverage: ${report.coveragePercent}%  findings=${report.findings.length}`);
+console.info('--- scorers ---');
 for (const r of report.results) {
   const score = typeof r.score === 'number' ? String(r.score) : 'n/a';
-  console.log(`${r.scorer.padEnd(16)} ${score.padStart(4)}  ${r.error ? 'ERROR: ' + r.error : r.summary}`);
+  console.info(`${r.scorer.padEnd(16)} ${score.padStart(4)}  ${r.error ? 'ERROR: ' + r.error : r.summary}`);
 }
-console.log('--- top findings ---');
+console.info('--- top findings ---');
 for (const f of report.findings.slice(0, 20)) {
   const loc = f.location?.file ? `${f.location.file}${f.location.line ? ':' + f.location.line : ''}` : '(no location)';
-  console.log(`[${f.severity}] ${f.dimension}/${f.category} ${loc} — ${f.evidence ?? f.remediation ?? ''}`);
+  console.info(`[${f.severity}] ${f.dimension}/${f.category} ${loc} — ${f.evidence ?? f.remediation ?? ''}`);
 }
-console.log(`elapsed ${Math.round((Date.now() - t0) / 1000)}s`);
+console.info(`elapsed ${Math.round((Date.now() - t0) / 1000)}s`);

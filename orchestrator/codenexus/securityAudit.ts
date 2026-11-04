@@ -10,7 +10,7 @@ export class SecurityAudit {
   constructor(private mcpClient: MCPClient) {}
 
   async run(projectPath: string = '.'): Promise<SecurityResult> {
-    console.log('[SecurityAudit] Running SAST and dependency audit...');
+    console.info('[SecurityAudit] Running SAST and dependency audit...');
     
     const semgrepTask = this.mcpClient.callTool('run_semgrep', { path: projectPath });
     const npmAuditTask = this.mcpClient.callTool('run_npm_audit', { path: projectPath });
