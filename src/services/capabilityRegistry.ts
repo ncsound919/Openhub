@@ -640,6 +640,37 @@ export const FLEET_BRIDGES: Record<string, BridgeCapabilityStatement> = {
     ],
     documentation: 'One Kokoro TTS process for the machine (shared/voice, loopback :8770). 54 speakers, 24 kHz WAV, no streaming; /health lists dropped words in `oov`.',
   },
+  'desktop-ops': {
+    identity: {
+      slug: 'desktop-ops',
+      name: 'Desktop Ops (OSS tool compiler)',
+      category: 'core',
+      transport: 'http',
+      host: '127.0.0.1',
+      port: 9876,
+    },
+    versionSpec: {
+      type: 'http',
+      endpointOrArgs: '/health',
+    },
+    liveness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    readiness: {
+      type: 'http',
+      path: '/health',
+      timeoutMs: 2500,
+    },
+    operations: [
+      { id: 'adapter.list', name: 'List Adapters', description: 'List registered OSS adapters and probe status', kind: 'query', endpoint: '/capabilities' },
+      { id: 'scaffold.create', name: 'Scaffold Tool', description: 'Scaffold a new tool from a template', kind: 'mutation', endpoint: '/mcp/call' },
+      { id: 'content.thumbnail', name: 'Create Thumbnail', description: 'PIL text-overlay thumbnail (no GPU)', kind: 'mutation', endpoint: '/mcp/call' },
+      { id: 'mesh.check', name: 'Mesh Wiring Check', description: 'Find apps still pointing at old endpoints', kind: 'query', endpoint: '/mcp/call' },
+    ],
+    documentation: 'Desktop execution plane: compiles OSS tools (aider, ffmpeg, semgrep, playwright, etc.) for the overlay365 ecosystem. Runs on an old no-GPU desktop. MCP server on :9876.',
+  },
 };
 
 export function getBridgeStatement(slug: string): BridgeCapabilityStatement | undefined {

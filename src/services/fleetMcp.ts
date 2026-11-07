@@ -249,6 +249,19 @@ export function fleetMcpServers(env: NodeJS.ProcessEnv = process.env): FleetMcpS
     'set OPENHUB_MCP_BUSINESS_LOGIC_DIR to a checkout of github.com/ncsound919/Business-Logic-MCP',
   ));
 
+
+  // Desktop-Ops — OSS tool compiler for the overlay365 ecosystem (remote MCP).
+  const desktopOpsUrl = (env.OPENHUB_MCP_DESKTOP_OPS_URL || '').trim();
+  servers.push(
+    desktopOpsUrl
+      ? { id: 'desktop-ops', label: 'Desktop Ops MCP', enabled: true,
+          config: { type: 'remote', url: desktopOpsUrl.replace(/\/$/, '') + '/mcp' },
+          source: 'OPENHUB_MCP_DESKTOP_OPS_URL' }
+      : { id: 'desktop-ops', label: 'Desktop Ops MCP', enabled: false,
+          reason: 'set OPENHUB_MCP_DESKTOP_OPS_URL to the desktop MCP endpoint (http://<desktop>:9876)',
+          source: 'OPENHUB_MCP_DESKTOP_OPS_URL' },
+  );
+
   return servers;
 }
 
