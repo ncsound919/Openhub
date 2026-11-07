@@ -10,7 +10,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 const PRIMARY_PAGES = [
   { name: 'Command', path: '/' },
-  { name: 'Workspace', path: '/workspace' },
+  { name: 'Workspace', path: '/editor' },
   { name: 'Activity', path: '/activity' },
   { name: 'Projects', path: '/projects' },
   { name: 'Assurance', path: '/assurance' },

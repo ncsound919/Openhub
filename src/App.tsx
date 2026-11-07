@@ -51,7 +51,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <div data-loading="auth" className="min-h-[100dvh] flex items-center justify-center" style={{ background: 'var(--color-bg-base)' }}><div className="text-gray-400">Loading OpenHub…</div></div>;
   if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
 function AppRoutes() {

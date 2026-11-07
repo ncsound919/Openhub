@@ -1,0 +1,385 @@
+{
+  "schemaVersion": 2,
+  "tool": "dsh-sentinel",
+  "version": "0.4.4",
+  "scannedAt": "2026-11-04T06:58:18.580Z",
+  "target": {
+    "kind": "path",
+    "path": "C:\\Users\\Asus\\AppData\\Local\\Temp\\sentinel-quarantine-17272-1793775497488-9r6z7xfrrbt\\x\\package",
+    "name": ""
+  },
+  "summary": {
+    "verdict": "dangerous",
+    "score": 84,
+    "scanComplete": true,
+    "incompleteScan": false,
+    "incompleteReasons": [],
+    "filesDiscovered": 9,
+    "filesAnalyzed": 9,
+    "findingsTotal": 6,
+    "findingsReturned": 6,
+    "findingsTruncated": false,
+    "scoreBasedOnAllFindings": true,
+    "filesScanned": 9,
+    "filesSkipped": 0,
+    "totalFindings": 6,
+    "bySeverity": {
+      "critical": 0,
+      "high": 3,
+      "medium": 3,
+      "low": 0,
+      "info": 0
+    },
+    "byCategory": {
+      "execution": 0,
+      "credentials": 0,
+      "exfiltration": 0,
+      "obfuscation": 0,
+      "install": 0,
+      "filesystem": 0,
+      "network": 2,
+      "manifest": 1,
+      "hygiene": 0,
+      "agent": 0,
+      "taint": 3,
+      "supplychain": 0,
+      "binary": 0,
+      "persistence": 0
+    },
+    "byContext": {
+      "source": 6,
+      "test": 0,
+      "development": 0
+    },
+    "scanMs": 1043
+  },
+  "scanCoverage": {
+    "sourceFiles": 9,
+    "buildFiles": 0,
+    "binaryFiles": 0,
+    "largeFiles": 0,
+    "parseFailures": 0,
+    "hardSkippedFiles": 0,
+    "binarySkippedFiles": 0,
+    "readFailures": 0,
+    "hashFailures": 0,
+    "analysisFailures": 0,
+    "traversalFailures": 0
+  },
+  "manifest": {
+    "ok": false,
+    "name": "dsh-push-notify",
+    "version": "1.0.2",
+    "isBundle": true,
+    "patch": "./cordis.patch.yml",
+    "license": "MIT",
+    "description": "Multi-channel push notification plugin for DeepSeek Harness supporting Bark (iOS) and ntfy (Android/iOS/Web)."
+  },
+  "profile": {
+    "name": "",
+    "pluginsScanned": [],
+    "pluginsSkipped": [],
+    "plugins": []
+  },
+  "findings": [
+    {
+      "id": "SEN-MAN-006",
+      "severity": "high",
+      "category": "manifest",
+      "confidence": "medium",
+      "message": "插件入口无效(缺少 name 或 apply 导出):dsh-push-notify",
+      "file": "dsh-push-notify",
+      "line": 1,
+      "snippet": "",
+      "recommendation": "",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "db262e15f61b10fb9c558e322bf4950849db0821f95f6879a3e71a618120b062"
+    },
+    {
+      "id": "SEN-TAINT-002",
+      "severity": "high",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果流向网络请求,存在源码/数据外传风险",
+      "file": "index.js",
+      "line": 185,
+      "snippet": "const response = await fetch(pushEndpoint, {",
+      "recommendation": "确认工作区内容不会随网络请求离开本机。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "network",
+        "callee": "fetch"
+      },
+      "flow": [
+        "readFileSync",
+        "fetch(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "fetch"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 30,
+      "endLine": 190,
+      "endColumn": 9,
+      "fingerprint": "5c47ec305981d157e71e9ef3f8e1f10de305b3e9b0e0ec0aa5c5ca9a6513f402"
+    },
+    {
+      "id": "SEN-TAINT-002",
+      "severity": "high",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果流向网络请求,存在源码/数据外传风险",
+      "file": "index.js",
+      "line": 258,
+      "snippet": "const response = await fetch(endpoint, {",
+      "recommendation": "确认工作区内容不会随网络请求离开本机。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "network",
+        "callee": "fetch"
+      },
+      "flow": [
+        "readFileSync",
+        "fetch(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "fetch"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 30,
+      "endLine": 263,
+      "endColumn": 9,
+      "fingerprint": "e14b391c1bacfe250cfd5d9baabaf9712b06fc8f7dc971b1ab3ad2e089e9ffa6"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "index.js",
+      "line": 153,
+      "snippet": "writeFileSync(p, JSON.stringify(activeConfig, null, 2), 'utf8');",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 9,
+      "endLine": 153,
+      "endColumn": 72,
+      "fingerprint": "e03505be511d48434f8dff48dfdb7f0764fc17db7d1fb6967c98fe07ea0f1463"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "index.js",
+      "line": 185,
+      "snippet": "const response = await fetch(pushEndpoint, {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "a8ff4cc985574bf14f0155332b7008446e1b4d234401875b3f70a8dbd4d2d8a8"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "index.js",
+      "line": 258,
+      "snippet": "const response = await fetch(endpoint, {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "32dee9ef1b7afc6718291b6e833187640b6474f12f67e8d6a4570b78d64324dd"
+    }
+  ],
+  "attackChains": [],
+  "analysisLayers": {
+    "moduleGraph": {
+      "complete": true,
+      "nodes": [
+        {
+          "path": "client.js",
+          "bytes": 29190,
+          "sha256": "d557e0691b913a4248f745bf480b566d27409e0f058f2da4928f0b6a0bbe4a15",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "index.js",
+          "bytes": 17453,
+          "sha256": "9b93248df40c765e6e45476a1c1998630cf5f3952f0d3db12eb40e58d6049a4f",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:os",
+            "node:path"
+          ]
+        }
+      ],
+      "edges": [],
+      "unresolved": [
+        {
+          "from": "index.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 56
+        },
+        {
+          "from": "index.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 91
+        },
+        {
+          "from": "index.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 123
+        }
+      ],
+      "failures": [],
+      "warnings": [],
+      "crossFile": {
+        "findings": [],
+        "attackChains": [],
+        "reachability": [],
+        "failures": [],
+        "complete": true
+      }
+    },
+    "dependencyGraph": {
+      "complete": true,
+      "nodes": 0,
+      "edges": 0,
+      "unresolved": 0,
+      "failures": []
+    },
+    "capabilityGraph": {
+      "complete": true,
+      "tools": [
+        {
+          "name": "(unbound)",
+          "capabilities": [
+            "filesystem-write",
+            "workspace-read"
+          ],
+          "findingCount": 3
+        }
+      ],
+      "capabilities": [
+        "filesystem-write",
+        "workspace-read"
+      ],
+      "attackPaths": [],
+      "failures": []
+    },
+    "sbom": {
+      "status": "not-requested",
+      "format": null,
+      "components": 0,
+      "digest": null,
+      "failures": []
+    },
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "ignored": [],
+  "hardSkipped": [],
+  "policySkips": [],
+  "coverageSkips": [],
+  "supplyChain": {
+    "package": "dsh-push-notify",
+    "version": "1.0.2",
+    "tarballSha256": "3574e50c47af2ed4cfb482146640c57609079e01773535cba76bd1ca18d62471",
+    "integrity": "sha512-ZGEGqT4w1ARatdxupxaX02w2k/N8RzbKt6V0cU9ARRmZMgNS4HecRMQvZfpOdJIBdLpZvZBUpDvYVytFDgcmOA==",
+    "dependencyCount": 0,
+    "installScripts": [],
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "stats": {
+    "languages": {
+      "js": 2,
+      "yml": 1,
+      "svg": 1,
+      "text": 1,
+      "json": 3,
+      "md": 1
+    },
+    "largestFiles": [
+      {
+        "file": "client.js",
+        "bytes": 29190
+      },
+      {
+        "file": "index.js",
+        "bytes": 17453
+      },
+      {
+        "file": "README.md",
+        "bytes": 3291
+      },
+      {
+        "file": "package.json",
+        "bytes": 1511
+      },
+      {
+        "file": "LICENSE",
+        "bytes": 1085
+      }
+    ]
+  },
+  "audit": {
+    "package": "dsh-push-notify",
+    "version": "1.0.2",
+    "verdict": "BLOCK-RECOMMENDED",
+    "tarballSha256": "3574e50c47af2ed4cfb482146640c57609079e01773535cba76bd1ca18d62471",
+    "integrityOk": true,
+    "dependencyCount": 0,
+    "installScripts": []
+  }
+}

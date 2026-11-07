@@ -1,0 +1,15 @@
+storage: ./storage
+listen: "[::]:4873"
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  "@deepseek-ai/*":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+  "**":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+log: { type: stdout, format: pretty }

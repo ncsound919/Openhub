@@ -1,0 +1,3853 @@
+{
+	"name": "@deepseek-ai/dsh-sdk-client",
+	"versions": {
+		"0.0.1-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.0.1-rc.1",
+			"license": "BSD-3-Clause",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.0.1-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "982ea41acb360ae371dddb0cd64b34041922c706",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.1.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-qHdB9PIkLwbX0HATMLPaYq69up7Ny/ooFh0Da3UCM2qkXj4k7ZmAl35WXLA01anuapdWl17sH78bvVO2Nu41iA==",
+				"signatures": [
+					{
+						"sig": "MEYCIQCJLEl3YEbBWwBK+sOo+ffdrafy/1byRkrg/lVqeAUejwIhAO4ou6H6Pt4Iu8iskBTdIj1dMUfcgf+JM2isMUnSoVS/",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59492
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.1.tgz",
+			"_integrity": "sha512-qHdB9PIkLwbX0HATMLPaYq69up7Ny/ooFh0Da3UCM2qkXj4k7ZmAl35WXLA01anuapdWl17sH78bvVO2Nu41iA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/scaffold/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "restricted"
+			},
+			"_hasShrinkwrap": false,
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.1",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.1",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.0.1-rc.1_1786390957941_0.1018246434189547",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.0.1-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.0.1-rc.2",
+			"license": "BSD-3-Clause",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.0.1-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "f843996de366e2880fb7db931007259926a68367",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.2.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-+m4zj490wHJfP4S2SvMAEBLpTy6R4CxIVMs5Irns+MwuPfk0YA8vh/MZPNPJznqhDiWL57mi+JT4JA7h6wlR5Q==",
+				"signatures": [
+					{
+						"sig": "MEUCIQDCIeLfxpq+9rLLa9aCt3dLJDPYk5XyAzYZCRin8gaeWQIgP7bqw/G4feQm3sbYEBSk9HEELJWv/g3SkpgJKFlsHow=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59482
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.2.tgz",
+			"_integrity": "sha512-+m4zj490wHJfP4S2SvMAEBLpTy6R4CxIVMs5Irns+MwuPfk0YA8vh/MZPNPJznqhDiWL57mi+JT4JA7h6wlR5Q==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "restricted"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.1",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.1",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.0.1-rc.2_1786461957162_0.3000998338278511",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.0.1-rc.5": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.0.1-rc.5",
+			"license": "BSD-3-Clause",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.0.1-rc.5",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "c605e5e7770106f997da388ffff6cbc4f01f34b8",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.5.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-VQtOqsa/PvZ3Omsf34nSnjKQEn6sLGJovpU2M7Dve9/+e3L7IpH2g5i0GPMiZm8xdjPqPTxclrqJFiIqCsDSTw==",
+				"signatures": [
+					{
+						"sig": "MEUCIQCtsPq3WSIOyFyZkAKouNliMhOGCMlODL9JBTe9MVNjzAIgGD6CgdET6lKfvuy8K1tCE4rb7COFSnk6iYRq95muWrs=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59482
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.5.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.0.1-rc.5.tgz",
+			"_integrity": "sha512-VQtOqsa/PvZ3Omsf34nSnjKQEn6sLGJovpU2M7Dve9/+e3L7IpH2g5i0GPMiZm8xdjPqPTxclrqJFiIqCsDSTw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "restricted"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.4",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.5"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1-rc.4",
+				"@deepseek-ai/dsh-llm": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-session": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-invariants": "^0.0.1-rc.5",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.0.1-rc.5"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.0.1-rc.5_1786574248247_0.7933599408843106",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.0-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.0-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.0-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "ce286b02b8e140186546a874ef7a38d0329edec1",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.2.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-Rt39iASVTrOcMAyPGNx25F8BicHw6ZYG4JJRlayrSubnHmBUQXt0dtMvP8r2+SGygXSpi3qtPb9WgeTBY/xktQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIQCjERW5nH8GR1ad/ynX5sxPDxg1L3exlpa/89mpTC3HgAIgcIBx+kTqeEShy8vP5Dc1mGdlQZB42VLF0LhJbPwoVhk=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59033
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.2.tgz",
+			"_integrity": "sha512-Rt39iASVTrOcMAyPGNx25F8BicHw6ZYG4JJRlayrSubnHmBUQXt0dtMvP8r2+SGygXSpi3qtPb9WgeTBY/xktQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "restricted"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.0-rc.2_1786614635499_0.27733309929087446",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.0-rc.3": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.0-rc.3",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.0-rc.3",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "d51b38d7020f583b9a7f27ffb308b66899e39faa",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.3.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-jfu04KRAtR/SQfsC8y5QpYQDjDP24eyRCFlygeJw74Y+T7HYbotHMso6ItyQpDUlRze902ZiraUHY/lp2+HbKQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIQDpp6SPL+oOwcRpHwn1abdbMWD4BAHy/eiRjQgoHe/BaQIgEdvCFMaCipDnzPL1hXFrvfbvBk/t8tJlIZ35DGIX444=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59033
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.3.tgz",
+			"_integrity": "sha512-jfu04KRAtR/SQfsC8y5QpYQDjDP24eyRCFlygeJw74Y+T7HYbotHMso6ItyQpDUlRze902ZiraUHY/lp2+HbKQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "restricted"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.3"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.0-rc.3_1786619919626_0.0056858521075839885",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.0-rc.6": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.0-rc.6",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.0-rc.6",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "3bf3e09d07a549ac3e46d8357912e238bdfbcf22",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.6.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-7y8+dsTljsvHpyZeENeTcUNyxComHlawF8txGdCXxp0VsDt38aKYai8tqdOIrltKAZthmsmj80XuNtmQZxWRlw==",
+				"signatures": [
+					{
+						"sig": "MEUCIHndHtTkiBdBaJKTW3v6Hl+WpEA7iXeKzCv+CORc0CoDAiEAhqiEkISH1yg1SIsJb3YqAopRnsjfcWepPLTRe8UFXRM=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59029
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.6.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.6.tgz",
+			"_integrity": "sha512-7y8+dsTljsvHpyZeENeTcUNyxComHlawF8txGdCXxp0VsDt38aKYai8tqdOIrltKAZthmsmj80XuNtmQZxWRlw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.16.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.18.0",
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.6"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.6"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.0-rc.6_1786624741544_0.4068328115515596",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.0-rc.7": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.0-rc.7",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.0-rc.7",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "b85450d8192079f0cb87984c76c19ca67fea5792",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.7.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-AOBa9xGU9lzlY8eILJ9khUmvuppn80GfUPlT6xVM2zkMkhls6m9GqkUibP+P2//2yOkodxoYRPRQ+pQoyYZX6w==",
+				"signatures": [
+					{
+						"sig": "MEQCICLLzt7KtuXEfWGoThW6vh5niGl6lxtrLSW3VVEpVIMBAiA6ptkcBnNLToQPrZKnA6FobDAMmLzwpWabTKKnS5iGdA==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59029
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.7.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.7.tgz",
+			"_integrity": "sha512-AOBa9xGU9lzlY8eILJ9khUmvuppn80GfUPlT6xVM2zkMkhls6m9GqkUibP+P2//2yOkodxoYRPRQ+pQoyYZX6w==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.7"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.7",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.7"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.0-rc.7_1786967550223_0.7347887706604437",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.0-rc.8": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.0-rc.8",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.0-rc.8",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "d2feca00f40e7da213f8a2b7fa6f44344f88d896",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.8.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-oxjRMs32QZAuD1bigr3ndFuKRNj661c5WzlUHf7MF+ElLLgC/9Fk28Li31k7Hh1+l5zu0CooXvHJGRvIvjxClA==",
+				"signatures": [
+					{
+						"sig": "MEQCIApAzy5Fq635K3Odk+JT20GAwtLU4nrYRE/BL37rKwgbAiASx6vGSG5ZsVmqdy1je1SInELzRveKmlGPSRQXtehj/g==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59029
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.8.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.0-rc.8.tgz",
+			"_integrity": "sha512-oxjRMs32QZAuD1bigr3ndFuKRNj661c5WzlUHf7MF+ElLLgC/9Fk28Li31k7Hh1+l5zu0CooXvHJGRvIvjxClA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.8"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-session": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-invariants": "^0.1.0-rc.8",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.0-rc.8"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.0-rc.8_1787154189397_0.20694664820074204",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.1-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.1-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.1-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "a2b605ede1f8659723b143f7e7961c868dcadd82",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.1-rc.1.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-0pzgJ+FUmdt1a2M0EMgME//FZTnHuYQhI2C88SHEAithiC12HVgeSwjLsIdoxSADWy0N5iI81rjMOT8TyjuKPA==",
+				"signatures": [
+					{
+						"sig": "MEUCIQDnjR0BpSh5wNGYHelhp0O0r9cRR3u3l0AIjzJoWjaOyAIgcxe77aNvsbDz/UoMP94cW4ryyyC22ZN7LTnQEdoSG5k=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59041
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.1-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.1-rc.1.tgz",
+			"_integrity": "sha512-0pzgJ+FUmdt1a2M0EMgME//FZTnHuYQhI2C88SHEAithiC12HVgeSwjLsIdoxSADWy0N5iI81rjMOT8TyjuKPA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-invariants": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.1-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-invariants": "^0.1.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.1-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.1-rc.1_1787295054595_0.5048450904193531",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.1-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.1-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.1-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "05581225df2b185cc99cfbfa0aeb869ef5f4caff",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.1-rc.2.tgz",
+				"fileCount": 13,
+				"integrity": "sha512-wCaNAKzmBOy/ZHAS4MX31qnBawf78ZK9QSr8/MZxWxolSeoNiQ9BizDMWj54vS8CF+3fUbI26G0ziTmpJTk9DQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIQC3skV5CCJ5EWBECXd59BlLwCFOGkjULZeJAUONCHwk9wIgGN4tu7/N+MRFBLJ1qCuPdnsauYU9d9lpTAEkKmi0aN4=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 59041
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.1-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.1-rc.2.tgz",
+			"_integrity": "sha512-wCaNAKzmBOy/ZHAS4MX31qnBawf78ZK9QSr8/MZxWxolSeoNiQ9BizDMWj54vS8CF+3fUbI26G0ziTmpJTk9DQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.1-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.1",
+				"@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.1-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.1-rc.2_1787316232523_0.7964961641883042",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.2-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.2-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.2-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "be3dd8eef8fb5ae94a31a1aca6644abd138a27c9",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.2.tgz",
+				"fileCount": 14,
+				"integrity": "sha512-co+yh6qvHDZ0ksfhulF2QVdxXY7sAbXCmoIVfSEZOtyASfl46Goawm4r7d14v+myMAPH7P/kBA/KrI87ulA1Qw==",
+				"signatures": [
+					{
+						"sig": "MEUCIQD+I5j4RPsJC9cZOou7gpyvJojOCZFZnuRUjE8zfW0rhwIgadRidFl2VCWcLPhKk+EYsmxmiA7kbh4vawY+0V2KM5E=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79878
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.2.tgz",
+			"_integrity": "sha512-co+yh6qvHDZ0ksfhulF2QVdxXY7sAbXCmoIVfSEZOtyASfl46Goawm4r7d14v+myMAPH7P/kBA/KrI87ulA1Qw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.2-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-invariants": "^0.1.2-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.2-alpha.2_1788099117836_0.8145354228779664",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.2-alpha.3": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.2-alpha.3",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.2-alpha.3",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "d96b66eb7f838039aeb49891a4a22a877df9157a",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.3.tgz",
+				"fileCount": 14,
+				"integrity": "sha512-1yUhm5AuKvg7uJ+5uT6Y8XGQAGyONixDAb/FBEIbv5o8+mUYdcx/hN08a/OD/OJa5oTiyAJlpn5TITj7P/ruVg==",
+				"signatures": [
+					{
+						"sig": "MEUCIGtbK5/+EonVUBSJ1tQPGJshdTS34rH0KNt1QGLiItiBAiEAjumiM4n8ZOAzzIjftQkpxUAICaq21NqKB/qPwf2aZNs=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79878
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./invariant": {
+					"types": "./lib/types/invariant.d.ts",
+					"default": "./lib/invariant.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.3.tgz",
+			"_integrity": "sha512-1yUhm5AuKvg7uJ+5uT6Y8XGQAGyONixDAb/FBEIbv5o8+mUYdcx/hN08a/OD/OJa5oTiyAJlpn5TITj7P/ruVg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.2-alpha.3"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-invariants": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-invariants": "^0.1.2-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.3"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.2-alpha.3_1788193318566_0.6314775243247697",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.2-alpha.4": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.2-alpha.4",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.2-alpha.4",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "a7b705e4aa7c232d4d4aa1ed618b1d7b75068b2f",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.4.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-MsP7wfL063fAYlATYCbW1Km8zFTzFc9CdMa9f8nQKOXAqo6jdbGrOsiMweG2en4l7r1sMX77YryY/Op6xP1N+A==",
+				"signatures": [
+					{
+						"sig": "MEYCIQCN7Ydd/hRU/fKKYVQFMU5D3J3Dmg/DqDP7PFFfT/veVwIhALgJbw6q0L1cp0mitRfmF9igzhYW71aceUPEi4ryyehb",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 78062
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.4.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.4.tgz",
+			"_integrity": "sha512-MsP7wfL063fAYlATYCbW1Km8zFTzFc9CdMa9f8nQKOXAqo6jdbGrOsiMweG2en4l7r1sMX77YryY/Op6xP1N+A==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.2-alpha.4"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.4",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.4",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.4"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.4",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.4",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.4"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.2-alpha.4_1788278549606_0.9230344342564671",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.2-alpha.5": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.2-alpha.5",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.2-alpha.5",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "c3daf8704aaa98bfc95aa17b8f0aa936262780ac",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.5.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-ypuzDECLd0p4mfTTB3gbBxFRvQNJDDH7/dmMpe1wbbbuSHthjTETPFjqq3GKF0aHqm1Yuws14+oEDFOkEO8Uvg==",
+				"signatures": [
+					{
+						"sig": "MEQCIC2rvEA1s3PUmySctgg6hHakWCtz8y8/wHcZoGr+kjCYAiAJo6W3KOsFfpAl7cmVukaZsQVF8rT3OAbjvfFmyVV0NA==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 78062
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.5.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-alpha.5.tgz",
+			"_integrity": "sha512-ypuzDECLd0p4mfTTB3gbBxFRvQNJDDH7/dmMpe1wbbbuSHthjTETPFjqq3GKF0aHqm1Yuws14+oEDFOkEO8Uvg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.2-alpha.5"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.5",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.5",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.5"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-alpha.5",
+				"@deepseek-ai/dsh-session": "^0.1.2-alpha.5",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-alpha.5"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.2-alpha.5_1788338376772_0.11182011764644217",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.2-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.2-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "d0444c5db351c99b5d8a1377584de0c85527309b",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-rc.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-ql++c5cuTWhUkh0aFW6rgBf4ZPEh8gP59Xkjy7vKTj7Bj+GGWkiaAQx2bBfkHz+B/92Qrpnqmk24T7lTGu8QiQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIQCsWlvEBMWiC+dkP3+NcF5mH0W8G4IFPl7TcFEqMqopqQIgD/sT1d9Bts92+V+Cm09IS6wm5T4oD5BOx7FJdZz3s+c=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 78038
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.2-rc.1.tgz",
+			"_integrity": "sha512-ql++c5cuTWhUkh0aFW6rgBf4ZPEh8gP59Xkjy7vKTj7Bj+GGWkiaAQx2bBfkHz+B/92Qrpnqmk24T7lTGu8QiQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.17.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.19.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.2-rc.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.2-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.2-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.2-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.2-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.2-rc.1_1788416572584_0.12338495785566361",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.3-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.3-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.3-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "8c50f1e6c4ee84696c5449cbbdd8ec3c312f7d86",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.3-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-eF3EFVta5VZ/T7/9ftsEspD1i81WHe+jaZyKzZisvVt7zOCpr0bnAYOclH9AzlYZ1RyEOIX3vy2pgyNnRA0JOA==",
+				"signatures": [
+					{
+						"sig": "MEYCIQCxxovDT+87N53xeOPGwTKRgyETF3LRp25R5RPVRnV6+AIhAPaSlyO8AQcGkmWH451oh3RbwkaHtPF4VJwBl4zfgyFv",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 78062
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.3-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.3-alpha.2.tgz",
+			"_integrity": "sha512-eF3EFVta5VZ/T7/9ftsEspD1i81WHe+jaZyKzZisvVt7zOCpr0bnAYOclH9AzlYZ1RyEOIX3vy2pgyNnRA0JOA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.3-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.3-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.3-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.3-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.3-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.3-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.3-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.3-alpha.2_1788786757413_0.6965896270861789",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.5-alpha.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.5-alpha.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.5-alpha.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "1d841326c3622b6b43654da43066327129d657c9",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-alpha.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-/Vh1X2AMEmh5oH3FdhAguiJ++NB6STdJKTbmhyTLlSaMvXaGbzDVnPNN2WSz511XgmWq+tGzsUuXfbqUZ3Hidw==",
+				"signatures": [
+					{
+						"sig": "MEUCIHrzEIThfjcGLUwdA5nr29Xlmmua5IK8H0ZcWwg7WpvUAiEA8eZ0YVmTMO/DbYmh8AQaoxlLSc4m3DsgrDsSKsoInGo=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77591
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-alpha.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-alpha.1.tgz",
+			"_integrity": "sha512-/Vh1X2AMEmh5oH3FdhAguiJ++NB6STdJKTbmhyTLlSaMvXaGbzDVnPNN2WSz511XgmWq+tGzsUuXfbqUZ3Hidw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.5-alpha.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.5-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-alpha.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.5-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-alpha.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.5-alpha.1_1788883114562_0.348560181266818",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.5-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.5-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.5-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "5694631c054d27b5e23e0fc2769290e75dd8744f",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-oitu33eqDencyhG8m68OI1czrsot+hlDOfTAZ5EkK+iQ/eHlKGtDj0dva7g2uDTlWoSN6rnjE1yDMOBSU9wBTA==",
+				"signatures": [
+					{
+						"sig": "MEQCIGFvUtU9BWLeMZgrZwVzz8vuXIM928GyxoKapPNnjubaAiBhIjqTnR4F+HA8anK1Hju/fCU02m1b09iq5KNlucFLTA==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77591
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-alpha.2.tgz",
+			"_integrity": "sha512-oitu33eqDencyhG8m68OI1czrsot+hlDOfTAZ5EkK+iQ/eHlKGtDj0dva7g2uDTlWoSN6rnjE1yDMOBSU9wBTA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.5-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.5-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.5-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.5-alpha.2_1788964973574_0.8922828270821035",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.5-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.5-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.5-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "dd1124cd4f35ad36f813a187fc50dea80ba596b0",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-PccdJ5DycaCBJKc3F2YaU7SL4tQNKEW6SkDRiDEM6IrzYl0lZu2RWUlwWlXfi+e5zV+vMYfIYJ1wTdlROewMBw==",
+				"signatures": [
+					{
+						"sig": "MEQCIEGMLI5lF94MT6ZPl13TjhXg+NM+zCu6/mgGl79lkeLIAiAA5YF6uWm4V9lL3g0lY1Q9diaxUui8ydpJveOGrf/t4g==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77567
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.1.tgz",
+			"_integrity": "sha512-PccdJ5DycaCBJKc3F2YaU7SL4tQNKEW6SkDRiDEM6IrzYl0lZu2RWUlwWlXfi+e5zV+vMYfIYJ1wTdlROewMBw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.5-rc.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.1",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.5-rc.1_1789010055984_0.03742012141419293",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.5-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.5-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.5-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "bf8b87fcb0908ea4f32d692b247568fa0c847c39",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-DBe1sjXJ9UCX9wAPMgD22+LejlBMPYyuPIjDu7lkrz0IZu5cGgwVfbaQldMbd/i1h/i/K4j6VMfuU4mO6Qz1+g==",
+				"signatures": [
+					{
+						"sig": "MEQCIGuvfTInJzVPUVz4fJ3iLTAKIXEphZ/i8Yh47d+woC0tAiAypBtszPSC2t4u/Z9Ros6ViSh2rRHIXpXfFcbCAQ/C5Q==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77567
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.2.tgz",
+			"_integrity": "sha512-DBe1sjXJ9UCX9wAPMgD22+LejlBMPYyuPIjDu7lkrz0IZu5cGgwVfbaQldMbd/i1h/i/K4j6VMfuU4mO6Qz1+g==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.5-rc.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.2",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.5-rc.2_1789052319297_0.7752318874693085",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.6-alpha.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.6-alpha.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.6-alpha.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "85110d80d1f4684838f3354e9f35231fc0ef53d5",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.6-alpha.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-8W22oi6/9L9jYCwNyQFAn8+cEGZhimZMOyJTvL8W1HGFjuOJATc1AWgy3QO7m+mEOpPbNv0ZnvvySbU9o4LA0Q==",
+				"signatures": [
+					{
+						"sig": "MEUCIDhncR7FVbQGkcy0ln1ATq2wr6GN4vWEHg2RWqq7Iv2uAiEAjqnkr2Lh+fWLNxv47tGpEDLkHHIKjRo4fNVpG9A6tTA=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQDuuOQd65wOWOowfNlUckRpRT4tf9ZoW/DxufqZShkfegIhALllTA9FBgaX3Fx4Tsp1EIEuTMdTqiQF+35MhsCRd6cv",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77727
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.6-alpha.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.6-alpha.1.tgz",
+			"_integrity": "sha512-8W22oi6/9L9jYCwNyQFAn8+cEGZhimZMOyJTvL8W1HGFjuOJATc1AWgy3QO7m+mEOpPbNv0ZnvvySbU9o4LA0Q==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.6-alpha.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.6-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.6-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.6-alpha.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.6-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.6-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.6-alpha.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.6-alpha.1_1789442793275_0.9117604919640148",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.6-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.6-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.6-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "0e14e3eff3450af052eda01a04a5437ded8c04b7",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.6-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-y5RfH0ykc6WnuWib0GbxY5jr7gDttwAz6Msi/mqXg+5ZDTE7gKOMr5hR2XSBNNjq1owGTu5bVNmYoPubMd4MWw==",
+				"signatures": [
+					{
+						"sig": "MEQCIF2f3AzTzSgSOAjrLxt/XSKnrgnl1HPgVjYHULZVwkaGAiA0RdPxNojdw+2eS/f13224H6h/uO5+ivKY963XizdZGQ==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEQCIGODEAPRkBIFoq+x1WMu2LE7eQDwkKendVZCI7WucaBsAiBd/ubLbYoqoQKGUJXwyfGPSqHl/+qCjn3HgGuTcblZUA==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77727
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.6-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.6-alpha.2.tgz",
+			"_integrity": "sha512-y5RfH0ykc6WnuWib0GbxY5jr7gDttwAz6Msi/mqXg+5ZDTE7gKOMr5hR2XSBNNjq1owGTu5bVNmYoPubMd4MWw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.6-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.6-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.6-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.6-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.6-alpha.2",
+				"@deepseek-ai/dsh-session": "^0.1.6-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.6-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.6-alpha.2_1789653424922_0.56976138574435",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.5-rc.3": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.5-rc.3",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.5-rc.3",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "6f734bd9f027955d7dbd71cad4572acb159456c5",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.3.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-vkAZp5XxMb+/FBPaRQ6pBvE9yYb5ehR2CvriUZKq5fcG7wrH7tYueNosvLfZRlKaH4m/kncbmn/TTpfcPMbPgg==",
+				"signatures": [
+					{
+						"sig": "MEQCIHJ1kqJ+k3W0XDyOCi8v+38B1dVGjSnRYpxIrKAIK9O1AiBRdWNdiOoV+i3h0P2Cai+bLE2XlQvYoSVa7yQKDnzbhg==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIQDBFOE/CLVVb3lPACtvbkK3P7uWrTs1sfcdEjbojMNx5QIgXRGEM3rtLs9JXwHpimTI4GOB3+8uJCAUGnWGmnXbtJ8=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77565
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.5-rc.3.tgz",
+			"_integrity": "sha512-vkAZp5XxMb+/FBPaRQ6pBvE9yYb5ehR2CvriUZKq5fcG7wrH7tYueNosvLfZRlKaH4m/kncbmn/TTpfcPMbPgg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.5-rc.3"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.3",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "4.0.2",
+				"@deepseek-ai/dsh-llm": "^0.1.5-rc.3",
+				"@deepseek-ai/dsh-session": "^0.1.5-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.5-rc.3"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.5-rc.3_1790056487194_0.5991195733775088",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.7-alpha.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.7-alpha.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.7-alpha.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "74c06b1674e8a6efee4565dd47ff1188a222ccf1",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-alpha.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-DfOgkpKDpQr6d/ow+jUO4FiyH2ZOuQtaMexr7GBXe4wd4yG7Exepjp3AbIb/MUmDxI44f4BQpupMP7XStPZ9yg==",
+				"signatures": [
+					{
+						"sig": "MEYCIQDSbt9wwjplL974rI41/X9tj1WosaefAnwXc9v7uw29FAIhAJIt+N5onIQqzG60JML5wJ0F1xHUswniT+79QY1KM84o",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIQC2j3ZixEt707Tl2BXYCW7Uj8614dW5gOgyjvkvY65qxwIgICSguVntpvpNOgeB5JUzFmg6+9wnGpXfnwXXT1JX36Y=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77727
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-alpha.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-alpha.1.tgz",
+			"_integrity": "sha512-DfOgkpKDpQr6d/ow+jUO4FiyH2ZOuQtaMexr7GBXe4wd4yG7Exepjp3AbIb/MUmDxI44f4BQpupMP7XStPZ9yg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.7-alpha.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "^4.0.3",
+				"@deepseek-ai/dsh-llm": "^0.1.7-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.7-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.7-alpha.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "^4.0.3",
+				"@deepseek-ai/dsh-llm": "^0.1.7-alpha.1",
+				"@deepseek-ai/dsh-session": "^0.1.7-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "^0.1.7-alpha.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.7-alpha.1_1790058246400_0.05176644653054052",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.7-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.7-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.7-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "96af887e5cb02d73ef4e200ed994b57f3f6f3a32",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-3IZc1sgt7qw87OVNhYq4eymjskvY1tT/gyYqWLFTx4xdfYpsYd4jAtULPBvw0lPuUWFKZ1sQvvH0tDGE/BMf7g==",
+				"signatures": [
+					{
+						"sig": "MEQCIGjFIh222wle3Z7pKV1jXqxL5FFz2monUYu3R+CPx9R5AiBw/r6zZm936aBkJlW+0vdd4La5lp9IWXX0t9ovNg4YYQ==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIQCqBrHkg3xm+Q02JyIUo7uODGB1iuCHo14cEESjy8c99QIgY+GGaEidH10VuWp5ixO5Zdx4CbW+wSedCXfqa5s6t/k=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77721
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-alpha.2.tgz",
+			"_integrity": "sha512-3IZc1sgt7qw87OVNhYq4eymjskvY1tT/gyYqWLFTx4xdfYpsYd4jAtULPBvw0lPuUWFKZ1sQvvH0tDGE/BMf7g==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.7-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-alpha.2",
+				"@deepseek-ai/dsh-session": "0.1.7-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-alpha.2",
+				"@deepseek-ai/dsh-session": "0.1.7-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.7-alpha.2_1790093723067_0.3601493572640704",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.7-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.7-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.7-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "441e81cf8ca8c4d4fedcbeee6cb77cc5f6a44ab3",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-rc.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-c+I8gvr69Whi1RZwQ4MVJYTcZQTEzdPFbsU3QIJ/t3OFQY4ike5Igc+r7xd/QbxYc+5P6zSLACcrvh6dDs78Bg==",
+				"signatures": [
+					{
+						"sig": "MEUCIQCw4klWBqLqcGzHe8TwGeV140b/10kkHAldD2Ew+k7+hAIgSE/I+bJyhTlDbblIS5xZ6qQ1eIy/LZukQF/7zjFMVzA=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEQCIFGXPpTOFr/oNm9UgKlJz4lEJd2Lw2DItT24SC12HEkaAiADJ56mxqmgO4VM01cdcvaQaALiy+5vzHmDZ9JPKd5IJw==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 77697
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-rc.1.tgz",
+			"_integrity": "sha512-c+I8gvr69Whi1RZwQ4MVJYTcZQTEzdPFbsU3QIJ/t3OFQY4ike5Igc+r7xd/QbxYc+5P6zSLACcrvh6dDs78Bg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.20.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.7-rc.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-rc.1",
+				"@deepseek-ai/dsh-session": "0.1.7-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-rc.1",
+				"@deepseek-ai/dsh-session": "0.1.7-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.7-rc.1_1790171084841_0.046173441045559205",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.1.7-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.1.7-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.1.7-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "1003150e4dd78759d2cee16b9a5252ae7da470ea",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-rc.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-btoUNXJ1enWE7hDl1pPzWWnlLgs6VZEXIIys6DmNB7xbk4ZzjdrV54UN6bpfmnfHcbnXQt0MfSFUNDQ/xCKe0Q==",
+				"signatures": [
+					{
+						"sig": "MEUCIQDyE50s0VWST2D9jYBIwd/n8bCogrNl1hhTM2uXGBDk0wIgb71CWl4/9gwC6qfsAJBAWE3VwuSdiUnmLqxgI1DnDls=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIQDdQDewsLBekH811pNU6VVdj5CbwqeYjZM3u+9STknFmgIgBNtdgWKCRKsIAR5WSie2DA3MVs+h4q3IRuvgx1JWGsg=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79370
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.1.7-rc.2.tgz",
+			"_integrity": "sha512-btoUNXJ1enWE7hDl1pPzWWnlLgs6VZEXIIys6DmNB7xbk4ZzjdrV54UN6bpfmnfHcbnXQt0MfSFUNDQ/xCKe0Q==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.1.7-rc.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+				"@deepseek-ai/dsh-session": "0.1.7-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+				"@deepseek-ai/dsh-session": "0.1.7-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.1.7-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.1.7-rc.2_1790259556118_0.09839033466885949",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.0-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.0-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.0-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "ef1c9c4298850e884abc3f6c757c1d0027a0168e",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.0-rc.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-L4DRDvy0IrSLKWV4t6RzUeFndwcmBGTbMWem1jRvGZaulg4Tz1VDgltxgsY7mHsqRgsZD4nuehyawmdaTccgGA==",
+				"signatures": [
+					{
+						"sig": "MEQCIG3YsJ2kpk7vNujaoSDMsNk8UWDoHM49dl5pzFvq7RqgAiA225DfWs5s2xo/TdsxfboFYkI+5k2nFZyA+Ff52xGBcw==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQC9Y5Dk9Thk+FXfwJu+JlAq5JGxPFE1B76urllRDVXNgQIhAI1a0YiTxowxz3Ru6una57tc+u8K8suRZgFVZb0vckC0",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79370
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.0-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.0-rc.1.tgz",
+			"_integrity": "sha512-L4DRDvy0IrSLKWV4t6RzUeFndwcmBGTbMWem1jRvGZaulg4Tz1VDgltxgsY7mHsqRgsZD4nuehyawmdaTccgGA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.0-rc.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.2.0-rc.1",
+				"@deepseek-ai/dsh-session": "0.2.0-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.0-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.2.0-rc.1",
+				"@deepseek-ai/dsh-session": "0.2.0-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.0-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.0-rc.1_1790599073653_0.24573779273714402",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.0-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.0-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.0-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "22572d0f546c35135c9924c7c2b7f0ba697ebb0f",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.0-rc.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-woZfQkq5SMAJa/FYIKfeova97kNO3f8nN7+EpovmB+JKhMP87AHXjuhCdIDkt29J2MxqTZ3OI4xQ8BQTU2iwow==",
+				"signatures": [
+					{
+						"sig": "MEUCIBkDrfkIUPuAtTi+k/yQ4D7aSFETse0F6eeeJ5dgsHT/AiEA9kmXbJAdMWXR4SiZUbkdvtZ/VFfsFNKgLDwlI9uw7Cc=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEQCIA/68anHzlUDV9J9ytAMCLmJKIKRxLeFYKmqUeAmL709AiB8okqEJzxhlzr5Lj8qKw53tvtHXe+GFeWCe41ZfmH71A==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79370
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.0-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.0-rc.2.tgz",
+			"_integrity": "sha512-woZfQkq5SMAJa/FYIKfeova97kNO3f8nN7+EpovmB+JKhMP87AHXjuhCdIDkt29J2MxqTZ3OI4xQ8BQTU2iwow==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.0-rc.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+				"@deepseek-ai/dsh-session": "0.2.0-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.0-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.4",
+				"@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+				"@deepseek-ai/dsh-session": "0.2.0-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.0-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.0-rc.2_1790676085152_0.5792766432183396",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-alpha.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-alpha.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-alpha.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "f5e7974ceb8f26350dee21840e1b8f7dc65185b2",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-jdTTEgZn5E5Y2w7dOTy0GpW78eJy5TIOQwq6WrX07MvW5p6zQ1gsewE+SpwJgjMmpN3GEISY16rhnmBtUIZLyQ==",
+				"signatures": [
+					{
+						"sig": "MEQCIAQIHlAh5AGQb3AdrHy0dw6ruU5TLOKy95MmlbTWY15VAiBYZSuhNUXT3gKV1rwooUFqDtWQu2eaAdDT6PgfCdep3w==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEQCIFK7dw0Zb2+mGhkwk2OD05U4nTNyQNbpdFN3p+5qlgJWAiAkBcJALFqUoqI3PAQ49dHepSWbHEhyywYfuq585WVr+Q==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 79001
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.1.tgz",
+			"_integrity": "sha512-jdTTEgZn5E5Y2w7dOTy0GpW78eJy5TIOQwq6WrX07MvW5p6zQ1gsewE+SpwJgjMmpN3GEISY16rhnmBtUIZLyQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-alpha.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.1",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.1",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-alpha.1_1791003269706_0.6445959871598961",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "3b630da501edce3e949dc394c6ed0609a88bef56",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-eAHioLdI+twLKSRJWJv3YXMlgMH7a+DtlnS1RZR+6yA2BUfvtmHHab2yQL0FoyuwLwxVVbE2hGNCayMlcQ7bmg==",
+				"signatures": [
+					{
+						"sig": "MEQCIBXtocsaer9boTvNNiQWe/1izwgxdfq3/4uvHAYLSwEIAiBsRS4gzv4ec++1JVWzzdYIz+YggiZxRJSJzAMX4K/jAA==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQCpP+ikgjQv1FQFKVF6qifKsEpOd665/J/8PEsSF6QecwIhAIP883FRGzCfrbPotCFFX+iq1Kl6zfsl2VcXdOI8G4lb",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 84146
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.2.tgz",
+			"_integrity": "sha512-eAHioLdI+twLKSRJWJv3YXMlgMH7a+DtlnS1RZR+6yA2BUfvtmHHab2yQL0FoyuwLwxVVbE2hGNCayMlcQ7bmg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.2",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.2",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.2",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-alpha.2_1791534069652_0.899052395029512",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-alpha.3": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-alpha.3",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-alpha.3",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "9dbea78080bbbc7029a72906cd4c32690cd4bd78",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.3.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-CHChhrm2yHlFRB/hetarHyjqH+iUYB6iAGSN5tmnYyOCgsEEJsJjaJzVFSniIWNpplgvjWwlNlg7O8mnFItwZA==",
+				"signatures": [
+					{
+						"sig": "MEUCIFXIxXvEcDF1S22yfF0L0rGA0AHgI3n5QW6UzBIYYYLyAiEA4B33akdpQfaYZuN3Yut12FTBX8gc/hdUtuwS6V3JU4Q=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEQCIA5jzPe0ZjHthSLJ5T5A1Yv3H6ypCnFxYsJhV/ZuvxsKAiBNqwTbpPqf6aviBv1swABjmnxPFKugWLxkoflJjl4Shg==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86821
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.3.tgz",
+			"_integrity": "sha512-CHChhrm2yHlFRB/hetarHyjqH+iUYB6iAGSN5tmnYyOCgsEEJsJjaJzVFSniIWNpplgvjWwlNlg7O8mnFItwZA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-alpha.3"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.3",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.3",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-alpha.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.3",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.3"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-alpha.3_1791981567778_0.8777046875902546",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-alpha.4": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-alpha.4",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-alpha.4",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "1913d305443b1710aba8a6b6f26993d81a5a51ec",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.4.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-uoDe6tn+5S2IXgvKSBotlCAaBl0KDD5/iXzbL+C30FF7XXVCRBOVRhIGFjYHHtZRX3/ffnXacnRQpooRvkQI9g==",
+				"signatures": [
+					{
+						"sig": "MEYCIQCemYohLSKHtSBo7ZoB5d62iZerPZhqiBNjR8UCzCML9QIhAMspvk1eNv++Gni7Bv9TglXWjdWY5EyufgyVgRxn8tZk",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIFssO8KeXHlYFc3e3UIwmwtzapHpDq50cOro0APid7r1AiEA4xR3tqSRDDR86OwMGyLXeCdyQkoGDjewuT96tNzf+Wg=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86821
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.4.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.4.tgz",
+			"_integrity": "sha512-uoDe6tn+5S2IXgvKSBotlCAaBl0KDD5/iXzbL+C30FF7XXVCRBOVRhIGFjYHHtZRX3/ffnXacnRQpooRvkQI9g==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-alpha.4"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.4",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.4",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.4",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-alpha.4"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.4",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.4",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.4"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-alpha.4_1792069812882_0.4315002349161645",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-alpha.5": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-alpha.5",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-alpha.5",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "4d2bc19029f7e2ffbe1fc7597d46d0e10cf09f7b",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.5.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-ESzoJvhHIAlYhjt7azGU9cgG5aWfXYfhdLmJrXX3dcctGOUlUHraXxM8Kbu+VQ10Jzh0AVqzHFdgyrU1AVHWYg==",
+				"signatures": [
+					{
+						"sig": "MEUCIQChERIbhsZgA3iEW5w4TDnZQ3ZhmuI61GEqnCXROrpKLwIgIyJqhEpvxkVeBVK/eFOwBh48UPDFILOIvS22qhEdhcY=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIBya3iDQl76GADDpP9/A+8TIWu0mXyjnyzaXVhvZo+quAiEA9p/j29gSscHy4N9EOgZ3dsVo33VnImjYM5JycG8YM7s=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86821
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.5.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-alpha.5.tgz",
+			"_integrity": "sha512-ESzoJvhHIAlYhjt7azGU9cgG5aWfXYfhdLmJrXX3dcctGOUlUHraXxM8Kbu+VQ10Jzh0AVqzHFdgyrU1AVHWYg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-alpha.5"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.5",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.5",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.5",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-alpha.5"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.1-alpha.5",
+				"@deepseek-ai/dsh-session": "0.2.1-alpha.5",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-alpha.5"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-alpha.5_1792154056391_0.5917318097527278",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-rc.1": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-rc.1",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-rc.1",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "785e018d25ef69c28ce2a1a5ea999748155404bc",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.1.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-OY4BuIheUZWLxcLXhJc5xdzoPRASoM9I82Ysh2zpxmmDOGTxlfyVEVFFE3B345UwPpFSbfYkHRQI3pBy9EcPZg==",
+				"signatures": [
+					{
+						"sig": "MEQCIBZpCSbZUuf644DJWPtNc/zyXfTxLftx/8J0wR2pjVk+AiBtX1Nk4GsG8qh12mtymw9kxEwnV9d8ih2GR/kti05xTw==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQC2yVIXdOa+mcBHM+CexSQ/UsHI18X/TfVd6+jv1YsSkAIhAIO3nm/+eNyr0/S1MEVoq+2G0GOu6fv/NUl7KtORPAVY",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86778
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.1.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.1.tgz",
+			"_integrity": "sha512-OY4BuIheUZWLxcLXhJc5xdzoPRASoM9I82Ysh2zpxmmDOGTxlfyVEVFFE3B345UwPpFSbfYkHRQI3pBy9EcPZg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-rc.1"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.1",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.1",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-rc.1"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.1",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.1",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.1"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-rc.1_1792207196181_0.7443229663269768",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-rc.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-rc.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-rc.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "920d9a7caaccfe65313eacb1f780b53f46b6c296",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-EsG89x2rIhIT5pu/yBwJ1/By7ptPqjAEEEAAX1pjwswUkRrtip/SPSyhpxMNb8krbJROGi1ar5zr/c3hxLwXIA==",
+				"signatures": [
+					{
+						"sig": "MEQCIDKWEHIYDs4bIXKbsrRa+0hHAuWLpgPkJXdrrSvWUM4sAiBmQP0psyoZQdldNn0Fr7XtwVlwJi0sNb4Vw4uU4HkpHw==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIFPGzEFnuts4Fh9YtkFwU7GraXPAeszbkijxSG5npkD5AiEAsiyNhp01YjAUJZIT5iglVwslEPhpqlTFS4HCN+HbEOg=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86778
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.2.tgz",
+			"_integrity": "sha512-EsG89x2rIhIT5pu/yBwJ1/By7ptPqjAEEEAAX1pjwswUkRrtip/SPSyhpxMNb8krbJROGi1ar5zr/c3hxLwXIA==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-rc.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.2",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-rc.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-rc.2_1792226343353_0.8639912421780449",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-rc.3": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-rc.3",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-rc.3",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "86223c27084bb3bf14defbbe2aeba8e1257c728f",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.3.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-l1SV8fimc1JQd1iKFKRpysy5yKAMH1/7yak0f/8eeVuA6y30XUzfDMlHbMjHpAQ5PqH2CIJ9lZkGPwRs1mGnQw==",
+				"signatures": [
+					{
+						"sig": "MEUCICRywZaCHju1/vRc4LD96a4G53AihiUeY6vUYttndbEpAiEA+xkCvsNguCxxqrWWRbvQOLv87Sb83ufTyDoXLwk5oYg=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQDPCkDcCzXQhVnoqm6ZbDoB4hApsND7mkOqEVp7vGq2NQIhAIGHKxlhhWFKZ4Kkr+QroZ3WbKSmsay4Bv4FJ0D+wG3V",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86778
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.3.tgz",
+			"_integrity": "sha512-l1SV8fimc1JQd1iKFKRpysy5yKAMH1/7yak0f/8eeVuA6y30XUzfDMlHbMjHpAQ5PqH2CIJ9lZkGPwRs1mGnQw==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-rc.3"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.3",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.3",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-rc.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.3",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.3"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-rc.3_1792742230029_0.6688872742274112",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-rc.4": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-rc.4",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-rc.4",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "f6e6da7e91d9f7e84a4c5e8f61cf89856fe8b6df",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.4.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-XS/w9oWJny/s4xgAUonOFu+NVMYYxK02dNNRuj4YaaXL1+8sBEw8QRWp8LjV+dsfNSxtE5EObP2/jEZeJPoXEQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIDfHC+2bntS6aBoXF/9AwRISEHRXguOXsJ9wVAp70gSCAiEAkDx/LX9j0ml/JgE066GcNmBGVEeoVeZi+r4Z72O4pbM=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIAvEsbrHZna21kyHZLvWo78h6+Dre4N5yg12fGPTUPOpAiEAtoNPSwbXYrauDTmPuVx/HIm0cb9s8mvLYhIjqzrznX4=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86778
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.4.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.4.tgz",
+			"_integrity": "sha512-XS/w9oWJny/s4xgAUonOFu+NVMYYxK02dNNRuj4YaaXL1+8sBEw8QRWp8LjV+dsfNSxtE5EObP2/jEZeJPoXEQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-rc.4"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.4",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.4",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.4",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-rc.4"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.4",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.4",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.4"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-rc.4_1793028797126_0.14550666786771305",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.2-alpha.2": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.2-alpha.2",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.2-alpha.2",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "463bca7ec6c2aca9be0c1bcb1c8dd205e2528292",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.2-alpha.2.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-STVgq6LiBQFO+2+LAL9nbnKLIwIeusPqaFvwnvBfAP+AGUjvIo3Ni8nVrH1Rihg1FRdUm/x6W2gP2YOrb+GFiQ==",
+				"signatures": [
+					{
+						"sig": "MEUCIAIxrqQf2zij6B4xEAHdU6y1OMF3ntTpde29JDatlosKAiEAqB8C+sBAFT4H1YwCPiR/w63xt7fTxNDclrPOsniKWi0=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEYCIQDqnSLLkZd0XH1AWS93V5mryBf0a5WUMVe7XAgsOBeTKQIhAKxVJf+Siin1eTYi7vI+6sKC4asR6LKGHcWI4TenD0ny",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 95015
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.2-alpha.2.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.2-alpha.2.tgz",
+			"_integrity": "sha512-STVgq6LiBQFO+2+LAL9nbnKLIwIeusPqaFvwnvBfAP+AGUjvIo3Ni8nVrH1Rihg1FRdUm/x6W2gP2YOrb+GFiQ==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.0",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.21.0",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.2-alpha.2"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.6-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.2-alpha.2",
+				"@deepseek-ai/dsh-session": "0.2.2-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.2-alpha.2",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.2-alpha.2"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.6-alpha.1",
+				"@deepseek-ai/dsh-llm": "0.2.2-alpha.2",
+				"@deepseek-ai/dsh-session": "0.2.2-alpha.2",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.2-alpha.2"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.2-alpha.2_1793128505823_0.30612277830496304",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.1-rc.5": {
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"version": "0.2.1-rc.5",
+			"license": "MIT",
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.1-rc.5",
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "d3c6dba7f08bd662f3456051d1cff9c4ebaff53b",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.5.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-kDMYeV0Ar1F6cfg6FlZJrfV8LASZGdqr+BLnXxLdaMFeFFiPEdf02XzTKCOxeALTvLPCDmWg3buV2k5kkrVL1Q==",
+				"signatures": [
+					{
+						"sig": "MEUCIDH7RnXZmwu4Csi/a7Klw/BW56vAWFUAHgrqSPdamliRAiEA94xMFTKqMM2vwlRxtAL0HcbEkea1qrz4SNnT7I1hfj4=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"sig": "MEUCIAQwN2VpRCXTIwQ0XcWbZ2uH1nOHhWqhNPX3imp2tSIjAiEAqAEhPHp3mnGelYPGYdTdu3q5wlXFjZ5hcotM0VkxPiM=",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					}
+				],
+				"unpackedSize": 86778
+			},
+			"main": "lib/index.js",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.5.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.1-rc.5.tgz",
+			"_integrity": "sha512-kDMYeV0Ar1F6cfg6FlZJrfV8LASZGdqr+BLnXxLdaMFeFFiPEdf02XzTKCOxeALTvLPCDmWg3buV2k5kkrVL1Q==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.1",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"_nodeVersion": "24.22.1",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.1-rc.5"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.5",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.5",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.1-rc.5"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.5",
+				"@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+				"@deepseek-ai/dsh-session": "0.2.1-rc.5",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.1-rc.5"
+			},
+			"_npmOperationalInternal": {
+				"tmp": "tmp/dsh-sdk-client_0.2.1-rc.5_1793283535635_0.024172857737103537",
+				"host": "s3://npm-registry-packages-npm-production"
+			},
+			"contributors": []
+		},
+		"0.2.2-alpha.3": {
+			"_id": "@deepseek-ai/dsh-sdk-client@0.2.2-alpha.3",
+			"bugs": {
+				"url": "https://github.com/deepseek-ai/deepseek-harness/issues"
+			},
+			"dist": {
+				"shasum": "b8f60b9bcd085e9041001d416248ed2f1f67f2df",
+				"tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.2-alpha.3.tgz",
+				"fileCount": 12,
+				"integrity": "sha512-cfM3yQkCPI3oqJPwZlCfWrcF620lssvAvG2mevPch1oEFCwUE5r34i/Mc8kcPaOabWMi2S2d27E7ccLLLamGXg==",
+				"signatures": [
+					{
+						"sig": "MEQCIH4XQpbi4VV6ENvJ9S2QkbrFc+rHH0O5laQdRK59mV9UAiBP8OOYHScdasafPk0XWUiVMfLhtv/67t2w1madK69AUw==",
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+					},
+					{
+						"keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+						"sig": "MEYCIQChwyxfN6vdDwyMtwEpHRIjukvkjkUD7UDCSm7DlCVEjAIhAK/IvGQTuU0Y71WL3Vq15Bb2ozRIxEYQZZ0DX5kE6dNz"
+					}
+				],
+				"unpackedSize": 111162
+			},
+			"main": "lib/index.js",
+			"name": "@deepseek-ai/dsh-sdk-client",
+			"type": "module",
+			"_from": "file:/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.2-alpha.3.tgz",
+			"types": "lib/types/index.d.ts",
+			"exports": {
+				".": {
+					"types": "./lib/types/index.d.ts",
+					"default": "./lib/index.js"
+				},
+				"./package.json": "./package.json"
+			},
+			"license": "MIT",
+			"version": "0.2.2-alpha.3",
+			"_npmUser": {
+				"name": "imccyu",
+				"email": "imccyu@gmail.com"
+			},
+			"homepage": "https://github.com/deepseek-ai/deepseek-harness#readme",
+			"_resolved": "/home/runner/work/deepseek-harness/deepseek-harness/dist/npm/deepseek-ai-dsh-sdk-client-0.2.2-alpha.3.tgz",
+			"_integrity": "sha512-cfM3yQkCPI3oqJPwZlCfWrcF620lssvAvG2mevPch1oEFCwUE5r34i/Mc8kcPaOabWMi2S2d27E7ccLLLamGXg==",
+			"repository": {
+				"url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+				"type": "git",
+				"directory": "packages/sdk/client"
+			},
+			"_npmVersion": "11.19.1",
+			"description": "TypeScript client SDK for driving a DeepSeek Harness runtime subprocess over stdio JSON-RPC: the DeepSeekHarness high-level turns API and the lower-level HarnessClient",
+			"directories": {},
+			"maintainers": [
+				{
+					"name": "imccyu",
+					"email": "imccyu@gmail.com"
+				},
+				{
+					"name": "tianyicui-deepseek",
+					"email": "tianyi@deepseek.com"
+				}
+			],
+			"_nodeVersion": "24.22.1",
+			"dependencies": {
+				"@deepseek-ai/dsh": "0.2.2-alpha.3"
+			},
+			"publishConfig": {
+				"access": "public"
+			},
+			"_hasShrinkwrap": false,
+			"readmeFilename": "README.zh.md",
+			"devDependencies": {
+				"@deepseek-ai/cordis": "~4.0.6-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.2-alpha.3",
+				"@deepseek-ai/dsh-session": "0.2.2-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.2-alpha.3",
+				"@deepseek-ai/dsh-experimental-translator": "0.2.2-alpha.3"
+			},
+			"peerDependencies": {
+				"@deepseek-ai/cordis": "~4.0.6-alpha.2",
+				"@deepseek-ai/dsh-llm": "0.2.2-alpha.3",
+				"@deepseek-ai/dsh-session": "0.2.2-alpha.3",
+				"@deepseek-ai/dsh-sdk-protocol": "0.2.2-alpha.3"
+			},
+			"_npmOperationalInternal": {
+				"host": "s3://npm-registry-packages-npm-production",
+				"tmp": "tmp/dsh-sdk-client_0.2.2-alpha.3_1793692062326_0.39737527452654764"
+			},
+			"contributors": []
+		}
+	},
+	"time": {
+		"created": "2026-08-10T19:42:37.640Z",
+		"modified": "2026-11-03T07:47:42.657Z",
+		"0.0.1-rc.1": "2026-08-10T19:42:38.107Z",
+		"0.0.1-rc.2": "2026-08-11T15:25:57.325Z",
+		"0.0.1-rc.5": "2026-08-12T22:37:28.387Z",
+		"0.1.0-rc.2": "2026-08-13T09:50:35.661Z",
+		"0.1.0-rc.3": "2026-08-13T11:18:39.810Z",
+		"0.1.0-rc.6": "2026-08-13T12:39:01.877Z",
+		"0.1.0-rc.7": "2026-08-17T11:52:30.364Z",
+		"0.1.0-rc.8": "2026-08-19T15:43:09.724Z",
+		"0.1.1-rc.1": "2026-08-21T06:50:54.753Z",
+		"0.1.1-rc.2": "2026-08-21T12:43:52.672Z",
+		"0.1.2-alpha.2": "2026-08-30T14:11:57.985Z",
+		"0.1.2-alpha.3": "2026-08-31T16:21:58.768Z",
+		"0.1.2-alpha.4": "2026-09-01T16:02:29.736Z",
+		"0.1.2-alpha.5": "2026-09-02T08:39:36.904Z",
+		"0.1.2-rc.1": "2026-09-03T06:22:52.716Z",
+		"0.1.3-alpha.2": "2026-09-07T13:12:37.547Z",
+		"0.1.5-alpha.1": "2026-09-08T15:58:34.695Z",
+		"0.1.5-alpha.2": "2026-09-09T14:42:53.719Z",
+		"0.1.5-rc.1": "2026-09-10T03:14:16.123Z",
+		"0.1.5-rc.2": "2026-09-10T14:58:39.436Z",
+		"0.1.6-alpha.1": "2026-09-15T03:26:33.373Z",
+		"0.1.6-alpha.2": "2026-09-17T13:57:05.037Z",
+		"0.1.5-rc.3": "2026-09-22T05:54:47.279Z",
+		"0.1.7-alpha.1": "2026-09-22T06:24:06.481Z",
+		"0.1.7-alpha.2": "2026-09-22T16:15:23.163Z",
+		"0.1.7-rc.1": "2026-09-23T13:44:44.923Z",
+		"0.1.7-rc.2": "2026-09-24T14:19:16.205Z",
+		"0.2.0-rc.1": "2026-09-28T12:37:53.756Z",
+		"0.2.0-rc.2": "2026-09-29T10:01:25.236Z",
+		"0.2.1-alpha.1": "2026-10-03T04:54:29.787Z",
+		"0.2.1-alpha.2": "2026-10-09T08:21:09.739Z",
+		"0.2.1-alpha.3": "2026-10-14T12:39:27.879Z",
+		"0.2.1-alpha.4": "2026-10-15T13:10:12.965Z",
+		"0.2.1-alpha.5": "2026-10-16T12:34:16.488Z",
+		"0.2.1-rc.1": "2026-10-17T03:19:56.290Z",
+		"0.2.1-rc.2": "2026-10-17T08:39:03.432Z",
+		"0.2.1-rc.3": "2026-10-23T07:57:10.131Z",
+		"0.2.1-rc.4": "2026-10-26T15:33:17.228Z",
+		"0.2.2-alpha.2": "2026-10-27T19:15:05.903Z",
+		"0.2.1-rc.5": "2026-10-29T14:18:55.726Z",
+		"0.2.2-alpha.3": "2026-11-03T07:47:42.407Z"
+	},
+	"users": {},
+	"dist-tags": {
+		"latest": "0.0.1-rc.1",
+		"alpha": "0.2.2-alpha.3",
+		"next": "0.2.1-rc.5"
+	},
+	"_uplinks": {
+		"npmjs": {
+			"etag": "W/\"f9ba84d115e2973db69210017db27cf2\"",
+			"fetched": 1793784204156
+		}
+	},
+	"_distfiles": {
+		"dsh-sdk-client-0.0.1-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.1.tgz",
+			"sha": "982ea41acb360ae371dddb0cd64b34041922c706",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.0.1-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.2.tgz",
+			"sha": "f843996de366e2880fb7db931007259926a68367",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.0.1-rc.5.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.0.1-rc.5.tgz",
+			"sha": "c605e5e7770106f997da388ffff6cbc4f01f34b8",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.0-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.2.tgz",
+			"sha": "ce286b02b8e140186546a874ef7a38d0329edec1",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.0-rc.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.3.tgz",
+			"sha": "d51b38d7020f583b9a7f27ffb308b66899e39faa",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.0-rc.6.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.6.tgz",
+			"sha": "3bf3e09d07a549ac3e46d8357912e238bdfbcf22",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.0-rc.7.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.7.tgz",
+			"sha": "b85450d8192079f0cb87984c76c19ca67fea5792",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.0-rc.8.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.0-rc.8.tgz",
+			"sha": "d2feca00f40e7da213f8a2b7fa6f44344f88d896",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.1-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.1-rc.1.tgz",
+			"sha": "a2b605ede1f8659723b143f7e7961c868dcadd82",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.1-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.1-rc.2.tgz",
+			"sha": "05581225df2b185cc99cfbfa0aeb869ef5f4caff",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.2-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.2.tgz",
+			"sha": "be3dd8eef8fb5ae94a31a1aca6644abd138a27c9",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.2-alpha.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.3.tgz",
+			"sha": "d96b66eb7f838039aeb49891a4a22a877df9157a",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.2-alpha.4.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.4.tgz",
+			"sha": "a7b705e4aa7c232d4d4aa1ed618b1d7b75068b2f",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.2-alpha.5.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-alpha.5.tgz",
+			"sha": "c3daf8704aaa98bfc95aa17b8f0aa936262780ac",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.2-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.2-rc.1.tgz",
+			"sha": "d0444c5db351c99b5d8a1377584de0c85527309b",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.3-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.3-alpha.2.tgz",
+			"sha": "8c50f1e6c4ee84696c5449cbbdd8ec3c312f7d86",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.5-alpha.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-alpha.1.tgz",
+			"sha": "1d841326c3622b6b43654da43066327129d657c9",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.5-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-alpha.2.tgz",
+			"sha": "5694631c054d27b5e23e0fc2769290e75dd8744f",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.5-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.1.tgz",
+			"sha": "dd1124cd4f35ad36f813a187fc50dea80ba596b0",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.5-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.2.tgz",
+			"sha": "bf8b87fcb0908ea4f32d692b247568fa0c847c39",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.6-alpha.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.6-alpha.1.tgz",
+			"sha": "85110d80d1f4684838f3354e9f35231fc0ef53d5",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.6-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.6-alpha.2.tgz",
+			"sha": "0e14e3eff3450af052eda01a04a5437ded8c04b7",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.5-rc.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.5-rc.3.tgz",
+			"sha": "6f734bd9f027955d7dbd71cad4572acb159456c5",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.7-alpha.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-alpha.1.tgz",
+			"sha": "74c06b1674e8a6efee4565dd47ff1188a222ccf1",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.7-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-alpha.2.tgz",
+			"sha": "96af887e5cb02d73ef4e200ed994b57f3f6f3a32",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.7-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-rc.1.tgz",
+			"sha": "441e81cf8ca8c4d4fedcbeee6cb77cc5f6a44ab3",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.1.7-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.1.7-rc.2.tgz",
+			"sha": "1003150e4dd78759d2cee16b9a5252ae7da470ea",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.0-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.0-rc.1.tgz",
+			"sha": "ef1c9c4298850e884abc3f6c757c1d0027a0168e",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.0-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.0-rc.2.tgz",
+			"sha": "22572d0f546c35135c9924c7c2b7f0ba697ebb0f",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-alpha.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.1.tgz",
+			"sha": "f5e7974ceb8f26350dee21840e1b8f7dc65185b2",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.2.tgz",
+			"sha": "3b630da501edce3e949dc394c6ed0609a88bef56",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-alpha.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.3.tgz",
+			"sha": "9dbea78080bbbc7029a72906cd4c32690cd4bd78",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-alpha.4.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.4.tgz",
+			"sha": "1913d305443b1710aba8a6b6f26993d81a5a51ec",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-alpha.5.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-alpha.5.tgz",
+			"sha": "4d2bc19029f7e2ffbe1fc7597d46d0e10cf09f7b",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-rc.1.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.1.tgz",
+			"sha": "785e018d25ef69c28ce2a1a5ea999748155404bc",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-rc.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.2.tgz",
+			"sha": "920d9a7caaccfe65313eacb1f780b53f46b6c296",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-rc.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.3.tgz",
+			"sha": "86223c27084bb3bf14defbbe2aeba8e1257c728f",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-rc.4.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.4.tgz",
+			"sha": "f6e6da7e91d9f7e84a4c5e8f61cf89856fe8b6df",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.2-alpha.2.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.2-alpha.2.tgz",
+			"sha": "463bca7ec6c2aca9be0c1bcb1c8dd205e2528292",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.1-rc.5.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.1-rc.5.tgz",
+			"sha": "d3c6dba7f08bd662f3456051d1cff9c4ebaff53b",
+			"registry": "npmjs"
+		},
+		"dsh-sdk-client-0.2.2-alpha.3.tgz": {
+			"url": "https://registry.npmjs.org/@deepseek-ai/dsh-sdk-client/-/dsh-sdk-client-0.2.2-alpha.3.tgz",
+			"sha": "b8f60b9bcd085e9041001d416248ed2f1f67f2df",
+			"registry": "npmjs"
+		}
+	},
+	"_attachments": {},
+	"_rev": "1-b75aca6bead50173",
+	"_id": "@deepseek-ai/dsh-sdk-client",
+	"readme": ""
+}

@@ -1,0 +1,3680 @@
+{
+  "schemaVersion": 2,
+  "tool": "dsh-sentinel",
+  "version": "0.4.4",
+  "scannedAt": "2026-11-04T07:00:14.083Z",
+  "target": {
+    "kind": "path",
+    "path": "C:\\Users\\Asus\\AppData\\Local\\Temp\\sentinel-quarantine-12904-1793775594157-l8yt62idhdq\\x\\package",
+    "name": ""
+  },
+  "summary": {
+    "verdict": "dangerous",
+    "score": 100,
+    "scanComplete": false,
+    "incompleteScan": true,
+    "incompleteReasons": [
+      "scan",
+      "module-graph",
+      "module-graph-cross-file"
+    ],
+    "filesDiscovered": 111,
+    "filesAnalyzed": 111,
+    "findingsTotal": 8,
+    "findingsReturned": 8,
+    "findingsTruncated": false,
+    "scoreBasedOnAllFindings": true,
+    "filesScanned": 111,
+    "filesSkipped": 0,
+    "totalFindings": 8,
+    "bySeverity": {
+      "critical": 0,
+      "high": 4,
+      "medium": 4,
+      "low": 0,
+      "info": 0
+    },
+    "byCategory": {
+      "execution": 0,
+      "credentials": 0,
+      "exfiltration": 0,
+      "obfuscation": 0,
+      "install": 0,
+      "filesystem": 0,
+      "network": 0,
+      "manifest": 0,
+      "hygiene": 0,
+      "agent": 5,
+      "taint": 3,
+      "supplychain": 0,
+      "binary": 0,
+      "persistence": 0
+    },
+    "byContext": {
+      "source": 8,
+      "test": 0,
+      "development": 0
+    },
+    "scanMs": 19308
+  },
+  "scanCoverage": {
+    "sourceFiles": 111,
+    "buildFiles": 0,
+    "binaryFiles": 0,
+    "largeFiles": 4,
+    "parseFailures": 0,
+    "hardSkippedFiles": 0,
+    "binarySkippedFiles": 0,
+    "readFailures": 0,
+    "hashFailures": 0,
+    "analysisFailures": 0,
+    "traversalFailures": 0
+  },
+  "manifest": {
+    "ok": true,
+    "name": "dsh-agent-team-presets",
+    "version": "0.1.8",
+    "isBundle": true,
+    "patch": "./cordis.patch.yml",
+    "license": "MIT",
+    "description": "Reusable Agent Team presets for DeepSeek Harness: a captain plus members with their own prompt, model, reasoning effort, and tools."
+  },
+  "profile": {
+    "name": "",
+    "pluginsScanned": [],
+    "pluginsSkipped": [],
+    "plugins": []
+  },
+  "findings": [
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/types/team-skills/store.js",
+      "line": 134,
+      "snippet": "raw = await readFile(path, 'utf8');",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFile"
+      },
+      "flow": [
+        "readFile",
+        "readFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "readFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 25,
+      "endLine": 134,
+      "endColumn": 47,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "5ee65d93894c710abb776b5657aeb09a8e0c21468daa6775c6b860610e203044"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/types/team-skills/store.js",
+      "line": 485,
+      "snippet": "const bytes = new Uint8Array(await readFile(absolute));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFile"
+      },
+      "flow": [
+        "readFile",
+        "readFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "readFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 44,
+      "endLine": 485,
+      "endColumn": 62,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "56d6cd707662b377319394f66078a9343c82997b4a13c1b64aeeed4066bf0e51"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/types/team-skills/store.js",
+      "line": 566,
+      "snippet": "raw = await readFile(path, 'utf8');",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFile"
+      },
+      "flow": [
+        "readFile",
+        "readFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "readFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 25,
+      "endLine": 566,
+      "endColumn": 47,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "69160825cc4f53a5c3082ec16ca8cf4346df3bb13b16754b63fbb37b853a6a9f"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/types/team-skills/store.js",
+      "line": 646,
+      "snippet": "files.push({ path, bytes: new Uint8Array(await readFile(absolute)) });",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFile"
+      },
+      "flow": [
+        "readFile",
+        "readFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "readFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 60,
+      "endLine": 646,
+      "endColumn": 78,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "a9d9ed50899a3fbf7d79e48be8926285d5b8b49683b6c26d2fc44016e577b8d4"
+    },
+    {
+      "id": "SEN-AGENT-005",
+      "severity": "medium",
+      "category": "agent",
+      "confidence": "low",
+      "message": "工具/指令文本疑似 prompt 投毒短语(需结合上下文判断)",
+      "file": "lib/types/application.js",
+      "line": 379,
+      "snippet": "// would otherwise reduce the assembled prompt to itself and hide this",
+      "recommendation": "人工判断短语是否用于防御性说明(如\"忽略注入指令\")还是恶意指令。",
+      "package": "",
+      "testFile": false,
+      "detail": "文档/测试/注释中出现投毒短语(需结合上下文判断)",
+      "fingerprint": "d5533fd5b06dec3b6e396c5837385d74f436236efbabd91fd1a9dbdf0733a780"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/types/team-skills/store.js",
+      "line": 84,
+      "snippet": "await handle.writeFile(`${JSON.stringify(value, null, 2)}\\n`, 'utf8');",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFile"
+      },
+      "flow": [
+        "readFile",
+        "writeFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "writeFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 19,
+      "endLine": 84,
+      "endColumn": 82,
+      "fingerprint": "b1e55d6d2c4c93e6dab82b3a26bba2b5787bffb9fd08a5e388b300450383aad5"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/types/team-skills/store.js",
+      "line": 409,
+      "snippet": "await writeFile(path, file.bytes, { flag: 'wx' });",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFile"
+      },
+      "flow": [
+        "readFile",
+        "writeFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "writeFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 23,
+      "endLine": 409,
+      "endColumn": 66,
+      "fingerprint": "2daed72f1f6c5e6ffd1f19781b11262f6b509023df2ff534450d2c557c67ec51"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/types/team-skills/store.js",
+      "line": 687,
+      "snippet": "await writeFile(destination, file.bytes, { flag: 'wx' });",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFile"
+      },
+      "flow": [
+        "readFile",
+        "writeFile(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "writeFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 15,
+      "endLine": 687,
+      "endColumn": 65,
+      "fingerprint": "0fb8b22f4e280e0ed27a9fae0f0a734253ffcbdeb46c5df72976f1ccd7f4555f"
+    }
+  ],
+  "attackChains": [],
+  "analysisLayers": {
+    "moduleGraph": {
+      "complete": false,
+      "nodes": [
+        {
+          "path": "lib/typert.host.d.ts",
+          "bytes": 123,
+          "sha256": "5e2d26ee86d0fe170dac8cd3f5854e67bdea334c57f40a5766ace57b8304c17d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/typert.remote-client.d.ts",
+          "bytes": 7335,
+          "sha256": "607bb3be5e7cc3268fe3e538d5fb15d0225ae6842ec1d12c30c504680de2bbb9",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/application.d.ts",
+          "bytes": 6455,
+          "sha256": "9ab990c7c289a3def863e4ca5cbccda8ca7fbd15b144ee5bcff413b1b3f2286f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/application.js",
+          "bytes": 22224,
+          "sha256": "f97e887aa995405d2ddb9e4dbc5a472f3b5a3250aff0a66d5dc31f09567887e8",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-tools",
+            "@deepseek-ai/dsh-llm",
+            "@deepseek-ai/dsh-system-prompt",
+            "./presets.js",
+            "./delegation.js",
+            "./member-identity.js",
+            "./tool-policy.js",
+            "./tool-descriptions.js"
+          ]
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "bytes": 7484,
+          "sha256": "ac2fbcef32aeb85d81dcba4b53614db7d11f9dea162ac186155cbfe3b2c219aa",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/builtin-teams.js",
+          "bytes": 12194,
+          "sha256": "0e81f958c70e225beef27618cbca3196798b1f18b329b9bab340e79589011309",
+          "parser": "acorn",
+          "imports": [
+            "./preset-transfer.js",
+            "./team-catalog.js",
+            "./presets.js",
+            "./team-catalog.js"
+          ]
+        },
+        {
+          "path": "lib/types/client/appearance.d.ts",
+          "bytes": 2061,
+          "sha256": "e73e7c99042c319d627cd59762ef1c7cd6f903fd1688cb76363542ed39039ffd",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/appearance.js",
+          "bytes": 1518,
+          "sha256": "c88bdf334a73eeeb72a964a4427853369dc184a16cbb1ba1985b6ce22c17d2b4",
+          "parser": "acorn",
+          "imports": [
+            "../presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/client/CategorySelect.d.ts",
+          "bytes": 1171,
+          "sha256": "ab63449685ce997dbfb177264eaea0823629e67226b5afb1aefa6948f23cb425",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/CategorySelect.js",
+          "bytes": 2634,
+          "sha256": "c76a86e76e037660e9f2bc6efe86080e8b608eea8829b1ad83ce40c73a6e2686",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.d.ts",
+          "bytes": 881,
+          "sha256": "eb268f75ecbcce144ecc04a6eceee126ec475adf714ad3dab6ba7b8d99e8f6ee",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.js",
+          "bytes": 9523,
+          "sha256": "37b0e66650b2d0a02d405e353b2bfddad86aabff067c0ac420c0db2df261ae0d",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "../presets.js",
+            "../team-catalog.js",
+            "../team-search.js",
+            "./team-grouping.js",
+            "./locales.js",
+            "./ComposerTeamSelect.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/FieldPicker.d.ts",
+          "bytes": 734,
+          "sha256": "4171deb91cacf3849c297fda92ac773021ff110e750f52eb05a448a311b55718",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/FieldPicker.js",
+          "bytes": 1441,
+          "sha256": "0352a965aa2332c8faab39e44f1ca0906069f7f0e3e38f3fc007c0cbf89b0919",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "bytes": 2002,
+          "sha256": "5bb9072e291469d16303f1b7635842d9f6efbf66b4aee0f44b44afcb6127566f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/index.js",
+          "bytes": 6256,
+          "sha256": "9afaa087a78ac2d3890aa4e278fac998601f78ffa715ff12df9b16539d700817",
+          "parser": "acorn",
+          "imports": [
+            "dsh-agent-team-presets/remote",
+            "./ComposerTeamSelect.js",
+            "./appearance.js",
+            "./TeamPresetsSection.js",
+            "./team-presets-controller.js",
+            "./team-skills-controller.js",
+            "./locales.js"
+          ]
+        },
+        {
+          "path": "lib/types/client/locales.d.ts",
+          "bytes": 8501,
+          "sha256": "52fa5f8f7ab279006defb14ccc83ec084e74e958dddd99fb96fea0cc77cda25c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/locales.js",
+          "bytes": 36973,
+          "sha256": "06a7fbaedf64fb46dfc62cf9f0f67b4eae85135205654801c0af791a88789842",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/preset-file.d.ts",
+          "bytes": 883,
+          "sha256": "8fb96e233073b38c5770cd7927834e7396a38b04208eb48840195529876bd96f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/preset-file.js",
+          "bytes": 1503,
+          "sha256": "9f3ad3802e91d3b3903edd27b2057ae91dba911a84d12f8ff98bafd6aaa98171",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/team-grouping.d.ts",
+          "bytes": 6600,
+          "sha256": "389fb2b1b68953b6677c57021d57877a7c85a436e4c0a135ffb8cfeb6e3fb8f3",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/team-grouping.js",
+          "bytes": 7375,
+          "sha256": "6661e9dac8ce59bdf8103192c5f311ab117a014284e837c80984c31d2889d791",
+          "parser": "acorn",
+          "imports": [
+            "../team-catalog.js",
+            "../team-search.js"
+          ]
+        },
+        {
+          "path": "lib/types/client/team-presets-controller.d.ts",
+          "bytes": 34994,
+          "sha256": "6f6940865aa8b8d7d719aa150b319e2e398d1dab1b14ee414e8aaa6d43eba8f8",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/team-presets-controller.js",
+          "bytes": 57570,
+          "sha256": "174a4ce26f3a367e632e40d61d6e3d1cbf1520c669da35d3364f2d2a239ca473",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-client-store",
+            "../presets.js",
+            "../builtin-teams.js",
+            "../team-catalog.js",
+            "../preset-transfer.js",
+            "../team-search.js"
+          ]
+        },
+        {
+          "path": "lib/types/client/team-skills-controller.d.ts",
+          "bytes": 7428,
+          "sha256": "bf761abc780accfd07dd5141a986b34277560bd32e10b10670c0dd577eafafbc",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/team-skills-controller.js",
+          "bytes": 17432,
+          "sha256": "0fd1496c4ad51c810a5d07acf0d64ae4ce1183b891e066dc227ed7dbb5bc024e",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "bytes": 2372,
+          "sha256": "f252c9a4ab0cc35cda7fc18a2de03dd02c4ab77b49f56f57a7d4403339c63ff6",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.js",
+          "bytes": 19416,
+          "sha256": "c99f704935b83fbe2012cad89a6bd0a0642dfb2ecfe97cac3c306fbf86a6ca35",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "react",
+            "./team-presets-controller.js",
+            "./FieldPicker.js",
+            "../presets.js",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.d.ts",
+          "bytes": 1562,
+          "sha256": "fb0b40e4003372aadf38000b37dfb1816857664372b71a5b83e01670eda6f79c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.js",
+          "bytes": 4511,
+          "sha256": "4456ea3af05cd03ac0ef140babe218ca36d7eb1b6c672705efd7172ffee5fe6e",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.d.ts",
+          "bytes": 1700,
+          "sha256": "02a4664c40d3797d463c9d1175df1c8d049174e14e65cb17b2b2a35ca3dd0ad5",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.js",
+          "bytes": 8839,
+          "sha256": "73dbefa3a550d5bad81fd851eff3fe397e9c77103653fc4fc6b6548d65b32287",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./CategorySelect.js",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.d.ts",
+          "bytes": 1295,
+          "sha256": "538bca5ce46c4430ec5985f33a3f0b58a14883065004540719c22bfab9fb3169",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.js",
+          "bytes": 5169,
+          "sha256": "65b4fd9ad92ec33b7041241bb071e3e88764227fdb73d2f0216b1933aaa9bc56",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamListView.d.ts",
+          "bytes": 1926,
+          "sha256": "bd706458389085f989056816483b36159f5853a66a9f526688ecee0dc4ee2b2f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamListView.js",
+          "bytes": 7269,
+          "sha256": "304f783080e9c09aab5ca4661612f6486e8d9fe7d128c40504f1c367698c17ec",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "../team-search.js",
+            "../team-catalog.js",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.d.ts",
+          "bytes": 820,
+          "sha256": "c30be1e39eb09cea49f320f3be19d602025b4fb228b7145615b8db6d030f6f00",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.js",
+          "bytes": 17552,
+          "sha256": "7164c9ab66b7f3fa2f67dbc8ace923b41c4103c3d5262490ca76c7a717985fd2",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./TeamAgentView.js",
+            "./TeamEditorView.js",
+            "./TeamCategoryManager.js",
+            "./TeamImportDialog.js",
+            "./TeamListView.js",
+            "./TeamSkillsView.js",
+            "./team-presets-controller.js",
+            "./preset-file.js",
+            "./locales.js",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.d.ts",
+          "bytes": 2640,
+          "sha256": "775e08a7085edc45af9545cdda825654837d0507fa1eaee3622fc217a0f91f99",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.js",
+          "bytes": 20330,
+          "sha256": "5485a44dcd5a621385ffc9b463597be4d3967f1bd3822f529b6cacbae7535bbb",
+          "parser": "acorn",
+          "imports": [
+            "react/jsx-runtime",
+            "react",
+            "@deepseek-ai/dsh-client-ui-primitives",
+            "./TeamSkillsView.module.css",
+            "./TeamPresetsSection.module.css"
+          ]
+        },
+        {
+          "path": "lib/types/config.d.ts",
+          "bytes": 14885,
+          "sha256": "a4478a398fe5ee7058efab29d6ef4e0a8bf3ad259659aa8ead3252647298b301",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/config.js",
+          "bytes": 4729,
+          "sha256": "05f64ad44eb996ccf78709db4b251a0d136312ff55653026587293eea514e6e8",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/schemastery",
+            "./presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/delegation.d.ts",
+          "bytes": 3872,
+          "sha256": "8a517d4f3b2f92768f8d2ef8d4f0425d37d34579e4dc3c43448be148484764ed",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/delegation.js",
+          "bytes": 8772,
+          "sha256": "714c11f557c3524f712b72e57a9fe4fcc5aa397bf6146f763673595cde50489a",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-subagent",
+            "@deepseek-ai/dsh-llm"
+          ]
+        },
+        {
+          "path": "lib/types/execution.d.ts",
+          "bytes": 5337,
+          "sha256": "278cc7647b13cef2d6e006dee427e2037f0d745e0e5eaf0a394f1bf444c86026",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/execution.js",
+          "bytes": 11033,
+          "sha256": "1d9f29b1f19c94449e762ab9cb0154bf6a7cafcacb750e3b4232dfd0d6944b88",
+          "parser": "acorn",
+          "imports": [
+            "./presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "bytes": 2097,
+          "sha256": "f57174d917fce579bf1da7e969d140b91c5a19d06e56b4ae84e727c7e63c18cb",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/index.js",
+          "bytes": 63246,
+          "sha256": "861f36a9804d81fca2288e3b7d7c019553f6bb189bbfc1470a44355f48f3fd23",
+          "parser": "acorn",
+          "imports": [
+            "./application.js",
+            "./member-runtime.js",
+            "./delegation.js",
+            "./member-identity.js",
+            "./presentation.js",
+            "./settings-reconcile.js",
+            "./execution.js",
+            "@deepseek-ai/dsh-tools",
+            "./preset-tools.js",
+            "./team-skills/index.js",
+            "./team-skills/service.js",
+            "./team-skills/tools.js",
+            "./presets.js",
+            "./tool-catalog.js",
+            "./tool-policy.js",
+            "./config.js"
+          ]
+        },
+        {
+          "path": "lib/types/member-identity.d.ts",
+          "bytes": 7764,
+          "sha256": "e73a7f34cb6a0b743ab0c6325e5ea030e5b88d61530648ecb6843376fc2a3ff7",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/member-identity.js",
+          "bytes": 16922,
+          "sha256": "3df526aa934fc30406b7a85d4c0f1b1fca59045729b7d0aab96e1a8c8b2949f0",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/member-runtime.d.ts",
+          "bytes": 11885,
+          "sha256": "c480bd2155cda47dd05d0f46a6a3af96909d5e518b3f31ab103ee51b1f639667",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/member-runtime.js",
+          "bytes": 24243,
+          "sha256": "4182011b9431da7366ed18250ba432c3ce3be923050761005e9e843b5922fbfc",
+          "parser": "acorn",
+          "imports": [
+            "node:crypto",
+            "@deepseek-ai/dsh-agent",
+            "@deepseek-ai/dsh-llm",
+            "@deepseek-ai/dsh-system-prompt",
+            "@deepseek-ai/dsh-subagent",
+            "./member-identity.js",
+            "./member-store.js",
+            "./presentation.js",
+            "./tool-policy.js"
+          ]
+        },
+        {
+          "path": "lib/types/member-store.d.ts",
+          "bytes": 6887,
+          "sha256": "5c927dddaf007edabaceda40c9127a560f4a2e3b236be0d077329564aaad889d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/member-store.js",
+          "bytes": 9265,
+          "sha256": "4d03908982349fcededf83306c7799d452afe115420e1c05e3b65a056298c583",
+          "parser": "acorn",
+          "imports": [
+            "node:crypto",
+            "zod"
+          ]
+        },
+        {
+          "path": "lib/types/presentation.d.ts",
+          "bytes": 5480,
+          "sha256": "196ee71ceb955ea7ee526b00c6bce7e78eff9d7581b2581d541af9c0e96bae71",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/presentation.js",
+          "bytes": 5362,
+          "sha256": "f39851a14304a6a4f15a374197dca3623aaf25b426027ce0f530dae7d716f0bf",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-agent",
+            "@deepseek-ai/dsh-tools",
+            "@deepseek-ai/dsh-system-prompt"
+          ]
+        },
+        {
+          "path": "lib/types/preset-editor.d.ts",
+          "bytes": 3978,
+          "sha256": "b8fa7615c12abe13d9fbd841893bf4062fa4059e6547c7969aff10340d687d60",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/preset-editor.js",
+          "bytes": 6653,
+          "sha256": "54161619dc976ca09979d378c7adffe0de4ed493af583c85e531631740991e0a",
+          "parser": "acorn",
+          "imports": [
+            "./presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/preset-tools.d.ts",
+          "bytes": 2296,
+          "sha256": "81607d7b26f401be02df811f3fb70b44186b56434a8f97636de53406e9f599d8",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/preset-tools.js",
+          "bytes": 26213,
+          "sha256": "a15e5615ee07d9e19d7b53b27632c376261af5d6a2dbd49bebfe1c3155d4912a",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-agent",
+            "@deepseek-ai/dsh-llm",
+            "@deepseek-ai/dsh-tools",
+            "./preset-editor.js",
+            "./presets.js",
+            "./tool-descriptions.js"
+          ]
+        },
+        {
+          "path": "lib/types/preset-transfer.d.ts",
+          "bytes": 10942,
+          "sha256": "946033708f55ce3f4b6e0808f16bbc1ec3b8288928d2ae84946210fe880b6d3e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/preset-transfer.js",
+          "bytes": 22271,
+          "sha256": "181e17b998fb6d5d88b7d9de459258d4bb724661fbb01f5d37ccd6cf24dc8252",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "bytes": 7130,
+          "sha256": "b1f58929528e5bd30c150f4ab98421723a131203bd022beb540860b42336b949",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/presets.js",
+          "bytes": 12170,
+          "sha256": "a7c7a1f6be6a258a61cc9c030e121e33624e09a522f7468389725751a2746575",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/settings-reconcile.d.ts",
+          "bytes": 1194,
+          "sha256": "e4cb214b90425f02805d4d76b036003fbddb6235f2b53601ebfab0b798564981",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/settings-reconcile.js",
+          "bytes": 7153,
+          "sha256": "dbc448fc099f439b4d835deaeb84f91388ce655ee6ab5a68adb2f2a5336bde07",
+          "parser": "acorn",
+          "imports": [
+            "node:crypto",
+            "./builtin-teams.js",
+            "./team-catalog.js",
+            "./config.js",
+            "./team-search.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-catalog.d.ts",
+          "bytes": 3864,
+          "sha256": "48e34a318035cf6e588b9429466ba8f1f618bad71a5905fa45733cfba2d5786d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-catalog.js",
+          "bytes": 67025,
+          "sha256": "839802215f439b7a21b87c366757e976eea54224fd768264b515d8e3e5f564ac",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-search.d.ts",
+          "bytes": 7823,
+          "sha256": "a1e33fca83daf935c2030e8186145cfc129073d8bd51608bd29f4bdef82b388e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-search.js",
+          "bytes": 9974,
+          "sha256": "19679faeee1b5909a71208f7383e872e9e11b93c3d26be4488f42492b075c515",
+          "parser": "acorn",
+          "imports": [
+            "./team-catalog.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/import.d.ts",
+          "bytes": 4248,
+          "sha256": "590193f76bb9e4b1139a6a3fce5f4e76965bd70f678e5ab0859541441aa6b720",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/import.js",
+          "bytes": 12171,
+          "sha256": "ecd19e36047f668e8f04aea426460595982a799c1dbba9af8bf8fdf22743f059",
+          "parser": "acorn",
+          "imports": [
+            "node:zlib",
+            "yaml",
+            "./paths.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "bytes": 7722,
+          "sha256": "2528fe652c42ad73c0de210262e0b0e8778865febb7b13302bf63daebe03cfcd",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/index.js",
+          "bytes": 12061,
+          "sha256": "311cf50cf3689bc5b92d25a72a5a9d4308804e315bb8074dfb164878e4fc6482",
+          "parser": "acorn",
+          "imports": [
+            "node:os",
+            "node:path",
+            "node:url",
+            "node:fs/promises",
+            "./manager.js",
+            "./provider.js",
+            "./store.js",
+            "../presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/manager.d.ts",
+          "bytes": 9237,
+          "sha256": "924e71017e7ab671eb74d209d8c48ba4c86caf6113bf711dd0ebb79ef0944f09",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/manager.js",
+          "bytes": 28543,
+          "sha256": "6b0cd9c59cfebe3ee07fdb7665e8fd49c894aec4c97e152c905b824383f1bc9f",
+          "parser": "acorn",
+          "imports": [
+            "node:fs/promises",
+            "node:path",
+            "./store.js",
+            "./paths.js",
+            "../team-catalog.js",
+            "node:fs"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/paths.d.ts",
+          "bytes": 5486,
+          "sha256": "d01ea0820d22ffd8f1f00a676a0bb67e5686328bc5ff3ba79c1f5a3d23237b91",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/paths.js",
+          "bytes": 9185,
+          "sha256": "84ad837d9703cbc526d6dba19381768b8af719ca29012569f7c70a8bf3c7ae33",
+          "parser": "acorn",
+          "imports": [
+            "node:fs/promises",
+            "node:fs",
+            "node:path"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/provider.d.ts",
+          "bytes": 8991,
+          "sha256": "9839f12389dec5ecda3cfcde724c3ab8c06b0c57e9c9bf892a22b8b1adfd7cf2",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/provider.js",
+          "bytes": 17626,
+          "sha256": "97b1e8c571c7502ebac28bd6c774eafb3f6525996e080c48dd57f56fa24cd36c",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-scope"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/service.d.ts",
+          "bytes": 7481,
+          "sha256": "4f280fb2d47d1db5e3fb2766c26019711addb80f773407e622b080adc21d91ec",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/service.js",
+          "bytes": 30183,
+          "sha256": "1a1abc4acf38e6f34950099215756fa0e7154d700653babed411fa55c17319ce",
+          "parser": "acorn",
+          "imports": [
+            "node:fs/promises",
+            "node:path",
+            "@deepseek-ai/dsh-typert-protocol",
+            "./import.js",
+            "./manager.js",
+            "./paths.js",
+            "./store.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/store.d.ts",
+          "bytes": 4557,
+          "sha256": "a92876fa0273b3fa2b476263d6f44fa8e5061cd8bafe5d7d2b6ea732cc81b6d6",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/store.js",
+          "bytes": 34229,
+          "sha256": "c3c027fb91a6905d80bff58f105a2d132a0e5a2fd28a230c777bba8f365891df",
+          "parser": "acorn",
+          "imports": [
+            "node:async_hooks",
+            "node:crypto",
+            "node:fs/promises",
+            "node:path",
+            "./paths.js",
+            "./import.js"
+          ]
+        },
+        {
+          "path": "lib/types/team-skills/tools.d.ts",
+          "bytes": 1879,
+          "sha256": "9eea41e462f17cf2fe5cab9d3f0ab0a35f358e6ae7cf326795d7aac30cd1d3a2",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/team-skills/tools.js",
+          "bytes": 12942,
+          "sha256": "2370284ec39f48a462ec37210adca9a4bb81f2e0923c59bdfeafe6af2a282a49",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-tools"
+          ]
+        },
+        {
+          "path": "lib/types/tool-catalog.d.ts",
+          "bytes": 2949,
+          "sha256": "0ef12ade39727f4f17d5da7565f549f58370f6bd863463b2f077bccab8b2fa95",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/tool-catalog.js",
+          "bytes": 11259,
+          "sha256": "d5696d3f889660b660711122329ef8da6fad2e97457f68ea59142180b2f1d77f",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-tools",
+            "./tool-descriptions.js",
+            "./presets.js",
+            "@deepseek-ai/dsh-typert-protocol"
+          ]
+        },
+        {
+          "path": "lib/types/tool-descriptions.d.ts",
+          "bytes": 1772,
+          "sha256": "9bc393e893ed87ff123289380aea426e24f0f120bbbf0f15087e5b4cb0caf942",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/tool-descriptions.js",
+          "bytes": 1748,
+          "sha256": "2e6138002b2c0523db9d8e9ea57decbe764a0a760b56daff3042657e26da7ea4",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/types/tool-policy.d.ts",
+          "bytes": 5537,
+          "sha256": "eab5ea8b06d92fd23db198c316f21e7325c206b822e7c6d3ce140a888e17b111",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/tool-policy.js",
+          "bytes": 11436,
+          "sha256": "fc699080fe1104368f7d788783f6aa003eec856b5d24ebb41e7be21706e94af2",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-tools",
+            "./presets.js"
+          ]
+        },
+        {
+          "path": "lib/types/types.d.ts",
+          "bytes": 20990,
+          "sha256": "9e26e2ee90d5675c8b81e2214f0aca24990428f4d9b171f9887d1ac5c5c96d18",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/types.js",
+          "bytes": 261,
+          "sha256": "4d3ac2c7c3f730581cba3830b72dc26e3c2aad11a09d6ea3edd034e7ad8d3c65",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/client.js",
+          "bytes": 965315,
+          "sha256": "ece612d1d0e350ca0276ac71c739fb6caea380ccb18347480dc32faef241d180",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/index.js",
+          "bytes": 717189,
+          "sha256": "56d3c5ed361bc06decd7adced913b4154dea1074f9ce7b92a2af975e3db57e26",
+          "parser": "acorn",
+          "imports": [
+            "node:module",
+            "@deepseek-ai/dsh-tools",
+            "@deepseek-ai/dsh-llm",
+            "@deepseek-ai/dsh-system-prompt",
+            "@deepseek-ai/dsh-subagent",
+            "node:crypto",
+            "@deepseek-ai/dsh-agent",
+            "@deepseek-ai/schemastery",
+            "node:os",
+            "node:path",
+            "node:url",
+            "node:fs/promises",
+            "node:async_hooks",
+            "node:fs",
+            "@deepseek-ai/dsh-scope",
+            "@deepseek-ai/dsh-typert-protocol"
+          ]
+        },
+        {
+          "path": "lib/typert.host.js",
+          "bytes": 567464,
+          "sha256": "4d9df201cf8290aea4c0f2d4b168747d1f5bc980843f2ff4696abf590304cb33",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/typert.remote-client.js",
+          "bytes": 567300,
+          "sha256": "00c02524c93f8b4f2f7eb5c7aff19c49f3bd26d7e98611926b7b6b63104b80aa",
+          "parser": "acorn",
+          "imports": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "lib/types/application.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 1006,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/application.js",
+          "to": "lib/types/delegation.js",
+          "specifier": "./delegation.js",
+          "start": 1065,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/application.js",
+          "to": "lib/types/member-identity.js",
+          "specifier": "./member-identity.js",
+          "start": 1118,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/application.js",
+          "to": "lib/types/tool-policy.js",
+          "specifier": "./tool-policy.js",
+          "start": 1213,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/application.js",
+          "to": "lib/types/tool-descriptions.js",
+          "specifier": "./tool-descriptions.js",
+          "start": 1279,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/builtin-teams.js",
+          "to": "lib/types/preset-transfer.js",
+          "specifier": "./preset-transfer.js",
+          "start": 1255,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/builtin-teams.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "./team-catalog.js",
+          "start": 1316,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/builtin-teams.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 1362,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/builtin-teams.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "./team-catalog.js",
+          "start": 1411,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/appearance.js",
+          "to": "lib/types/presets.js",
+          "specifier": "../presets.js",
+          "start": 753,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "to": "lib/types/presets.js",
+          "specifier": "../presets.js",
+          "start": 417,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "../team-catalog.js",
+          "start": 462,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "to": "lib/types/team-search.js",
+          "specifier": "../team-search.js",
+          "start": 554,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "to": "lib/types/client/team-grouping.js",
+          "specifier": "./team-grouping.js",
+          "start": 625,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "to": "lib/types/client/locales.js",
+          "specifier": "./locales.js",
+          "start": 701,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "./ComposerTeamSelect.js",
+          "start": 254,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/appearance.js",
+          "specifier": "./appearance.js",
+          "start": 312,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "./TeamPresetsSection.js",
+          "start": 366,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/team-presets-controller.js",
+          "specifier": "./team-presets-controller.js",
+          "start": 448,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/team-skills-controller.js",
+          "specifier": "./team-skills-controller.js",
+          "start": 517,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "to": "lib/types/client/locales.js",
+          "specifier": "./locales.js",
+          "start": 575,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-grouping.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "../team-catalog.js",
+          "start": 927,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-grouping.js",
+          "to": "lib/types/team-search.js",
+          "specifier": "../team-search.js",
+          "start": 995,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "to": "lib/types/presets.js",
+          "specifier": "../presets.js",
+          "start": 265,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "to": "lib/types/builtin-teams.js",
+          "specifier": "../builtin-teams.js",
+          "start": 333,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "../team-catalog.js",
+          "start": 385,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "to": "lib/types/preset-transfer.js",
+          "specifier": "../preset-transfer.js",
+          "start": 564,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "to": "lib/types/team-search.js",
+          "specifier": "../team-search.js",
+          "start": 621,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "to": "lib/types/client/team-presets-controller.js",
+          "specifier": "./team-presets-controller.js",
+          "start": 403,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "to": "lib/types/client/FieldPicker.js",
+          "specifier": "./FieldPicker.js",
+          "start": 463,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "to": "lib/types/presets.js",
+          "specifier": "../presets.js",
+          "start": 524,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamEditorView.js",
+          "to": "lib/types/client/CategorySelect.js",
+          "specifier": "./CategorySelect.js",
+          "start": 393,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamListView.js",
+          "to": "lib/types/team-search.js",
+          "specifier": "../team-search.js",
+          "start": 368,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamListView.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "../team-catalog.js",
+          "start": 431,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamAgentView.js",
+          "specifier": "./TeamAgentView.js",
+          "start": 366,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamEditorView.js",
+          "specifier": "./TeamEditorView.js",
+          "start": 419,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "./TeamCategoryManager.js",
+          "start": 478,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamImportDialog.js",
+          "specifier": "./TeamImportDialog.js",
+          "start": 539,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamListView.js",
+          "specifier": "./TeamListView.js",
+          "start": 593,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/TeamSkillsView.js",
+          "specifier": "./TeamSkillsView.js",
+          "start": 645,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/team-presets-controller.js",
+          "specifier": "./team-presets-controller.js",
+          "start": 742,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/preset-file.js",
+          "specifier": "./preset-file.js",
+          "start": 841,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "to": "lib/types/client/locales.js",
+          "specifier": "./locales.js",
+          "start": 1005,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/config.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 361,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/execution.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 740,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/application.js",
+          "specifier": "./application.js",
+          "start": 1143,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/member-runtime.js",
+          "specifier": "./member-runtime.js",
+          "start": 1193,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/delegation.js",
+          "specifier": "./delegation.js",
+          "start": 1252,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/member-identity.js",
+          "specifier": "./member-identity.js",
+          "start": 1357,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/presentation.js",
+          "specifier": "./presentation.js",
+          "start": 1477,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/settings-reconcile.js",
+          "specifier": "./settings-reconcile.js",
+          "start": 1536,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/execution.js",
+          "specifier": "./execution.js",
+          "start": 1656,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/preset-tools.js",
+          "specifier": "./preset-tools.js",
+          "start": 1766,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/team-skills/index.js",
+          "specifier": "./team-skills/index.js",
+          "start": 1860,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/team-skills/service.js",
+          "specifier": "./team-skills/service.js",
+          "start": 1919,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/team-skills/tools.js",
+          "specifier": "./team-skills/tools.js",
+          "start": 1986,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 2084,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/tool-catalog.js",
+          "specifier": "./tool-catalog.js",
+          "start": 2135,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/tool-policy.js",
+          "specifier": "./tool-policy.js",
+          "start": 2261,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/index.js",
+          "to": "lib/types/config.js",
+          "specifier": "./config.js",
+          "start": 2304,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "to": "lib/types/member-identity.js",
+          "specifier": "./member-identity.js",
+          "start": 1834,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "to": "lib/types/member-store.js",
+          "specifier": "./member-store.js",
+          "start": 1890,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "to": "lib/types/presentation.js",
+          "specifier": "./presentation.js",
+          "start": 1953,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "to": "lib/types/tool-policy.js",
+          "specifier": "./tool-policy.js",
+          "start": 2019,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/preset-editor.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 414,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "to": "lib/types/preset-editor.js",
+          "specifier": "./preset-editor.js",
+          "start": 992,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 1058,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "to": "lib/types/tool-descriptions.js",
+          "specifier": "./tool-descriptions.js",
+          "start": 1150,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/settings-reconcile.js",
+          "to": "lib/types/builtin-teams.js",
+          "specifier": "./builtin-teams.js",
+          "start": 951,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/settings-reconcile.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "./team-catalog.js",
+          "start": 1002,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/settings-reconcile.js",
+          "to": "lib/types/config.js",
+          "specifier": "./config.js",
+          "start": 1060,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/settings-reconcile.js",
+          "to": "lib/types/team-search.js",
+          "specifier": "./team-search.js",
+          "start": 1113,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-search.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "./team-catalog.js",
+          "start": 823,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/import.js",
+          "to": "lib/types/team-skills/paths.js",
+          "specifier": "./paths.js",
+          "start": 928,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "to": "lib/types/team-skills/manager.js",
+          "specifier": "./manager.js",
+          "start": 1067,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "to": "lib/types/team-skills/provider.js",
+          "specifier": "./provider.js",
+          "start": 1116,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "to": "lib/types/team-skills/store.js",
+          "specifier": "./store.js",
+          "start": 1164,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "to": "lib/types/presets.js",
+          "specifier": "../presets.js",
+          "start": 1208,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "to": "lib/types/team-skills/store.js",
+          "specifier": "./store.js",
+          "start": 1184,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "to": "lib/types/team-skills/paths.js",
+          "specifier": "./paths.js",
+          "start": 1231,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "to": "lib/types/team-catalog.js",
+          "specifier": "../team-catalog.js",
+          "start": 1300,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "to": "lib/types/team-skills/import.js",
+          "specifier": "./import.js",
+          "start": 2854,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "to": "lib/types/team-skills/manager.js",
+          "specifier": "./manager.js",
+          "start": 2898,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "to": "lib/types/team-skills/paths.js",
+          "specifier": "./paths.js",
+          "start": 2947,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "to": "lib/types/team-skills/store.js",
+          "specifier": "./store.js",
+          "start": 2999,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "to": "lib/types/team-skills/paths.js",
+          "specifier": "./paths.js",
+          "start": 492,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "to": "lib/types/team-skills/import.js",
+          "specifier": "./import.js",
+          "start": 540,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/tool-catalog.js",
+          "to": "lib/types/tool-descriptions.js",
+          "specifier": "./tool-descriptions.js",
+          "start": 2639,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/tool-catalog.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 2696,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/types/tool-policy.js",
+          "to": "lib/types/presets.js",
+          "specifier": "./presets.js",
+          "start": 114,
+          "kind": "static-import"
+        }
+      ],
+      "unresolved": [
+        {
+          "from": "lib/typert.remote-client.d.ts",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 194
+        },
+        {
+          "from": "lib/typert.remote-client.d.ts",
+          "specifier": "dsh-agent-team-presets/types",
+          "external": true,
+          "start": 466
+        },
+        {
+          "from": "lib/types/application.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 708
+        },
+        {
+          "from": "lib/types/application.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 758
+        },
+        {
+          "from": "lib/types/application.d.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 815
+        },
+        {
+          "from": "lib/types/application.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 705
+        },
+        {
+          "from": "lib/types/application.js",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 765
+        },
+        {
+          "from": "lib/types/application.js",
+          "specifier": "@deepseek-ai/dsh-system-prompt",
+          "external": true,
+          "start": 828
+        },
+        {
+          "from": "lib/types/client/CategorySelect.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 43
+        },
+        {
+          "from": "lib/types/client/CategorySelect.js",
+          "specifier": "react",
+          "external": true,
+          "start": 448
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.d.ts",
+          "specifier": "@deepseek-ai/dsh-client-ui-slots",
+          "external": true,
+          "start": 212
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "react",
+          "external": true,
+          "start": 292
+        },
+        {
+          "from": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 347
+        },
+        {
+          "from": "lib/types/client/FieldPicker.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 43
+        },
+        {
+          "from": "lib/types/client/FieldPicker.js",
+          "specifier": "react",
+          "external": true,
+          "start": 217
+        },
+        {
+          "from": "lib/types/client/FieldPicker.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 278
+        },
+        {
+          "from": "lib/types/client/index.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 203
+        },
+        {
+          "from": "lib/types/client/index.js",
+          "specifier": "dsh-agent-team-presets/remote",
+          "external": true,
+          "start": 186
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 186
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.d.ts",
+          "specifier": "@deepseek-ai/dsh-api-remotes/client",
+          "external": true,
+          "start": 243
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.d.ts",
+          "specifier": "@deepseek-ai/dsh-client-store",
+          "external": true,
+          "start": 317
+        },
+        {
+          "from": "lib/types/client/team-presets-controller.js",
+          "specifier": "@deepseek-ai/dsh-client-store",
+          "external": true,
+          "start": 192
+        },
+        {
+          "from": "lib/types/client/team-skills-controller.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 599
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 288
+        },
+        {
+          "from": "lib/types/client/TeamAgentView.js",
+          "specifier": "react",
+          "external": true,
+          "start": 365
+        },
+        {
+          "from": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "react",
+          "external": true,
+          "start": 496
+        },
+        {
+          "from": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 528
+        },
+        {
+          "from": "lib/types/client/TeamEditorView.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamEditorView.js",
+          "specifier": "react",
+          "external": true,
+          "start": 282
+        },
+        {
+          "from": "lib/types/client/TeamEditorView.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 321
+        },
+        {
+          "from": "lib/types/client/TeamImportDialog.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamImportDialog.js",
+          "specifier": "react",
+          "external": true,
+          "start": 547
+        },
+        {
+          "from": "lib/types/client/TeamImportDialog.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 593
+        },
+        {
+          "from": "lib/types/client/TeamListView.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamListView.js",
+          "specifier": "react",
+          "external": true,
+          "start": 244
+        },
+        {
+          "from": "lib/types/client/TeamListView.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 276
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.d.ts",
+          "specifier": "@deepseek-ai/dsh-client-ui-slots",
+          "external": true,
+          "start": 223
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 43
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "react",
+          "external": true,
+          "start": 263
+        },
+        {
+          "from": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 295
+        },
+        {
+          "from": "lib/types/client/TeamSkillsView.js",
+          "specifier": "react/jsx-runtime",
+          "external": true,
+          "start": 66
+        },
+        {
+          "from": "lib/types/client/TeamSkillsView.js",
+          "specifier": "react",
+          "external": true,
+          "start": 792
+        },
+        {
+          "from": "lib/types/client/TeamSkillsView.js",
+          "specifier": "@deepseek-ai/dsh-client-ui-primitives",
+          "external": true,
+          "start": 824
+        },
+        {
+          "from": "lib/types/config.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 325
+        },
+        {
+          "from": "lib/types/config.d.ts",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 362
+        },
+        {
+          "from": "lib/types/config.js",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 308
+        },
+        {
+          "from": "lib/types/delegation.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 1095
+        },
+        {
+          "from": "lib/types/delegation.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1145
+        },
+        {
+          "from": "lib/types/delegation.js",
+          "specifier": "@deepseek-ai/dsh-subagent",
+          "external": true,
+          "start": 1099
+        },
+        {
+          "from": "lib/types/delegation.js",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 1162
+        },
+        {
+          "from": "lib/types/execution.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 718
+        },
+        {
+          "from": "lib/types/execution.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 768
+        },
+        {
+          "from": "lib/types/index.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 1099
+        },
+        {
+          "from": "lib/types/index.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 1704
+        },
+        {
+          "from": "lib/types/member-identity.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 1697
+        },
+        {
+          "from": "lib/types/member-identity.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1747
+        },
+        {
+          "from": "lib/types/member-runtime.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 1499
+        },
+        {
+          "from": "lib/types/member-runtime.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1549
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 1496
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1549
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 1609
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "specifier": "@deepseek-ai/dsh-system-prompt",
+          "external": true,
+          "start": 1672
+        },
+        {
+          "from": "lib/types/member-runtime.js",
+          "specifier": "@deepseek-ai/dsh-subagent",
+          "external": true,
+          "start": 1745
+        },
+        {
+          "from": "lib/types/member-store.d.ts",
+          "specifier": "zod",
+          "external": true,
+          "start": 1695
+        },
+        {
+          "from": "lib/types/member-store.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 1731
+        },
+        {
+          "from": "lib/types/member-store.d.ts",
+          "specifier": "@deepseek-ai/dsh-storage-domain",
+          "external": true,
+          "start": 1791
+        },
+        {
+          "from": "lib/types/member-store.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 1703
+        },
+        {
+          "from": "lib/types/member-store.js",
+          "specifier": "zod",
+          "external": true,
+          "start": 1736
+        },
+        {
+          "from": "lib/types/presentation.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1092
+        },
+        {
+          "from": "lib/types/presentation.js",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1099
+        },
+        {
+          "from": "lib/types/presentation.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 1155
+        },
+        {
+          "from": "lib/types/presentation.js",
+          "specifier": "@deepseek-ai/dsh-system-prompt",
+          "external": true,
+          "start": 1220
+        },
+        {
+          "from": "lib/types/preset-tools.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 801
+        },
+        {
+          "from": "lib/types/preset-tools.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 851
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 806
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 861
+        },
+        {
+          "from": "lib/types/preset-tools.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 912
+        },
+        {
+          "from": "lib/types/settings-reconcile.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 891
+        },
+        {
+          "from": "lib/types/settings-reconcile.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 888
+        },
+        {
+          "from": "lib/types/team-skills/import.js",
+          "specifier": "node:zlib",
+          "external": true,
+          "start": 790
+        },
+        {
+          "from": "lib/types/team-skills/import.js",
+          "specifier": "yaml",
+          "external": true,
+          "start": 833
+        },
+        {
+          "from": "lib/types/team-skills/index.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 886
+        },
+        {
+          "from": "lib/types/team-skills/index.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 936
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 880
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 921
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 964
+        },
+        {
+          "from": "lib/types/team-skills/index.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 1000
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 1087
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1139
+        },
+        {
+          "from": "lib/types/team-skills/manager.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1348
+        },
+        {
+          "from": "lib/types/team-skills/paths.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 587
+        },
+        {
+          "from": "lib/types/team-skills/paths.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 657
+        },
+        {
+          "from": "lib/types/team-skills/paths.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 729
+        },
+        {
+          "from": "lib/types/team-skills/provider.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 989
+        },
+        {
+          "from": "lib/types/team-skills/provider.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 1039
+        },
+        {
+          "from": "lib/types/team-skills/provider.js",
+          "specifier": "@deepseek-ai/dsh-scope",
+          "external": true,
+          "start": 987
+        },
+        {
+          "from": "lib/types/team-skills/service.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 541
+        },
+        {
+          "from": "lib/types/team-skills/service.d.ts",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 600
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 2667
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 2708
+        },
+        {
+          "from": "lib/types/team-skills/service.js",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 2765
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "specifier": "node:async_hooks",
+          "external": true,
+          "start": 114
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 173
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 265
+        },
+        {
+          "from": "lib/types/team-skills/store.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 334
+        },
+        {
+          "from": "lib/types/team-skills/tools.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 540
+        },
+        {
+          "from": "lib/types/team-skills/tools.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 590
+        },
+        {
+          "from": "lib/types/team-skills/tools.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 537
+        },
+        {
+          "from": "lib/types/tool-catalog.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 381
+        },
+        {
+          "from": "lib/types/tool-catalog.d.ts",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 440
+        },
+        {
+          "from": "lib/types/tool-catalog.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 2506
+        },
+        {
+          "from": "lib/types/tool-catalog.js",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 2756
+        },
+        {
+          "from": "lib/types/tool-policy.d.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 359
+        },
+        {
+          "from": "lib/types/tool-policy.d.ts",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 422
+        },
+        {
+          "from": "lib/types/tool-policy.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 87
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 161
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-system-prompt",
+          "external": true,
+          "start": 224
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-subagent",
+          "external": true,
+          "start": 316
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 384
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 457
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 497
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 549
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 642
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 685
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 788
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:async_hooks",
+          "external": true,
+          "start": 842
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 923
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-scope",
+          "external": true,
+          "start": 962
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/dsh-typert-protocol",
+          "external": true,
+          "start": 1032
+        }
+      ],
+      "failures": [
+        {
+          "path": "lib/types/client/CategorySelect.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "./ComposerTeamSelect.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/FieldPicker.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamListView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.js",
+          "specifier": "./TeamSkillsView.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        }
+      ],
+      "warnings": [
+        {
+          "path": "lib/typert.host.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/typert.remote-client.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/application.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 5
+        },
+        {
+          "path": "lib/types/application.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/application.d.ts",
+          "specifier": "./member-runtime.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "specifier": "./preset-transfer.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "specifier": "./team-catalog.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/builtin-teams.d.ts",
+          "specifier": "./team-catalog.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/appearance.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/appearance.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/appearance.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/CategorySelect.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/FieldPicker.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 7
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./TeamPresetsSection.tsx",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./ComposerTeamSelect.tsx",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/index.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/locales.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/client/locales.d.ts",
+          "specifier": "../preset-transfer.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/locales.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/locales.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/preset-file.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/client/preset-file.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/team-grouping.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/team-grouping.d.ts",
+          "specifier": "../team-search.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/team-grouping.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/team-presets-controller.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 5
+        },
+        {
+          "path": "lib/types/client/team-presets-controller.d.ts",
+          "specifier": "../preset-transfer.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/team-presets-controller.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/team-skills-controller.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/team-skills-controller.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "specifier": "./team-skills-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamListView.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/TeamListView.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamListView.d.ts",
+          "specifier": "./locales.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.d.ts",
+          "specifier": "./team-presets-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.d.ts",
+          "specifier": "./team-skills-controller.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/config.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/config.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/delegation.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/execution.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/execution.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/execution.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 5
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/member-identity.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/member-runtime.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/member-runtime.d.ts",
+          "specifier": "./member-store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/member-runtime.d.ts",
+          "specifier": "./tool-policy.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/member-store.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/presentation.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/preset-editor.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/preset-editor.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/preset-tools.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/preset-tools.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/preset-transfer.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/preset-transfer.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/settings-reconcile.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/settings-reconcile.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-catalog.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/team-catalog.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-catalog.d.ts",
+          "specifier": "./preset-transfer.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-search.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/team-search.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-search.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/import.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/team-skills/import.d.ts",
+          "specifier": "./paths.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 7
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "specifier": "./manager.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "specifier": "./provider.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "specifier": "./provider.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "specifier": "./store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/index.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/manager.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/team-skills/manager.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/manager.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/manager.d.ts",
+          "specifier": "./store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/paths.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/team-skills/provider.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/team-skills/provider.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/provider.d.ts",
+          "specifier": "./store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/service.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 5
+        },
+        {
+          "path": "lib/types/team-skills/service.d.ts",
+          "specifier": "./manager.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/service.d.ts",
+          "specifier": "./store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/service.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/store.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/team-skills/store.d.ts",
+          "specifier": "./import.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/store.d.ts",
+          "specifier": "../types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/tools.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/team-skills/tools.d.ts",
+          "specifier": "./manager.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/team-skills/tools.d.ts",
+          "specifier": "./store.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tool-catalog.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/tool-catalog.d.ts",
+          "specifier": "./execution.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tool-catalog.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tool-descriptions.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/tool-policy.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/tool-policy.d.ts",
+          "specifier": "./presets.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tool-policy.d.ts",
+          "specifier": "./types.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/types.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        }
+      ],
+      "crossFile": {
+        "findings": [],
+        "attackChains": [],
+        "reachability": [],
+        "failures": [
+          {
+            "reason": "module-graph-incomplete",
+            "details": [
+              {
+                "path": "lib/types/client/CategorySelect.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/ComposerTeamSelect.js",
+                "specifier": "./ComposerTeamSelect.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/FieldPicker.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamAgentView.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamCategoryManager.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamEditorView.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamImportDialog.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamListView.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamPresetsSection.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamSkillsView.js",
+                "specifier": "./TeamSkillsView.module.css",
+                "reason": "missing-file"
+              },
+              {
+                "path": "lib/types/client/TeamSkillsView.js",
+                "specifier": "./TeamPresetsSection.module.css",
+                "reason": "missing-file"
+              }
+            ]
+          }
+        ],
+        "complete": false
+      }
+    },
+    "dependencyGraph": {
+      "complete": true,
+      "nodes": 0,
+      "edges": 0,
+      "unresolved": 0,
+      "failures": []
+    },
+    "capabilityGraph": {
+      "complete": true,
+      "tools": [
+        {
+          "name": "(unbound)",
+          "capabilities": [
+            "filesystem-read",
+            "filesystem-write"
+          ],
+          "findingCount": 7
+        }
+      ],
+      "capabilities": [
+        "filesystem-read",
+        "filesystem-write"
+      ],
+      "attackPaths": [],
+      "failures": []
+    },
+    "sbom": {
+      "status": "not-requested",
+      "format": null,
+      "components": 0,
+      "digest": null,
+      "failures": []
+    },
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "ignored": [],
+  "hardSkipped": [],
+  "policySkips": [],
+  "coverageSkips": [
+    {
+      "reason": "module-graph-incomplete",
+      "details": [
+        {
+          "path": "lib/types/client/CategorySelect.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/ComposerTeamSelect.js",
+          "specifier": "./ComposerTeamSelect.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/FieldPicker.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamAgentView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamCategoryManager.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamEditorView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamImportDialog.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamListView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamPresetsSection.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.js",
+          "specifier": "./TeamSkillsView.module.css",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/client/TeamSkillsView.js",
+          "specifier": "./TeamPresetsSection.module.css",
+          "reason": "missing-file"
+        }
+      ]
+    }
+  ],
+  "supplyChain": {
+    "package": "dsh-agent-team-presets",
+    "version": "0.1.8",
+    "tarballSha256": "52e1c92dccf60aef8749468a355583893a89f89962fd3325ba291a4dbae6c31e",
+    "integrity": "sha512-s+BWKvqnNVELk6dNNvaEN6nZMGzQkBTI9bCdnPyGKv46FY5EOhxct0bqBqAEqhuLAkVyE7muVV+JXAbREpy9lA==",
+    "dependencyCount": 0,
+    "installScripts": [],
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "stats": {
+    "languages": {
+      "md": 6,
+      "yml": 1,
+      "txt": 1,
+      "ts": 48,
+      "js": 50,
+      "text": 2,
+      "json": 3
+    },
+    "largestFiles": [
+      {
+        "file": "lib/client.js",
+        "bytes": 965315
+      },
+      {
+        "file": "lib/index.js",
+        "bytes": 717189
+      },
+      {
+        "file": "lib/typert.host.js",
+        "bytes": 567464
+      },
+      {
+        "file": "lib/typert.remote-client.js",
+        "bytes": 567300
+      },
+      {
+        "file": "lib/types/team-catalog.js",
+        "bytes": 67025
+      }
+    ]
+  },
+  "audit": {
+    "package": "dsh-agent-team-presets",
+    "version": "0.1.8",
+    "verdict": "BLOCK-RECOMMENDED",
+    "tarballSha256": "52e1c92dccf60aef8749468a355583893a89f89962fd3325ba291a4dbae6c31e",
+    "integrityOk": true,
+    "dependencyCount": 0,
+    "installScripts": []
+  }
+}

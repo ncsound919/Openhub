@@ -1,0 +1,1519 @@
+{
+  "schemaVersion": 2,
+  "tool": "dsh-sentinel",
+  "version": "0.4.4",
+  "scannedAt": "2026-11-04T06:59:50.820Z",
+  "target": {
+    "kind": "path",
+    "path": "C:\\Users\\Asus\\AppData\\Local\\Temp\\sentinel-quarantine-5208-1793775499759-xtf6ya08ohe\\x\\package",
+    "name": ""
+  },
+  "summary": {
+    "verdict": "dangerous",
+    "score": 100,
+    "scanComplete": true,
+    "incompleteScan": false,
+    "incompleteReasons": [],
+    "filesDiscovered": 41,
+    "filesAnalyzed": 41,
+    "findingsTotal": 6,
+    "findingsReturned": 6,
+    "findingsTruncated": false,
+    "scoreBasedOnAllFindings": true,
+    "filesScanned": 41,
+    "filesSkipped": 0,
+    "totalFindings": 6,
+    "bySeverity": {
+      "critical": 1,
+      "high": 3,
+      "medium": 2,
+      "low": 0,
+      "info": 0
+    },
+    "byCategory": {
+      "execution": 2,
+      "credentials": 0,
+      "exfiltration": 0,
+      "obfuscation": 0,
+      "install": 0,
+      "filesystem": 0,
+      "network": 0,
+      "manifest": 0,
+      "hygiene": 0,
+      "agent": 3,
+      "taint": 1,
+      "supplychain": 0,
+      "binary": 0,
+      "persistence": 0
+    },
+    "byContext": {
+      "source": 4,
+      "test": 0,
+      "development": 2
+    },
+    "scanMs": 90778
+  },
+  "scanCoverage": {
+    "sourceFiles": 41,
+    "buildFiles": 0,
+    "binaryFiles": 0,
+    "largeFiles": 0,
+    "parseFailures": 0,
+    "hardSkippedFiles": 0,
+    "binarySkippedFiles": 0,
+    "readFailures": 0,
+    "hashFailures": 0,
+    "analysisFailures": 0,
+    "traversalFailures": 0
+  },
+  "manifest": {
+    "ok": true,
+    "name": "dsh-session-bridge",
+    "version": "0.8.0",
+    "isBundle": true,
+    "patch": "./cordis.patch.yml",
+    "license": "MIT",
+    "description": "会话桥（dsh-session-bridge）：通过提示词创建新的主会话（顶层 UI 会话）、向任意会话发送消息、等待会话的下一条回复、读取会话消息，并按会话名或 id 跨工作区查找会话；此外支持监控/调度主任务（含思维链循环检测 → 自动中断并把任务转移到新会话）、子代理处置与归档/取消归档会话。"
+  },
+  "profile": {
+    "name": "",
+    "pluginsScanned": [],
+    "pluginsSkipped": [],
+    "plugins": []
+  },
+  "findings": [
+    {
+      "id": "SEN-AGENT-001",
+      "severity": "critical",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入 shell 执行(execute(args) → exec/spawn)",
+      "file": "lib/index.js",
+      "line": 307,
+      "snippet": "const capture = timeRegExp.exec(source);",
+      "recommendation": "拒绝把模型输入直接拼进 shell 命令;用参数数组形式 spawn(cmd, [args]) 并做白名单校验。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "history"
+      },
+      "sink": {
+        "type": "shell",
+        "callee": "exec"
+      },
+      "flow": [
+        "history",
+        "exec(...)"
+      ],
+      "flowSteps": [
+        "history",
+        "exec"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 19,
+      "endLine": 307,
+      "endColumn": 42,
+      "fingerprint": "775f0d3aba5617b0ba06160439e9843b6ef3d497993a8ae411f172660f5ec529"
+    },
+    {
+      "id": "SEN-AGENT-003",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件写入(execute(args) → writeFile)",
+      "file": "lib/index.js",
+      "line": 166,
+      "snippet": "await writeFile(path, JSON.stringify([...this.records.values()], null, 2), \"utf8\");",
+      "recommendation": "文件写入必须做 workspace containment,并拒绝写入 HOME / 系统目录 / DSH profile。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "context"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFile"
+      },
+      "flow": [
+        "context",
+        "writeFile(...)"
+      ],
+      "flowSteps": [
+        "context",
+        "writeFile"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 9,
+      "endLine": 166,
+      "endColumn": 85,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "020212ab64b11871aea90442b0748f45ede47c80f8f08294b533f1b83e8f3bff"
+    },
+    {
+      "id": "SEN-TAINT-004",
+      "severity": "high",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果进入 shell 执行,存在代码注入面(文件内容可能来自构建产物/外部输入)",
+      "file": "lib/index.js",
+      "line": 307,
+      "snippet": "const capture = timeRegExp.exec(source);",
+      "recommendation": "确认喂给子进程的文件内容来源可信(仅构建产物/白名单路径);避免把可变外部文件拼入命令。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFile"
+      },
+      "sink": {
+        "type": "shell",
+        "callee": "exec"
+      },
+      "flow": [
+        "readFile",
+        "exec(...)"
+      ],
+      "flowSteps": [
+        "readFile",
+        "exec"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 19,
+      "endLine": 307,
+      "endColumn": 42,
+      "fingerprint": "4ce52d0bd72854fec5f25b054677ac0398a0cdf8b11b51901ee9b17ee1e4bb79"
+    },
+    {
+      "id": "SEN-AGENT-003",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件写入(execute(args) → writeFile)",
+      "file": "lib/index.js",
+      "line": 10730,
+      "snippet": "appendFileSync(this.logFile, `[${(/* @__PURE__ */ new Date()).toISOString()}] session=${entry.config.sessionId} lastReply=${entry.config.label ?? \"\"} ${msg}\\n`);",
+      "recommendation": "文件写入必须做 workspace containment,并拒绝写入 HOME / 系统目录 / DSH profile。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "context"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "appendFileSync"
+      },
+      "flow": [
+        "context",
+        "appendFileSync(...)"
+      ],
+      "flowSteps": [
+        "context",
+        "appendFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 4,
+      "endLine": 10730,
+      "endColumn": 164,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "fa182aae3aaa9c8d45031022dec3ca5b8eb83b0ceb99d51f29c1d203ef469914"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "scripts/check-dsh-compat.mjs",
+      "line": 65,
+      "snippet": "globalRoot = execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "developmentFile": true,
+      "fingerprint": "669d1f677c8caf1fb10de5d9e980a2d1b1c5d151ba7e35c1b861be595afa1f6c"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "scripts/check-dsh-compat.mjs",
+      "line": 75,
+      "snippet": "const found = execSync(process.platform === 'win32' ? 'where dsh' : 'which dsh', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "developmentFile": true,
+      "fingerprint": "f9ad87576e789161d990720a5e8183a2c0c99c8dd0c031e083cdcb86cab9771e"
+    }
+  ],
+  "attackChains": [],
+  "analysisLayers": {
+    "moduleGraph": {
+      "complete": true,
+      "nodes": [
+        {
+          "path": "lib/index.js",
+          "bytes": 509422,
+          "sha256": "20cabf5e0f431e1f0660de4be234bde2b3de9711f6a8c1ab3ab48fc6284433ad",
+          "parser": "acorn",
+          "imports": [
+            "node:module",
+            "node:fs/promises",
+            "node:os",
+            "node:path",
+            "node:fs",
+            "@deepseek-ai/schemastery",
+            "node:crypto",
+            "node:async_hooks",
+            "node:util/types"
+          ]
+        },
+        {
+          "path": "lib/types/commands.d.ts",
+          "bytes": 2533,
+          "sha256": "3de4e32197b4fa041293857d1ca3b6c3185d1ffcc2381c1515300228b46f41a3",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/config.d.ts",
+          "bytes": 3840,
+          "sha256": "bc1580918e270697a5192a8ed68879aaa369e0233fa45102c20685f19db78d3c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/core.d.ts",
+          "bytes": 15466,
+          "sha256": "bf25920cf5b78450d7f1a7c2b5ce5970737608881ab35a1196247d5001510963",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/handoff.d.ts",
+          "bytes": 3030,
+          "sha256": "6f87a7a0333cf58a18b52b9ff6965c9ecbb445c890730b8b6022b616a6cddfbb",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "bytes": 1040,
+          "sha256": "59546d13c60bf6d32234f0bd5dad5ee0e8ff8ca6407344d1fda417b4ffb5317a",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/loop-guard.d.ts",
+          "bytes": 4831,
+          "sha256": "a26b1b0a4d6cd273ffbcc49f32d6f9b305b87711e52b0014073f2004c76b62c6",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/monitor.d.ts",
+          "bytes": 10543,
+          "sha256": "4eecaf48d4b58cedf373dc01be274d098a910446df9f05128ca9532df23c2cb1",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/registry.d.ts",
+          "bytes": 1269,
+          "sha256": "93b213c90f10f95a1477e908c6547e698e58fd3fd3d12fa8b82d6948006515a9",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/session-create.d.ts",
+          "bytes": 3526,
+          "sha256": "0ee5b5837fbd758f2d3b2cc0ec0d9750cf55e7bb5a22c2d501fe5ab4f6f8c40e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/tools.d.ts",
+          "bytes": 698,
+          "sha256": "fd40d1b17135994eec0860f6808cc5a06d5997668341e2bf5387a18c26747033",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "scripts/check-dsh-compat.mjs",
+          "bytes": 17571,
+          "sha256": "4fe8d7db443b3b4af462c3d6269de10af0983ccc0c9a62eff44c89baf98eaa24",
+          "parser": "acorn",
+          "imports": [
+            "node:child_process",
+            "node:fs",
+            "node:path",
+            "node:url"
+          ]
+        },
+        {
+          "path": "scripts/smoke-bundle.mjs",
+          "bytes": 10426,
+          "sha256": "9a08330beb133e1f5a13c038cef8827b3e1a8e63c45068b2517d129951af67b5",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "node:fs",
+            "node:path",
+            "node:url"
+          ]
+        },
+        {
+          "path": "scripts/test-bridge-core.mjs",
+          "bytes": 9451,
+          "sha256": "57a5f1d2f76929df162fd5f592de1e99199acffbd704ee5afa68ce79d7ee3200",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/core.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-config.mjs",
+          "bytes": 11796,
+          "sha256": "57c25f87d40a6fae4c64d810d10a813f9f61b3dca1cdf957ce2597d9fd27138d",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/config.ts",
+            "../src/commands.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-handoff.mjs",
+          "bytes": 8387,
+          "sha256": "177a397e5a21393a24f2ab0f3511412d92e86708b6d7ab607297586b4bdea5ef",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/handoff.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-loop-guard.mjs",
+          "bytes": 8792,
+          "sha256": "61ea34aeb57eaccd075ff03754a77545aef186758770d6370ab545bf2228c7e0",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/loop-guard.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-monitor-loop.mjs",
+          "bytes": 17774,
+          "sha256": "f78eb6667abcd44f133ca71ca84ba7d2938def685a64d8c1999203e1c9061055",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "node:os",
+            "node:path",
+            "../src/monitor.ts",
+            "../src/tools.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-peer-floor.mjs",
+          "bytes": 8820,
+          "sha256": "cc0388026ad0de3686dbd62dc270f427527468bf5a357a36d0ab092c63430a20",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "node:fs",
+            "node:path",
+            "node:url"
+          ]
+        },
+        {
+          "path": "scripts/test-tools-archived.mjs",
+          "bytes": 13353,
+          "sha256": "d4218a1d8e65557caf02ab2dff72db809732beadf159318ecb7744501127cecb",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/tools.ts"
+          ]
+        },
+        {
+          "path": "scripts/test-tools-create.mjs",
+          "bytes": 12632,
+          "sha256": "77fac2541b22b6a3a129c00d381cb7e3bd4b7d7d327c6cfaa39b30a7f95cf3ac",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "../src/tools.ts",
+            "../src/session-create.ts",
+            "@deepseek-ai/dsh-agent"
+          ]
+        },
+        {
+          "path": "scripts/test-v4.mjs",
+          "bytes": 2046,
+          "sha256": "0e4cd16a0ce073493fdadcbb151a8eb6b071fb81faedd7b950ed7483e26e116b",
+          "parser": "acorn",
+          "imports": [
+            "node:assert/strict",
+            "node:test",
+            "@deepseek-ai/dsh-session",
+            "./v4-fixture.mjs",
+            "../src/core.ts"
+          ]
+        },
+        {
+          "path": "scripts/v4-fixture.mjs",
+          "bytes": 1186,
+          "sha256": "b733ccaed312a30e6a7ad4ddcf0352b67259c35b13b334ebecc31dfe87413b08",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/dsh-session-format-catalog"
+          ]
+        },
+        {
+          "path": "src/commands.ts",
+          "bytes": 12584,
+          "sha256": "75e34e35627c48b58475e679b8a6fa644555944665296e93aa5655cacfd4fac4",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/config.ts",
+          "bytes": 8118,
+          "sha256": "c81d7f9c6708fdc1e61ccb1899d6e0cafb6c17fe6a97640b0b16d449573c0608",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/core.ts",
+          "bytes": 37167,
+          "sha256": "fd14255c94af2c7c0dffcbfb591b448d0d16f9a13969a043988c354885adee3e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/handoff.ts",
+          "bytes": 8663,
+          "sha256": "f36ece2427e3d6cfd8a7dbccc47c8bc7a4ce12d3353c932a6569dce0a22034e2",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 2346,
+          "sha256": "40ecd5bf1aa506ed066446e37507a907f9efc91f45ceefedd35a893d638527f6",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/loop-guard.ts",
+          "bytes": 9212,
+          "sha256": "809c8714b1810a91888bba1710d59f2e8f9048400ec855d3506a928fbde16739",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/monitor.ts",
+          "bytes": 41194,
+          "sha256": "bf25a2636b6eee78834a19481e50cda9ebbeba10ed200b2429800b4f41a90402",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/registry.ts",
+          "bytes": 5119,
+          "sha256": "6d2d451ff305a72640faf99e5cd3030e5ec2419ed1452fd9cabb43cd7557e55a",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/session-create.ts",
+          "bytes": 9938,
+          "sha256": "044addb5be9b16a43acc32a179cfef0d508c332f03672c06c7710a479719e367",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "src/tools.ts",
+          "bytes": 72383,
+          "sha256": "1e82da681fa9b9eb2a5c09d65b3f078a7a5dc0d0c759b3288cbf259e20a4cd53",
+          "parser": "unparsed",
+          "imports": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "scripts/test-bridge-core.mjs",
+          "to": "src/core.ts",
+          "specifier": "../src/core.ts",
+          "start": 581,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-config.mjs",
+          "to": "src/config.ts",
+          "specifier": "../src/config.ts",
+          "start": 414,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-config.mjs",
+          "to": "src/commands.ts",
+          "specifier": "../src/commands.ts",
+          "start": 549,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-handoff.mjs",
+          "to": "src/handoff.ts",
+          "specifier": "../src/handoff.ts",
+          "start": 845,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-loop-guard.mjs",
+          "to": "src/loop-guard.ts",
+          "specifier": "../src/loop-guard.ts",
+          "start": 812,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-monitor-loop.mjs",
+          "to": "src/monitor.ts",
+          "specifier": "../src/monitor.ts",
+          "start": 838,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-monitor-loop.mjs",
+          "to": "src/tools.ts",
+          "specifier": "../src/tools.ts",
+          "start": 894,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-tools-archived.mjs",
+          "to": "src/tools.ts",
+          "specifier": "../src/tools.ts",
+          "start": 847,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-tools-create.mjs",
+          "to": "src/tools.ts",
+          "specifier": "../src/tools.ts",
+          "start": 773,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-tools-create.mjs",
+          "to": "src/session-create.ts",
+          "specifier": "../src/session-create.ts",
+          "start": 835,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-v4.mjs",
+          "to": "scripts/v4-fixture.mjs",
+          "specifier": "./v4-fixture.mjs",
+          "start": 156,
+          "kind": "static-import"
+        },
+        {
+          "from": "scripts/test-v4.mjs",
+          "to": "src/core.ts",
+          "specifier": "../src/core.ts",
+          "start": 268,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/commands.ts",
+          "to": "src/config.ts",
+          "specifier": "./config.ts",
+          "start": 479,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/core.ts",
+          "to": "src/handoff.ts",
+          "specifier": "./handoff.ts",
+          "start": 511,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/handoff.ts",
+          "to": "src/core.ts",
+          "specifier": "./core.ts",
+          "start": 338,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/index.ts",
+          "to": "src/registry.ts",
+          "specifier": "./registry.ts",
+          "start": 385,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/index.ts",
+          "to": "src/monitor.ts",
+          "specifier": "./monitor.ts",
+          "start": 432,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/index.ts",
+          "to": "src/tools.ts",
+          "specifier": "./tools.ts",
+          "start": 499,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/index.ts",
+          "to": "src/config.ts",
+          "specifier": "./config.ts",
+          "start": 553,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/index.ts",
+          "to": "src/commands.ts",
+          "specifier": "./commands.ts",
+          "start": 624,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/core.ts",
+          "specifier": "./core.ts",
+          "start": 774,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/loop-guard.ts",
+          "specifier": "./loop-guard.ts",
+          "start": 867,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/handoff.ts",
+          "specifier": "./handoff.ts",
+          "start": 940,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/session-create.ts",
+          "specifier": "./session-create.ts",
+          "start": 1044,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/config.ts",
+          "specifier": "./config.ts",
+          "start": 1098,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/monitor.ts",
+          "to": "src/registry.ts",
+          "specifier": "./registry.ts",
+          "start": 1148,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/session-create.ts",
+          "to": "src/core.ts",
+          "specifier": "./core.ts",
+          "start": 790,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/session-create.ts",
+          "to": "src/registry.ts",
+          "specifier": "./registry.ts",
+          "start": 838,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/core.ts",
+          "specifier": "./core.ts",
+          "start": 552,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/core.ts",
+          "specifier": "./core.ts",
+          "start": 848,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/session-create.ts",
+          "specifier": "./session-create.ts",
+          "start": 922,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/registry.ts",
+          "specifier": "./registry.ts",
+          "start": 980,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/monitor.ts",
+          "specifier": "./monitor.ts",
+          "start": 1075,
+          "kind": "static-import"
+        },
+        {
+          "from": "src/tools.ts",
+          "to": "src/config.ts",
+          "specifier": "./config.ts",
+          "start": 1122,
+          "kind": "static-import"
+        }
+      ],
+      "unresolved": [
+        {
+          "from": "lib/index.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 88
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 132
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 182
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 237
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 262
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 317
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:async_hooks",
+          "external": true,
+          "start": 339
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:util/types",
+          "external": true,
+          "start": 366
+        },
+        {
+          "from": "lib/types/commands.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 381
+        },
+        {
+          "from": "lib/types/config.d.ts",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 353
+        },
+        {
+          "from": "lib/types/core.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/types/core.d.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 107
+        },
+        {
+          "from": "lib/types/handoff.d.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 35
+        },
+        {
+          "from": "lib/types/index.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 332
+        },
+        {
+          "from": "lib/types/monitor.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/types/session-create.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 30
+        },
+        {
+          "from": "lib/types/tools.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 154
+        },
+        {
+          "from": "scripts/check-dsh-compat.mjs",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 1480
+        },
+        {
+          "from": "scripts/check-dsh-compat.mjs",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1579
+        },
+        {
+          "from": "scripts/check-dsh-compat.mjs",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1628
+        },
+        {
+          "from": "scripts/check-dsh-compat.mjs",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1670
+        },
+        {
+          "from": "scripts/smoke-bundle.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 755
+        },
+        {
+          "from": "scripts/smoke-bundle.mjs",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 805
+        },
+        {
+          "from": "scripts/smoke-bundle.mjs",
+          "specifier": "node:path",
+          "external": true,
+          "start": 854
+        },
+        {
+          "from": "scripts/smoke-bundle.mjs",
+          "specifier": "node:url",
+          "external": true,
+          "start": 911
+        },
+        {
+          "from": "scripts/test-bridge-core.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 481
+        },
+        {
+          "from": "scripts/test-config.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 297
+        },
+        {
+          "from": "scripts/test-handoff.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 743
+        },
+        {
+          "from": "scripts/test-loop-guard.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 690
+        },
+        {
+          "from": "scripts/test-monitor-loop.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 720
+        },
+        {
+          "from": "scripts/test-monitor-loop.mjs",
+          "specifier": "node:os",
+          "external": true,
+          "start": 764
+        },
+        {
+          "from": "scripts/test-monitor-loop.mjs",
+          "specifier": "node:path",
+          "external": true,
+          "start": 795
+        },
+        {
+          "from": "scripts/test-peer-floor.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 1581
+        },
+        {
+          "from": "scripts/test-peer-floor.mjs",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1631
+        },
+        {
+          "from": "scripts/test-peer-floor.mjs",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1680
+        },
+        {
+          "from": "scripts/test-peer-floor.mjs",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1722
+        },
+        {
+          "from": "scripts/test-tools-archived.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 790
+        },
+        {
+          "from": "scripts/test-tools-create.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 716
+        },
+        {
+          "from": "scripts/test-tools-create.mjs",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 12157
+        },
+        {
+          "from": "scripts/test-v4.mjs",
+          "specifier": "node:assert/strict",
+          "external": true,
+          "start": 19
+        },
+        {
+          "from": "scripts/test-v4.mjs",
+          "specifier": "node:test",
+          "external": true,
+          "start": 61
+        },
+        {
+          "from": "scripts/test-v4.mjs",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 97
+        },
+        {
+          "from": "scripts/v4-fixture.mjs",
+          "specifier": "@deepseek-ai/dsh-session-format-catalog",
+          "external": true,
+          "start": 55
+        },
+        {
+          "from": "src/commands.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 381
+        },
+        {
+          "from": "src/config.ts",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 353
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 146
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 189
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 265
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 312
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "@deepseek-ai/dsh-session-persistence",
+          "external": true,
+          "start": 357
+        },
+        {
+          "from": "src/core.ts",
+          "specifier": "@deepseek-ai/dsh-workspace",
+          "external": true,
+          "start": 440
+        },
+        {
+          "from": "src/handoff.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 384
+        },
+        {
+          "from": "src/index.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 332
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 302
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "node:path",
+          "external": true,
+          "start": 342
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "node:os",
+          "external": true,
+          "start": 378
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 417
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 467
+        },
+        {
+          "from": "src/monitor.ts",
+          "specifier": "@deepseek-ai/dsh-llm",
+          "external": true,
+          "start": 543
+        },
+        {
+          "from": "src/registry.ts",
+          "specifier": "@deepseek-ai/dsh-home-paths",
+          "external": true,
+          "start": 202
+        },
+        {
+          "from": "src/registry.ts",
+          "specifier": "node:fs/promises",
+          "external": true,
+          "start": 275
+        },
+        {
+          "from": "src/registry.ts",
+          "specifier": "node:path",
+          "external": true,
+          "start": 318
+        },
+        {
+          "from": "src/session-create.ts",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 386
+        },
+        {
+          "from": "src/session-create.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 429
+        },
+        {
+          "from": "src/session-create.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 482
+        },
+        {
+          "from": "src/session-create.ts",
+          "specifier": "@deepseek-ai/dsh-agent",
+          "external": true,
+          "start": 535
+        },
+        {
+          "from": "src/session-create.ts",
+          "specifier": "@deepseek-ai/dsh-agent-preset-registry",
+          "external": true,
+          "start": 580
+        },
+        {
+          "from": "src/tools.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 154
+        },
+        {
+          "from": "src/tools.ts",
+          "specifier": "@deepseek-ai/dsh-tools",
+          "external": true,
+          "start": 203
+        },
+        {
+          "from": "src/tools.ts",
+          "specifier": "@deepseek-ai/dsh-util-values",
+          "external": true,
+          "start": 259
+        },
+        {
+          "from": "src/tools.ts",
+          "specifier": "@deepseek-ai/dsh-agent-preset-registry",
+          "external": true,
+          "start": 310
+        },
+        {
+          "from": "src/tools.ts",
+          "specifier": "@deepseek-ai/dsh-session",
+          "external": true,
+          "start": 405
+        }
+      ],
+      "failures": [],
+      "warnings": [
+        {
+          "path": "lib/types/commands.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/commands.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/config.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/core.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/core.d.ts",
+          "specifier": "./handoff.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/handoff.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/loop-guard.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/monitor.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/monitor.d.ts",
+          "specifier": "./loop-guard.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/monitor.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/monitor.d.ts",
+          "specifier": "./registry.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/registry.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/session-create.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/session-create.d.ts",
+          "specifier": "./core.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/session-create.d.ts",
+          "specifier": "./registry.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tools.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 4
+        },
+        {
+          "path": "lib/types/tools.d.ts",
+          "specifier": "./registry.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tools.d.ts",
+          "specifier": "./monitor.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/tools.d.ts",
+          "specifier": "./config.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "src/commands.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "src/config.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "src/core.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 7
+        },
+        {
+          "path": "src/handoff.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "src/index.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 6
+        },
+        {
+          "path": "src/loop-guard.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "src/monitor.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 12
+        },
+        {
+          "path": "src/registry.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "src/session-create.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 7
+        },
+        {
+          "path": "src/tools.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 11
+        }
+      ],
+      "crossFile": {
+        "findings": [],
+        "attackChains": [],
+        "reachability": [],
+        "failures": [],
+        "complete": true
+      }
+    },
+    "dependencyGraph": {
+      "complete": true,
+      "nodes": 0,
+      "edges": 0,
+      "unresolved": 0,
+      "failures": []
+    },
+    "capabilityGraph": {
+      "complete": true,
+      "tools": [
+        {
+          "name": "(unbound)",
+          "capabilities": [
+            "filesystem-write",
+            "shell"
+          ],
+          "findingCount": 4
+        }
+      ],
+      "capabilities": [
+        "filesystem-write",
+        "shell"
+      ],
+      "attackPaths": [],
+      "failures": []
+    },
+    "sbom": {
+      "status": "not-requested",
+      "format": null,
+      "components": 0,
+      "digest": null,
+      "failures": []
+    },
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "ignored": [],
+  "hardSkipped": [],
+  "policySkips": [],
+  "coverageSkips": [],
+  "supplyChain": {
+    "package": "dsh-session-bridge",
+    "version": "0.8.0",
+    "tarballSha256": "5aca943cbb52cc83d5e8080f69e728ea7aedd4f350a2a94d077ae034e1c1f01e",
+    "integrity": "sha512-fVaetn8RmfBjib0Xkfol7/kGwcWVLAT1zUUFgQNfb3oCAid00OhjA9+SzxXHzdNpoZalAaA0Puuzb57rrSa/lA==",
+    "dependencyCount": 0,
+    "installScripts": [],
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "stats": {
+    "languages": {
+      "md": 4,
+      "yml": 1,
+      "json": 2,
+      "js": 1,
+      "ts": 20,
+      "sh": 1,
+      "mjs": 12
+    },
+    "largestFiles": [
+      {
+        "file": "lib/index.js",
+        "bytes": 509422
+      },
+      {
+        "file": "src/tools.ts",
+        "bytes": 72383
+      },
+      {
+        "file": "src/monitor.ts",
+        "bytes": 41194
+      },
+      {
+        "file": "src/core.ts",
+        "bytes": 37167
+      },
+      {
+        "file": "CHANGELOG.md",
+        "bytes": 33303
+      }
+    ]
+  },
+  "audit": {
+    "package": "dsh-session-bridge",
+    "version": "0.8.0",
+    "verdict": "BLOCK-RECOMMENDED",
+    "tarballSha256": "5aca943cbb52cc83d5e8080f69e728ea7aedd4f350a2a94d077ae034e1c1f01e",
+    "integrityOk": true,
+    "dependencyCount": 0,
+    "installScripts": []
+  }
+}

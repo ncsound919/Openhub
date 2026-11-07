@@ -1,0 +1,5406 @@
+{
+  "schemaVersion": 2,
+  "tool": "dsh-sentinel",
+  "version": "0.4.4",
+  "scannedAt": "2026-11-04T06:57:25.743Z",
+  "target": {
+    "kind": "path",
+    "path": "C:\\Users\\Asus\\AppData\\Local\\Temp\\sentinel-quarantine-20424-1793775174080-5kauvsw04iw\\x\\package",
+    "name": ""
+  },
+  "summary": {
+    "verdict": "dangerous",
+    "score": 100,
+    "scanComplete": true,
+    "incompleteScan": false,
+    "incompleteReasons": [],
+    "filesDiscovered": 122,
+    "filesAnalyzed": 122,
+    "findingsTotal": 64,
+    "findingsReturned": 64,
+    "findingsTruncated": false,
+    "scoreBasedOnAllFindings": true,
+    "filesScanned": 122,
+    "filesSkipped": 0,
+    "totalFindings": 64,
+    "bySeverity": {
+      "critical": 2,
+      "high": 27,
+      "medium": 35,
+      "low": 0,
+      "info": 0
+    },
+    "byCategory": {
+      "execution": 11,
+      "credentials": 3,
+      "exfiltration": 0,
+      "obfuscation": 0,
+      "install": 1,
+      "filesystem": 0,
+      "network": 7,
+      "manifest": 0,
+      "hygiene": 0,
+      "agent": 26,
+      "taint": 16,
+      "supplychain": 0,
+      "binary": 0,
+      "persistence": 0
+    },
+    "byContext": {
+      "source": 64,
+      "test": 0,
+      "development": 0
+    },
+    "scanMs": 270724
+  },
+  "scanCoverage": {
+    "sourceFiles": 122,
+    "buildFiles": 0,
+    "binaryFiles": 0,
+    "largeFiles": 1,
+    "parseFailures": 0,
+    "hardSkippedFiles": 0,
+    "binarySkippedFiles": 0,
+    "readFailures": 0,
+    "hashFailures": 0,
+    "analysisFailures": 0,
+    "traversalFailures": 0
+  },
+  "manifest": {
+    "ok": true,
+    "name": "dshmarket",
+    "version": "1.73.10",
+    "isBundle": true,
+    "patch": "./cordis.patch.yml",
+    "license": "MIT",
+    "description": "Visual plugin market inside DeepSeek Harness — browse, search, and one-click install community plugins. · DSH 可视化插件市场：逛一逛，点一下，装好。"
+  },
+  "profile": {
+    "name": "",
+    "pluginsScanned": [],
+    "pluginsSkipped": [],
+    "plugins": []
+  },
+  "findings": [
+    {
+      "id": "SEN-CRED-001",
+      "severity": "critical",
+      "category": "credentials",
+      "confidence": "medium",
+      "message": "读取凭据文件(SSH 私钥 / AWS / npmrc / kubeconfig 等)",
+      "file": "lib/install.js",
+      "line": 604,
+      "snippet": "npmrc = readFileSync(join(dir, '.npmrc'), 'utf8');",
+      "recommendation": "拒绝安装。DSH 插件没有读取用户私钥的任何正当理由。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "5d8d0963a75c36e9e5de0a8bada45b56ed625c52787e5a51be02c5ee97b04624"
+    },
+    {
+      "id": "SEN-CRED-001",
+      "severity": "critical",
+      "category": "credentials",
+      "confidence": "medium",
+      "message": "读取凭据文件(SSH 私钥 / AWS / npmrc / kubeconfig 等)",
+      "file": "lib/updates.js",
+      "line": 247,
+      "snippet": "npmrc = readFileSync(join(dir, '.npmrc'), 'utf8');",
+      "recommendation": "拒绝安装。DSH 插件没有读取用户私钥的任何正当理由。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "8adf46e07d8c2bf20ec14859c6f98ac078cdeefa6bde09062e161febbc332835"
+    },
+    {
+      "id": "SEN-CRED-002",
+      "severity": "high",
+      "category": "credentials",
+      "confidence": "medium",
+      "message": "读取环境变量中的凭据(API key / token / secret)",
+      "file": "lib/gist.js",
+      "line": 97,
+      "snippet": "const configured = process.env[GIST_TOKEN_ENV];",
+      "recommendation": "确认凭据读取是否功能必需(如官方 API 客户端),以及凭据是否仅用于本机调用、绝不出网。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "22692b1169490cf430da844432200570172edab9a051059ba073818b27c5d4af"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/order.js",
+      "line": 96,
+      "snippet": "const manifest = JSON.parse(readFileSync(packageJson, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 41,
+      "endLine": 96,
+      "endColumn": 74,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "5addcab58172466a273de52d3229626d3388a955fd759a959f90f3e9c48d9399"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 420,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'node_modules', name, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 420,
+      "endColumn": 135,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "9aa28cc7463466e5621726b2f88c21dde83b03b9cd5f5e2c0575bcc9c9e001f5"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 433,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'node_modules', name, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 433,
+      "endColumn": 135,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "f9dbf91a9c14ab3dae5223123d741cf51180aa784e6ac539f732b96ef7f26dcf"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 443,
+      "snippet": "return JSON.parse(readFileSync(join(profileDir(profile, explicitDir), 'node_modules', name, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 27,
+      "endLine": 443,
+      "endColumn": 125,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "741371186f28a19eca2c939a344df6454a6b10fa5742e806d591b710dc1d0b26"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 541,
+      "snippet": "const value = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 34,
+      "endLine": 541,
+      "endColumn": 81,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "500c09edd36a1499bc0e71f8cd72dd27ab40b833931998ae450c607da3f51410"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 565,
+      "snippet": "const pointer = /^gitdir:\\s*(.+)$/im.exec(readFileSync(marker, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 51,
+      "endLine": 565,
+      "endColumn": 79,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "ffdf063c937028fa4ea9ad5f6f0bf22ed406eb9b8955faed08f480a2ec40efed"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 572,
+      "snippet": "const commonDir = readFileSync(join(gitDir, 'commondir'), 'utf8').trim();",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 27,
+      "endLine": 572,
+      "endColumn": 74,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "b414377e3b87630709718ef2939b902f98122fd90caa7e842bf6b21c3401d0f6"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 583,
+      "snippet": "for (const line of readFileSync(file, 'utf8').split(/\\r?\\n/)) {",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 28,
+      "endLine": 583,
+      "endColumn": 54,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "439b9361b703c907f983b6f1916759ccd957b5af9eb2e178e7a14cbbbf0e3168"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 837,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 837,
+      "endColumn": 84,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "fde03aa70e8c8d6d17908be6d73c736c2921ffac7db7e7b78f20105572cfc2ad"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 852,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 852,
+      "endColumn": 84,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "85260d5f8d65fcaa4fb42b22a12d0eb0319fb09e2788162544accc36ac28f35b"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 965,
+      "snippet": "for (const id of parsePatchRows(readFileSync(file, 'utf8'))[role])",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 45,
+      "endLine": 965,
+      "endColumn": 71,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "ea9e3516b896859eaf61cf7bb627e96f815a148be25565e658f6879958036049"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/profile.js",
+      "line": 1255,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 1255,
+      "endColumn": 84,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "bdf75baa8782ae38dc4336569bbe27b774d75d13d3d7495a161b98e36e06516f"
+    },
+    {
+      "id": "SEN-TAINT-004",
+      "severity": "high",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果进入 shell 执行,存在代码注入面(文件内容可能来自构建产物/外部输入)",
+      "file": "lib/recovery.js",
+      "line": 368,
+      "snippet": "child = spawn(config.spawn.file, config.spawn.args, {",
+      "recommendation": "确认喂给子进程的文件内容来源可信(仅构建产物/白名单路径);避免把可变外部文件拼入命令。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "openSync"
+      },
+      "sink": {
+        "type": "shell",
+        "callee": "spawn"
+      },
+      "flow": [
+        "openSync",
+        "spawn(...)"
+      ],
+      "flowSteps": [
+        "openSync",
+        "spawn"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 17,
+      "endLine": 379,
+      "endColumn": 11,
+      "fingerprint": "9c9acac4278c2a4520533219bed906d33ac1e1356393151badda6df909591b52"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 93,
+      "snippet": "const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 93,
+      "endColumn": 102,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "e94a48e3d414439ee5c8d9eb14dbac49226033ecfe4059dc429f7ace83c030e3"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 161,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(profileDirectory, 'node_modules', name, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 161,
+      "endColumn": 119,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "957796ae10c6e5f268b8e6500c603077dd10e3c76fef5f592677347f151e81e9"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 192,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(profileDirectory, 'node_modules', name, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 37,
+      "endLine": 192,
+      "endColumn": 119,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "114f29f9ef7ae4ef55e76a1c3e22fb6675c616822509b07c626e3a21acf1dff1"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1458,
+      "snippet": "const value = JSON.parse(readFileSync(file, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 38,
+      "endLine": 1458,
+      "endColumn": 64,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "5814300a72e4d21ee9f11093980e3284060338f75df8ecdbe39b438ca8268390"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1503,
+      "snippet": "return { ok: true, snapshot: { present: true, contents: readFileSync(file) } };",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 69,
+      "endLine": 1503,
+      "endColumn": 87,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "385a266f6fa5df9e5aa50b7981d52ea78c8ee34c4c1b1c22902cdc7305374a8d"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1706,
+      "snippet": "const packageJson = readFileSync(join(activeProfileDir, 'package.json'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 33,
+      "endLine": 1706,
+      "endColumn": 85,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "49321b11f2aeda87a549dc9fbc9786ad6f04c30afbb2260bc521b49c4f2799da"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1902,
+      "snippet": "const manifestBefore = JSON.parse(readFileSync(join(activeProfileDir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 43,
+      "endLine": 1902,
+      "endColumn": 103,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "be6ef72bd8b191e8212cefe6a4e45305c21c3925ce57ebca1cccbc9e11e80f78"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1907,
+      "snippet": "const mergedManifest = mergeRestoreManifest(JSON.parse(readFileSync(join(activeProfileDir, 'package.json'), 'utf8')), manifestBefore);",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 68,
+      "endLine": 1907,
+      "endColumn": 128,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "4d9d2ee3e1bb07d345471ef0c586d0b7fa9d115f98d3fd3b86902e05fc880157"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1932,
+      "snippet": "const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 41,
+      "endLine": 1932,
+      "endColumn": 75,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "25972ee9926b9cbefbd54dcbb12d25490bd5de93c7bf5d4d643877cbc8a72506"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1951,
+      "snippet": "const current = JSON.parse(readFileSync(manifestFile, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 56,
+      "endLine": 1951,
+      "endColumn": 90,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "121212113d6b74cbc91768c73b61a0b25a6686ac4b7142da3dd52878ba145146"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 1966,
+      "snippet": "const current = JSON.parse(readFileSync(manifestFile, 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 44,
+      "endLine": 1966,
+      "endColumn": 78,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "c1cd283c9e16e0840b8ccc2e2d0b27f4adc1407dba1ca35928b9972fa993a992"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/routes.js",
+      "line": 7274,
+      "snippet": "const manifest = JSON.parse(readFileSync(join(activeProfileDir, 'package.json'), 'utf8'));",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 61,
+      "endLine": 7274,
+      "endColumn": 121,
+      "detail": "未发现 workspace containment——任意路径访问风险",
+      "fingerprint": "204d0c37377a12b140815b99faf68379e609f60a7b2e3a6b6ec79040fc460afc"
+    },
+    {
+      "id": "SEN-AGENT-002",
+      "severity": "high",
+      "category": "agent",
+      "confidence": "high",
+      "message": "模型可控输入进入文件读取(execute(args) → readFile)",
+      "file": "lib/verify.js",
+      "line": 777,
+      "snippet": "return readFileSync(join(root, relative), 'utf8');",
+      "recommendation": "文件读取必须做 workspace containment,否则模型可读取任意文件。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-read",
+        "callee": "readFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "readFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "readFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 16,
+      "endLine": 777,
+      "endColumn": 58,
+      "detail": "存在 workspace 归一化调用,需人工确认 containment 校验完整",
+      "fingerprint": "e7bdc6b796ea95c8d34539de05ea5490936e21c7dcbcd88ce9271bd9ba1cedb3"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "client/client.js",
+      "line": 3661,
+      "snippet": "const res = await fetch(candidate.url, { signal: controller.signal });",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "analysisMode": "minified",
+      "bundleFile": true,
+      "fingerprint": "91828e32d04dc8344c1d42501185d90b20b0808f4478bcfece6f4f8ae9f38ea2"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "client/client.js",
+      "line": 5979,
+      "snippet": "res = await fetch(url, {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "analysisMode": "minified",
+      "bundleFile": true,
+      "fingerprint": "a59da2d7a0fd64ece6938e86204805f1db47ee4b770b90e1b111b80fc0e2902b"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "client/client.js",
+      "line": 6269,
+      "snippet": "res = await fetch(url, {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "analysisMode": "minified",
+      "bundleFile": true,
+      "fingerprint": "aaeb81a313055c2b883679967c896f415b016e7e5f59f8d0a0eff09ca8ef6068"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "client/client.js",
+      "line": 11756,
+      "snippet": "fetch(url).then(async (res) => {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "analysisMode": "minified",
+      "bundleFile": true,
+      "fingerprint": "ea30fefa2a2ce8f497639622a4f4ec516c8d05d9cd03ce07bb818d9d54c395e2"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(变量目标)",
+      "file": "client/client.js",
+      "line": 17840,
+      "snippet": "return await (await fetch(path, {",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "analysisMode": "minified",
+      "bundleFile": true,
+      "fingerprint": "89955c10bb2ededd50d25e0e0df35d1fe654aaa760a163255cefc9600ff63f5f"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/backup.js",
+      "line": 214,
+      "snippet": "writeFileSync(target, content);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 17,
+      "endLine": 214,
+      "endColumn": 47,
+      "fingerprint": "111b37a90ed6e5bf80cd238ea25cf9cebb107a007b3ab3d590dee7c0234723a7"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/backup.js",
+      "line": 228,
+      "snippet": "writeFileSync(temp, 'json' in file ? `${JSON.stringify(file.json, null, 2)}\\n` : file.lines.join('\\n'), 'utf8');",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 13,
+      "endLine": 228,
+      "endColumn": 124,
+      "fingerprint": "de908a9391230405dd5db5a34ccb20cb6a8830faa518d8fe059e9b34b89897e5"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 269,
+      "snippet": "const out = spawnSync('git', ['config', '--get', 'core.sshCommand'], {",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "4ff1549d0949d8cd8116e877bd313815fbd33afb3372517f000cd619eb76de72"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 448,
+      "snippet": "return spawn(file, [...args], { ...spawnOptions, shell: false, windowsHide: true });",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "be97f52f1061a654799facae8b0a9348bcc80a837e5992d3645c4ed15c75d45e"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 451,
+      "snippet": "return spawn(file, [...args], { ...spawnOptions, shell: false, windowsHide: true });",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "83bd960f6fb6949562c08fc49effb8025c497f172c2d038ef5f986ab66333be9"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 453,
+      "snippet": "return spawn(COMSPEC, ['/d', '/s', '/c', `\"${cmdCommandLine([file, ...args])}\"`], {",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "951da867af3cdf2a281a57f0c49e7e14cfcb097b8ec1ee72c3dd48cec58dcc92"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 551,
+      "snippet": "spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "c2c75841899d8619b756315706cc401e7b7dc77f04c0792896a78a139b994f72"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/dsh-cli.js",
+      "line": 602,
+      "snippet": "spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "a15631c7c5c1185d54252152fb465aa5e5fe7e81320a799938f4c34fe3bc5ba5"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/gist.js",
+      "line": 174,
+      "snippet": "child = spawn(command, ['auth', 'token'], ghAuthSpawnOptions());",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "a8149f4781b48bbae0c6fa9caf225022760e3a979f74c204ccc61cebeeb61f82"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/hot.js",
+      "line": 408,
+      "snippet": "writeFileSync(temporary, contents);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 408,
+      "endColumn": 39,
+      "fingerprint": "a161f0cd45ae2b3d0e3f8a795faf4076e9bc6b500992e916b4635ead342ba720"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/order.js",
+      "line": 32,
+      "snippet": "writeFileSync(temp, content);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 32,
+      "endColumn": 33,
+      "fingerprint": "2c0c568d80a7794c39a911c472256f3afec7ecaa11ad3f109a3854e1c8eb04ec"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/patch.js",
+      "line": 560,
+      "snippet": "writeFileSync(patchPath, contents);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 9,
+      "endLine": 560,
+      "endColumn": 43,
+      "fingerprint": "4671459c59c82e177c711cf7a305d394f8ca3a682a231306002ba49a22d4f86e"
+    },
+    {
+      "id": "SEN-AGENT-005",
+      "severity": "medium",
+      "category": "agent",
+      "confidence": "low",
+      "message": "工具/指令文本疑似 prompt 投毒短语(需结合上下文判断)",
+      "file": "lib/pnpm-compat.js",
+      "line": 107,
+      "snippet": "* Mutating market commands always use `--reporter=ndjson`, so an error's",
+      "recommendation": "人工判断短语是否用于防御性说明(如\"忽略注入指令\")还是恶意指令。",
+      "package": "",
+      "testFile": false,
+      "detail": "文档/测试/注释中出现投毒短语(需结合上下文判断)",
+      "fingerprint": "cb652f4504b3e776c85a1b55839b4a52b530df235fd0b3babe9a922187e958c2"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/profile.js",
+      "line": 1309,
+      "snippet": "writeFileSync(temp, `${JSON.stringify(manifest, null, 2)}\\n`);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 1309,
+      "endColumn": 66,
+      "fingerprint": "7cb67b19c93964dc76df30587669a1c858368d09e7c011b9bb37c06e5f9c61f1"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/profile.js",
+      "line": 1594,
+      "snippet": "writeFileSync(file, next);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 1594,
+      "endColumn": 30,
+      "fingerprint": "c13aa4d11fcbc8ec03c43a0b74c893b91da5a36d01279bd5abc496c6148259b1"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/profile.js",
+      "line": 1908,
+      "snippet": "writeFileSync(file, yaml.replace(blockRe, () => replacement));",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 1908,
+      "endColumn": 66,
+      "fingerprint": "9bfa300f321a1545cd5fde829f918a6c10c935722e4bf551c88c0787c2ae33f7"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/profile.js",
+      "line": 1976,
+      "snippet": "writeFileSync(file, yaml.replace(blockRe, () => blockText));",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 5,
+      "endLine": 1976,
+      "endColumn": 64,
+      "fingerprint": "2493d9dc69d885caba650816c39393a70ccbf5dbe0ab3fc71a3a38b486843523"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/recovery.js",
+      "line": 368,
+      "snippet": "child = spawn(config.spawn.file, config.spawn.args, {",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "7a15ac3e8dedc1458f24324ce19c08347efcdd8fbf9b3275134b5cf3a27ee6a9"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)",
+      "file": "lib/restart.js",
+      "line": 490,
+      "snippet": "' const probe = net.connect({ host: \"127.0.0.1\", port })',",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "dfe5e279dd28d54a392a57754b99d7c5ed49899cc0426f5249e232c24a4a5a5d"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/restart.js",
+      "line": 516,
+      "snippet": "' const child = spawn(process.execPath, [recoveryScript, recoveryConfig, \"--exit=\" + String(exited), \"--bound=0\", \"--pid=\" + String(replacementPid ?? 0)], { detached: true, stdio: \"ignore\", env: process.env, windowsHide: true })',",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "00e6489d3e3ddbd21334f3af2790b7894294d9bb77fc39e96c338ed61e1e5921"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/restart.js",
+      "line": 553,
+      "snippet": "' child = spawn(file, args, { cwd, detached, stdio: [\"ignore\", out, err], env: process.env, shell: viaShell, windowsHide: true })',",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "e6be0fa2232c3b3afff85634a9624340b1c2354b86e5a80f6580373ae25f47f5"
+    },
+    {
+      "id": "SEN-EXEC-002",
+      "severity": "medium",
+      "category": "execution",
+      "confidence": "medium",
+      "message": "使用 shell 执行(child_process / system 调用)",
+      "file": "lib/restart.js",
+      "line": 680,
+      "snippet": "const helper = spawn(nodeExecutable(), ['-e', restartHelperSource(spawned, launch, { out: logOut, err: logErr }, port, handoff)], {",
+      "recommendation": "确认每个执行点都是功能必需、命令与参数均为静态常量(不含拼接的用户输入/环境变量),且沙箱外执行需用户知情。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "b50eb807be5878d087e2d75e61a84bb4a5bf8e8262cac0068b9b550164ec5c69"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 261,
+      "snippet": "writeFileSync(file, JSON.stringify(Object.fromEntries(printedBuildKeys), null, 2));",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 9,
+      "endLine": 261,
+      "endColumn": 91,
+      "fingerprint": "887d56fecd8005f915e8da13315229a9aa993de928eb584d3ee1be0d426f3ee2"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 1546,
+      "snippet": "writeFileSync(temp, snapshot.contents);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 13,
+      "endLine": 1546,
+      "endColumn": 51,
+      "fingerprint": "b6bf4324d9752f3755c10641872e66481d44f611a9e732da390c5307ea681138"
+    },
+    {
+      "id": "SEN-NET-001",
+      "severity": "medium",
+      "category": "network",
+      "confidence": "medium",
+      "message": "发起外发网络请求(fetch 绝对 URL / WebSocket / 套接字)(绝对 URL / 协议相对)",
+      "file": "lib/routes.js",
+      "line": 1883,
+      "snippet": "const res = await marketFetch(`https://raw.githubusercontent.com/${repo}/HEAD/${subpath}/package.json`, { signal: AbortSignal.timeout(6000) });",
+      "recommendation": "列出所有请求端点;确认无凭据、无工作区内容外传。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "ebc2574071d8b3855a2ba5ad6b96ab2b8942f98c2c2a73fcc845b8ceae1d489f"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 1908,
+      "snippet": "writeFileSync(join(activeProfileDir, 'package.json'), `${JSON.stringify(mergedManifest, null, 2)}\\n`);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 13,
+      "endLine": 1908,
+      "endColumn": 114,
+      "fingerprint": "99a7dadcdbc3eb9c9ba6924e59f26bfb1bdace6babb2da8190f2127c0af2a8be"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 1940,
+      "snippet": "writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\\n`);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 13,
+      "endLine": 1940,
+      "endColumn": 82,
+      "fingerprint": "1f39a710d220658f85b8a698fabf9f48b4bcceb9830ca1630c7c996c093b5452"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 1957,
+      "snippet": "writeFileSync(manifestFile, `${JSON.stringify(current, null, 2)}\\n`);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 29,
+      "endLine": 1957,
+      "endColumn": 97,
+      "fingerprint": "b29949088515e086795560b8078e6503d81102ef226c4c79941904b56b3911d9"
+    },
+    {
+      "id": "SEN-TAINT-005",
+      "severity": "medium",
+      "category": "taint",
+      "confidence": "high",
+      "message": "文件读取结果写入文件,常见于构建/复制场景;若源文件可变且内容进入运行路径,需确认来源可信",
+      "file": "lib/routes.js",
+      "line": 1969,
+      "snippet": "writeFileSync(manifestFile, `${JSON.stringify(current, null, 2)}\\n`);",
+      "recommendation": "确认复制的文件来源可信(仅构建产物/白名单路径),且不会把敏感文件写入可执行位置。",
+      "package": "",
+      "testFile": false,
+      "source": {
+        "type": "tool-argument",
+        "name": "readFileSync"
+      },
+      "sink": {
+        "type": "file-write",
+        "callee": "writeFileSync"
+      },
+      "flow": [
+        "readFileSync",
+        "writeFileSync(...)"
+      ],
+      "flowSteps": [
+        "readFileSync",
+        "writeFileSync"
+      ],
+      "functionName": "execute",
+      "enclosingFunction": "execute",
+      "startColumn": 17,
+      "endLine": 1969,
+      "endColumn": 85,
+      "fingerprint": "b1153d95cf67039ab107633abb4700c27d7a7db129fcf1b70a1d215519806081"
+    },
+    {
+      "id": "SEN-INST-001",
+      "severity": "medium",
+      "category": "install",
+      "confidence": "medium",
+      "message": "存在安装生命周期脚本(preinstall / install / postinstall / prepare)",
+      "file": "package.json",
+      "line": 32,
+      "snippet": "\"prepare\": \"npm run build\",",
+      "recommendation": "逐行审阅脚本内容。纯构建类(prepare: npm run build / tsc / tsdown)可接受;含网络下载、base64、chmod 等请按 SEN-INST-002 处理。",
+      "package": "",
+      "testFile": false,
+      "fingerprint": "3bf9ea8cfb557c37252e7b4e9571dc0cafc264a5e4267aa4eb8a276b055ac5f3"
+    }
+  ],
+  "attackChains": [],
+  "analysisLayers": {
+    "moduleGraph": {
+      "complete": true,
+      "nodes": [
+        {
+          "path": "lib/accelerate.js",
+          "bytes": 9787,
+          "sha256": "b5fbef1af17c65ac909efd08330d742d8f89f6f6ae5c5d35169acdc32812f4b5",
+          "parser": "acorn",
+          "imports": [
+            "./log.js",
+            "./net.js",
+            "./regions.js"
+          ]
+        },
+        {
+          "path": "lib/agents.js",
+          "bytes": 2478,
+          "sha256": "f0e09624da025d1f7e08553ddab23f6bc7873ab7c01fa5118160440ed44c3a1d",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/backup.js",
+          "bytes": 33136,
+          "sha256": "1dba1668ef6f7e46ed8a3d4b95428df4f3b97c27e69031f20624828aa390909a",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:dns/promises",
+            "node:https",
+            "node:net",
+            "node:path",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/body-progress.js",
+          "bytes": 7848,
+          "sha256": "70a27f8eb1622d9c4b3eefaf78e7794c20cc4c353af948eb293f16b9cce39f34",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/catalog-local-match.js",
+          "bytes": 7623,
+          "sha256": "17372346e66d0755c7d756c44d7b0800ba65209688878f5af9de9226496e3845",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/catalog-npm.js",
+          "bytes": 7282,
+          "sha256": "ae7f7cc6fb961ac2fbbe424552d59b9b3657a742bfaa83e9230ef8c1ff2e4ac6",
+          "parser": "acorn",
+          "imports": [
+            "node:zlib",
+            "./body-progress.js",
+            "./net.js"
+          ]
+        },
+        {
+          "path": "lib/changelog.js",
+          "bytes": 22008,
+          "sha256": "611a671c3e53f5fe15f00baa11a3abc82b0ae979cfde6538190c6148c2580271",
+          "parser": "acorn",
+          "imports": [
+            "./catalog-npm.js",
+            "./net.js",
+            "./regions.js",
+            "./profile.js",
+            "./sources.js",
+            "./updates.js",
+            "./registry.js"
+          ]
+        },
+        {
+          "path": "lib/channels.js",
+          "bytes": 2794,
+          "sha256": "62135d949e44feba225fc21ccf71c8e61883f20992b85c8ad074df26ebc0e65e",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/check.js",
+          "bytes": 74867,
+          "sha256": "91b8e5897b08b935738808490c2d89826126feac10baaa2a67a12a211eedb58b",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:module",
+            "node:path",
+            "js-yaml",
+            "./dsh-install.js",
+            "./home-paths.js",
+            "./install.js",
+            "./order.js",
+            "./dsh-install.js"
+          ]
+        },
+        {
+          "path": "lib/compatibility.js",
+          "bytes": 10346,
+          "sha256": "cc3189d01a17e8d7f84b146678ae8bb5fbabdf9075c467f5499386747eecacd2",
+          "parser": "acorn",
+          "imports": [
+            "./check.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/diagnostics.js",
+          "bytes": 2103,
+          "sha256": "de7cb9deb0e91c45dc21a5d398c83b5fbc80ddcaa05f1b3f67d7bc04daa70bf5",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/discovery-compatibility.js",
+          "bytes": 20334,
+          "sha256": "d8cd02a046321dbfe65f1de6436f564178382bb82487b8981c634e26bd46810f",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./check.js",
+            "./compatibility.js",
+            "./net.js",
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/drain-journal.js",
+          "bytes": 6208,
+          "sha256": "4fde603c673226c5b9853df59d66f27b84cea159c7e70247407fa5ea3d5ddbf3",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./log-redaction.js"
+          ]
+        },
+        {
+          "path": "lib/drain.js",
+          "bytes": 38064,
+          "sha256": "f222ee2cb3d22cfe546644a4c300a3a6bcc246aca117848b05ff2b8df4224c91",
+          "parser": "acorn",
+          "imports": [
+            "./agents.js",
+            "./log-redaction.js"
+          ]
+        },
+        {
+          "path": "lib/dsh-cli.js",
+          "bytes": 72458,
+          "sha256": "df5602077ff2b64fed3f14ac820b4e8223455722875ccf36f031e702a0c834fb",
+          "parser": "acorn",
+          "imports": [
+            "node:child_process",
+            "node:fs",
+            "node:os",
+            "node:path",
+            "./log.js",
+            "./ndjson.js",
+            "./pnpm-compat.js",
+            "./profile.js",
+            "./regions.js",
+            "./sources.js",
+            "./updates.js"
+          ]
+        },
+        {
+          "path": "lib/dsh-install.js",
+          "bytes": 12948,
+          "sha256": "9cb8c4a902aa666444cdb91b7bd20ffd9226e2c93fa810c469989f18fcb8c8ac",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path"
+          ]
+        },
+        {
+          "path": "lib/entry-identity.js",
+          "bytes": 3697,
+          "sha256": "b80950f1f44d2c19de05aca827aeb3a9993933655142c9bc3b40eb70cbd314ad",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/gist.js",
+          "bytes": 16378,
+          "sha256": "9630b58c8f8d8210815906f271e73339b8a205a330bb3a8443c2f54e3e25dcfd",
+          "parser": "acorn",
+          "imports": [
+            "node:child_process",
+            "node:https",
+            "node:os",
+            "node:path",
+            "./backup.js"
+          ]
+        },
+        {
+          "path": "lib/groups.js",
+          "bytes": 4760,
+          "sha256": "8f7c3528c6f4324602f75f9b94a95f27efb6aa9e009dda5c29167c57c4c6064b",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/home-paths.js",
+          "bytes": 1017,
+          "sha256": "1527f4b6097dbb0c705687b8fec3a0c699f829b35d547bed968aa084fbe71cc4",
+          "parser": "acorn",
+          "imports": [
+            "node:os",
+            "node:path"
+          ]
+        },
+        {
+          "path": "lib/host-recovery.js",
+          "bytes": 7400,
+          "sha256": "3a3fb91191f7892d27f3a3f2e7698f108e2723caee5ee2d4f6bd6ec238af9afe",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./patch.js",
+            "./snapshot.js"
+          ]
+        },
+        {
+          "path": "lib/hot.js",
+          "bytes": 40457,
+          "sha256": "ec7e809e049a5a74cda45dcea21903b181b920b78ea19e299a8af7c20a8635f3",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:module",
+            "node:path",
+            "node:url",
+            "./channels.js",
+            "./regions.js",
+            "./log.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/http.js",
+          "bytes": 11732,
+          "sha256": "a2534e44a3fa24cfa30b2f21dd0233f512a3f2918a1362e68c5222c1eddbe065",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/index.js",
+          "bytes": 22618,
+          "sha256": "3c7a9717144a1b50c3196e640b7bff0673c84862ba411067e1a3501d5ed2f2fb",
+          "parser": "acorn",
+          "imports": [
+            "node:path",
+            "./dsh-cli.js",
+            "./official-desktop.js",
+            "./profile.js",
+            "./http.js",
+            "./dsh-install.js",
+            "./routes.js",
+            "./settings.js",
+            "./pending-updates.js"
+          ]
+        },
+        {
+          "path": "lib/install.js",
+          "bytes": 64240,
+          "sha256": "28c3862e84dbad3f81945b8d1f584d2d898942d7513cc6e6983a998cfd8bdcce",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./dsh-install.js",
+            "./pnpm-compat.js",
+            "./profile.js",
+            "./log.js",
+            "./official-desktop.js",
+            "./sources.js",
+            "./store.js"
+          ]
+        },
+        {
+          "path": "lib/lifecycle.js",
+          "bytes": 1636,
+          "sha256": "a1db1268de9bab626a7d266d8523d667f12cae9165e1f3f34aa01a599f10ed92",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/log-redaction.js",
+          "bytes": 1527,
+          "sha256": "416b66a021972b68d0b7e2e2e79b0078795d138b041ef59312c2855046113e8e",
+          "parser": "acorn",
+          "imports": [
+            "node:os"
+          ]
+        },
+        {
+          "path": "lib/log.js",
+          "bytes": 9102,
+          "sha256": "4ae5fd53d5794df3ff10c49a246fbb43a6e75248d46e1406fcee9168c9b422f3",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./log-redaction.js",
+            "./probe-context.js"
+          ]
+        },
+        {
+          "path": "lib/ndjson.js",
+          "bytes": 6066,
+          "sha256": "3f32ea01419ec50bfa5724ec7ce0b599eb76053d240fe709348859a07f73bdfb",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/net.js",
+          "bytes": 8528,
+          "sha256": "4b81f6bac772a4ceb160d1d6659d1760796549f4d21f55df7872580f0144c854",
+          "parser": "acorn",
+          "imports": [
+            "undici"
+          ]
+        },
+        {
+          "path": "lib/official-desktop.js",
+          "bytes": 36814,
+          "sha256": "727eac01aac9371252aacf07c04b865e2ae06c8364069ecec750915875ba303c",
+          "parser": "acorn",
+          "imports": [
+            "node:crypto",
+            "./dsh-cli.js",
+            "./pnpm-compat.js",
+            "./pending-updates.js",
+            "./profile.js",
+            "./regions.js"
+          ]
+        },
+        {
+          "path": "lib/order.js",
+          "bytes": 12035,
+          "sha256": "074a5f8df3699527996dd604a5d2defada775b8c5282b14a210be7dfd959a1df",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:module",
+            "node:path",
+            "./dsh-install.js"
+          ]
+        },
+        {
+          "path": "lib/patch.js",
+          "bytes": 32564,
+          "sha256": "9fd74e342e55286063c1de31b42f3e2942bf8476cc3d3ded328f92ea3aff47ac",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "node:url",
+            "./log.js",
+            "./check.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/pending-rows.js",
+          "bytes": 6368,
+          "sha256": "c52d44c2cef7e31beb0a570b9c0eb0b98c0b3015b9177d93c9d4aec8ab7c445e",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./patch.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/pending-updates.js",
+          "bytes": 16129,
+          "sha256": "86f6ac125561f16b0d1c52f5a8472bed743ffd90c7c653ae4a1190717c2f8efc",
+          "parser": "acorn",
+          "imports": [
+            "node:crypto",
+            "node:fs",
+            "node:path",
+            "./log.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/pnpm-compat.js",
+          "bytes": 72993,
+          "sha256": "a9554fe127bfe54928fe98ae61f1f5f61386463e65cf82d5bf2f07cdfb87b1dd",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./regions.js"
+          ]
+        },
+        {
+          "path": "lib/presets.js",
+          "bytes": 14136,
+          "sha256": "243af666ba44ff2b74675b45bd233e2c6207bd7f28a56a0768c4ce70c3927618",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./hot.js",
+            "./order.js",
+            "./snapshot.js",
+            "./trial.js",
+            "./log.js"
+          ]
+        },
+        {
+          "path": "lib/probe-context.js",
+          "bytes": 876,
+          "sha256": "a3f7a8790fbff4eb4f134130a6c9f1ca470954aaa0f27dfdcafcf3af26fd6d4b",
+          "parser": "acorn",
+          "imports": [
+            "node:async_hooks"
+          ]
+        },
+        {
+          "path": "lib/profile.js",
+          "bytes": 94633,
+          "sha256": "0e4eff87bc51eb2fb5720c62039b91d4bf87030bc65568dd9ac8030a5fd7947f",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:module",
+            "node:path",
+            "node:util",
+            "js-yaml",
+            "./dsh-install.js",
+            "./home-paths.js",
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/recovery.js",
+          "bytes": 48702,
+          "sha256": "dc5a990ed492d676149a3d75b1cc380e46bc59792de59ac697f5c8cc56943a0f",
+          "parser": "acorn",
+          "imports": [
+            "node:child_process",
+            "node:fs",
+            "node:http",
+            "node:net",
+            "node:path",
+            "node:url",
+            "./http.js",
+            "./log-redaction.js",
+            "./patch.js",
+            "./profile.js"
+          ]
+        },
+        {
+          "path": "lib/region-probe.js",
+          "bytes": 4248,
+          "sha256": "8517df03c5c38c49ebe8bd6e8aebef2148a8b4fe81c0c26bb0a4e18e5ade3ba9",
+          "parser": "acorn",
+          "imports": [
+            "./log.js",
+            "./net.js",
+            "./regions.js"
+          ]
+        },
+        {
+          "path": "lib/regions.js",
+          "bytes": 15493,
+          "sha256": "39e5d40147aea06046f40611540cb4d4e4db7bf1739905208c49ca831290eb97",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/registry.js",
+          "bytes": 14731,
+          "sha256": "85d866dd5588e2e09996b00b7e40748ee0f7bd448125b7bee8f7419fbcbea52c",
+          "parser": "acorn",
+          "imports": [
+            "./body-progress.js",
+            "./log.js",
+            "./net.js",
+            "./catalog-npm.js",
+            "./regions.js",
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/release-candidates.js",
+          "bytes": 5011,
+          "sha256": "79d3611f1ef54ca23b857f4bcd479c69415e8da49db3f0563c007d6029e343de",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/restart.js",
+          "bytes": 36245,
+          "sha256": "ffb8420e6bcf3d018d0902538ec9e9f7a1234877f16c030e3a91a0af39b11da3",
+          "parser": "acorn",
+          "imports": [
+            "node:child_process",
+            "./http.js",
+            "node:fs",
+            "node:inspector",
+            "node:os",
+            "node:path",
+            "node:url",
+            "./dsh-cli.js"
+          ]
+        },
+        {
+          "path": "lib/routes.js",
+          "bytes": 515446,
+          "sha256": "86e0823265273fd250369bb30623b728e2c8ed27e7184a5a2124168ec50ecdbb",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "node:stream",
+            "js-yaml",
+            "./catalog-npm.js",
+            "./registry.js",
+            "./settings.js",
+            "./hot.js",
+            "./groups.js",
+            "./dsh-install.js",
+            "./discovery-compatibility.js",
+            "./log.js",
+            "./net.js",
+            "./diagnostics.js",
+            "./dsh-cli.js",
+            "./entry-identity.js",
+            "./pending-rows.js",
+            "./profile.js",
+            "./compatibility.js",
+            "./agents.js",
+            "./drain.js",
+            "./drain-journal.js",
+            "./probe-context.js",
+            "./check.js",
+            "./order.js",
+            "./presets.js",
+            "./snapshot.js",
+            "./host-recovery.js",
+            "./trial.js",
+            "./sources.js",
+            "./install.js",
+            "./pnpm-compat.js",
+            "./channels.js",
+            "./regions.js",
+            "./region-probe.js",
+            "./accelerate.js",
+            "./changelog.js",
+            "./updates.js",
+            "./release-candidates.js",
+            "./themes.js",
+            "./http.js",
+            "./home-paths.js",
+            "./restart.js",
+            "./verify.js",
+            "./patch.js",
+            "./backup.js",
+            "./gist.js",
+            "./update-api-v1.js",
+            "./source-migration.js"
+          ]
+        },
+        {
+          "path": "lib/settings.js",
+          "bytes": 8402,
+          "sha256": "60929d9a45189dbd9d81c9c6668e07277f9a9c7662b11d9a514be54374e82ee4",
+          "parser": "acorn",
+          "imports": [
+            "@deepseek-ai/schemastery",
+            "./restart.js"
+          ]
+        },
+        {
+          "path": "lib/snapshot.js",
+          "bytes": 21774,
+          "sha256": "dda4a20557374e527fd88c95aa19e13b878857000690592ebc849ccc7fe8c2b1",
+          "parser": "acorn",
+          "imports": [
+            "node:path",
+            "node:fs",
+            "./log.js"
+          ]
+        },
+        {
+          "path": "lib/source-migration.js",
+          "bytes": 7468,
+          "sha256": "dc1f87007a78e7822b43891591a5f177014afe33c6fca6c7b1b80881ba56816f",
+          "parser": "acorn",
+          "imports": [
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/sources.js",
+          "bytes": 47571,
+          "sha256": "b63a37ae74b8ecaae308dbcdca1dd65db12241f09bca5170f3e38ebe7d9d70db",
+          "parser": "acorn",
+          "imports": [
+            "./catalog-local-match.js"
+          ]
+        },
+        {
+          "path": "lib/store.js",
+          "bytes": 6153,
+          "sha256": "57c75ad44d4d98f21ce95d7e7a7430a8cda0f3cc4835adf0e4ce4bc04feab316",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./log.js"
+          ]
+        },
+        {
+          "path": "lib/themes.js",
+          "bytes": 18113,
+          "sha256": "edbad450f7413a3c860a0c6f58c7f4a16df316674390eb4a7de43fb71715a38a",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./registry.js",
+            "./hot.js",
+            "./log.js",
+            "./patch.js",
+            "./lifecycle.js",
+            "./entry-identity.js",
+            "./profile.js",
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/trial.js",
+          "bytes": 6976,
+          "sha256": "ae6ae6daa0c784f7a6d6fd80e15f46947b150c7bf1054ed4bf8a46c90321d01b",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "./check.js",
+            "./home-paths.js",
+            "./order.js"
+          ]
+        },
+        {
+          "path": "lib/types/accelerate.d.ts",
+          "bytes": 4822,
+          "sha256": "d750d4feb78cf4abb66e1f58870f4fb1da9e713873d0a25ec3ca79695a1c37ad",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/agents.d.ts",
+          "bytes": 2251,
+          "sha256": "09c02bbe8ada8018f827d3e0415a57265f4319533cbc5bb003044ce2c42aacba",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/backup.d.ts",
+          "bytes": 7192,
+          "sha256": "51a816a27e874711c3f88ad46ddcfb01b6bd9b587e02ac7c7a588cbe0572b75c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/body-progress.d.ts",
+          "bytes": 4693,
+          "sha256": "fcf1c1d6a1554a2060ba2904fe89bc07c1fdecdec2724ad86c9d26aa00de243c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/catalog-local-match.d.ts",
+          "bytes": 1704,
+          "sha256": "00e232a4e94d4ceded4b89906cc1ce3568f4ea9ff94c7b7cacec00bba5007a9d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/catalog-npm.d.ts",
+          "bytes": 2986,
+          "sha256": "0925ff66bf141f6cabff50c0858eff1f7f1f21b178df004514f5c7573b0389e3",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/changelog.d.ts",
+          "bytes": 5671,
+          "sha256": "c56d47cf5e31ecef6f1dceddb846af729365778b9f2bb56fc7442ae61d6462da",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/channels.d.ts",
+          "bytes": 2733,
+          "sha256": "9dcf44b6169f2219275e6c9ae203a455423cd9dd5b9ef4329591715cfc7a48bf",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/check.d.ts",
+          "bytes": 15961,
+          "sha256": "08d2714efde91bb3ed665d9090ce7adfc2d4d2d459dd4c33becf388eeb6f939c",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/compatibility.d.ts",
+          "bytes": 4805,
+          "sha256": "1c7a14d85742c3e4f734f0343869b366f5dd75484b3126647092c055c5d02573",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/diagnostics.d.ts",
+          "bytes": 1228,
+          "sha256": "3626804bc9a59063fd42964f35f87cc993cfffe6d37512cc85a508d3c7af93ce",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/discovery-compatibility.d.ts",
+          "bytes": 6652,
+          "sha256": "f70659c72ab07ba42c14f4ce5a8b82094bf8605bd730b0773b25ea8faa484997",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/drain-journal.d.ts",
+          "bytes": 1171,
+          "sha256": "e13974d7e1924ab198084f48a93e3f4b5e8d4a6610bc888dec37dcbba9f62d6b",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/drain.d.ts",
+          "bytes": 10244,
+          "sha256": "203533063b0a753de15e79d748f3690b6bc04d8827735b5b87d7c85059c40172",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/dsh-cli.d.ts",
+          "bytes": 23538,
+          "sha256": "a45a304a3211b41625fe202907afcc16fa141386b20091ecf43c5db9aebac7ea",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/dsh-install.d.ts",
+          "bytes": 5910,
+          "sha256": "4bb9a108c4116444cbc2e6be8302a722bc125dd631e4db45af2e55215cef02cb",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/entry-identity.d.ts",
+          "bytes": 3142,
+          "sha256": "0e0c2bcf13b387d58080df06808375d6ea7fe26e3d31cc8a8be9957ea6782b0d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/gist.d.ts",
+          "bytes": 4204,
+          "sha256": "cfbbe003b89d37b2f400ee112297ab114901f4b8aaef319a689804837afed61a",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/groups.d.ts",
+          "bytes": 1889,
+          "sha256": "994e7411739490d341ec12fbc3850c2403dc87b21ce6e67033aaa425fc4d0d93",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/home-paths.d.ts",
+          "bytes": 599,
+          "sha256": "71f5798fb9374e65c6b1663678cc8991e7f05f22036bdb8ccd05341f09404082",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/host-recovery.d.ts",
+          "bytes": 4443,
+          "sha256": "38898067e048d198776c02f81e1054d6da0d5e5c410fc02171f2931317f04075",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/hot.d.ts",
+          "bytes": 19640,
+          "sha256": "314ef66dc6220b425c146a1f6853fb144a0fa9d5834d520425bf86fe7bbeab2f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/http.d.ts",
+          "bytes": 6151,
+          "sha256": "a34aabd1e986e9fa6b03f801d4d0511e8c88a9e1827de7700911b4a3829d4b87",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "bytes": 2805,
+          "sha256": "4ae7162ea797b4ea33726ba2d598b1bef35f098f2729bb9cf00c72ddce25f179",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/install.d.ts",
+          "bytes": 23677,
+          "sha256": "1cbfa3431cdd4c8bbd5505381433c4cbbb663a82a8d859bfbf44bb63e56ee706",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/lifecycle.d.ts",
+          "bytes": 808,
+          "sha256": "54093fd6ae2ec25d208a3fb91e5caf55e1dc8b96f28cbc4a83999505eaac3bc6",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/log-redaction.d.ts",
+          "bytes": 143,
+          "sha256": "6d4c959eb24bb1ad37f0740571df13e90195b01784240222a9791707cee7bf15",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/log.d.ts",
+          "bytes": 2150,
+          "sha256": "42f399918849cc9fbe747a28266dee8572ce87d980952c9921cc21307b0e60b1",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/ndjson.d.ts",
+          "bytes": 2377,
+          "sha256": "d7efd7b06e60245deafc88d8f544422157a937cd997f812fccedc87da8578af8",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/net.d.ts",
+          "bytes": 5139,
+          "sha256": "2b5d6e8153acde0baebc1b7515835393c199de08e86697bb584ae5b32af895ba",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/official-desktop.d.ts",
+          "bytes": 2854,
+          "sha256": "9ac6c275bce733cf436b40dfb0447ed63757b39b9fa3218feaf6e26541fb44fe",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/order.d.ts",
+          "bytes": 4365,
+          "sha256": "172cbfeb9871aab200619e9a0d16f4ada5b4acda6e1bbbdc6005f8c34d69282e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/patch.d.ts",
+          "bytes": 9361,
+          "sha256": "77babd122edf1502cee0cb91214af3a7f5ffa3df02431db4fa7886a0797b4e83",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/pending-rows.d.ts",
+          "bytes": 3684,
+          "sha256": "624dec86da6594998d986c2e09c8e781a44f3bcb5cc5cc8f8cec8eae23817a8a",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/pending-updates.d.ts",
+          "bytes": 6880,
+          "sha256": "5da637c89d401a83a7a55337803ae2f78148f13901305fd06bfef30713fbb981",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/pnpm-compat.d.ts",
+          "bytes": 5534,
+          "sha256": "8440e2820c0dcf9c1448ca66040c9095a7f5aaadc6fb4af8add86be731e52cf0",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "bytes": 4175,
+          "sha256": "4b5e38aedf83e2137c9853e01194251bf2025b71831f16fb5108c2af6553b22d",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/probe-context.d.ts",
+          "bytes": 734,
+          "sha256": "853c4f3651b1e897ef27fcd77272195d98f2508d2b56ec2a7b1e805685e6f9b4",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/profile.d.ts",
+          "bytes": 30947,
+          "sha256": "a270d160d28f66a76e5296dc0131fc58b056d6a7af187c80d0dd5801494301f3",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/recovery.d.ts",
+          "bytes": 16342,
+          "sha256": "4ef4d2df263a60151e074e9febfe08a332c246aca7416a66a6a105e537c28480",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/region-probe.d.ts",
+          "bytes": 2536,
+          "sha256": "508c9259576af1c71fa90dac7c6a6e5cc1257c2e0493987aefd178a77fe3c98e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/regions.d.ts",
+          "bytes": 7076,
+          "sha256": "d5ad9a3a908bea112f9ac2bf53a662342934c4467a94e1970fd5ea499e2aa381",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/registry.d.ts",
+          "bytes": 7554,
+          "sha256": "5a4f4e019367d478c6127b0743de0cce510b1501e1fbd1bbbc7c9373f6c61163",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/release-candidates.d.ts",
+          "bytes": 1235,
+          "sha256": "9209b3e632982e0aa28fc54dfb7d36a3cb366d61b263f162694da8d2473f5353",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/restart.d.ts",
+          "bytes": 14598,
+          "sha256": "7c988f39229b9ac52deda1fb78179c0a919634fb52b8c6a68257b888b4e4aa34",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "bytes": 5861,
+          "sha256": "7b93bb1f2a29b8563210d663913f04185fbe2ff7222900cba61688c4f043cb7f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/settings.d.ts",
+          "bytes": 6143,
+          "sha256": "7e541eceba7b69956f7567a9c0705c0f135faf0a22cf9103f174ecf307125b6e",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/snapshot.d.ts",
+          "bytes": 4518,
+          "sha256": "9d6d07e9bf4b7680edf29e80442023062059bb161c12036fa166949917462eed",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/source-migration.d.ts",
+          "bytes": 4468,
+          "sha256": "3f0fb717346e46f73dea7a9fc97b8e252363b5112ebe29d4a2726c951d69bf09",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/sources.d.ts",
+          "bytes": 20129,
+          "sha256": "124fae43b18622f2f71d194aaad24be5436154f65a370de69ca5a36b6c94771f",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/store.d.ts",
+          "bytes": 2634,
+          "sha256": "3fee0b459a5d0d8043459e774138f8cb27da1fbb99d878337a0a998bb2e7ce16",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/themes.d.ts",
+          "bytes": 1843,
+          "sha256": "65fd43a409ce14791b5ec0bbcf307aec99170693a19e4f4cd83d89a4e045eea9",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/trial.d.ts",
+          "bytes": 2705,
+          "sha256": "b0759e8f5717c5407c96064ede4aaf90defeb74c0064e9570857f6b67627d6aa",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/update-api-v1.d.ts",
+          "bytes": 3193,
+          "sha256": "0fe8b8cdab2ee2d5fca8686211fccc227cf141615a33dd752825922389405951",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/updates.d.ts",
+          "bytes": 12961,
+          "sha256": "7fadd188b8d883f37ce4256d914fdf71c2168a63fc6de58dc709943a86e4f688",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/types/verify.d.ts",
+          "bytes": 14238,
+          "sha256": "c07e91894b83dc2894fa4b4af01b035ec4c5b54da026843f273c91d126163bd5",
+          "parser": "unparsed",
+          "imports": []
+        },
+        {
+          "path": "lib/update-api-v1.js",
+          "bytes": 10645,
+          "sha256": "b7be5649edb2edf75038ff0995c02db72d485e6887976cf6dfe6065e48f2a2cf",
+          "parser": "acorn",
+          "imports": []
+        },
+        {
+          "path": "lib/updates.js",
+          "bytes": 48343,
+          "sha256": "bf604c296bf1744b04d6eba5683c80692ff088681b9e4caa444fa08981b8d58b",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:path",
+            "node:crypto",
+            "js-yaml",
+            "./channels.js",
+            "./accelerate.js",
+            "./probe-context.js",
+            "./net.js",
+            "./regions.js",
+            "./install.js",
+            "./release-candidates.js",
+            "./profile.js",
+            "./patch.js",
+            "./sources.js"
+          ]
+        },
+        {
+          "path": "lib/verify.js",
+          "bytes": 45509,
+          "sha256": "511df22195defa70723f20838a10eb0b75865abd10a595440f3782f6c31de0fb",
+          "parser": "acorn",
+          "imports": [
+            "node:fs",
+            "node:module",
+            "node:vm",
+            "node:path",
+            "./hot.js",
+            "./patch.js",
+            "./entry-identity.js",
+            "./profile.js",
+            "./check.js",
+            "./dsh-install.js"
+          ]
+        },
+        {
+          "path": "client/client.js",
+          "bytes": 976345,
+          "sha256": "c7464afbab83bab99ca4fe38a31f25fbf37bd5a7005e16dae78315e036fff968",
+          "parser": "acorn",
+          "imports": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "lib/accelerate.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 2345,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/accelerate.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 2385,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/accelerate.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 2476,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/backup.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 727,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/catalog-npm.js",
+          "to": "lib/body-progress.js",
+          "specifier": "./body-progress.js",
+          "start": 1164,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/catalog-npm.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 1214,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/catalog-npm.js",
+          "specifier": "./catalog-npm.js",
+          "start": 1366,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 1414,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 1466,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 1615,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 1775,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/updates.js",
+          "specifier": "./updates.js",
+          "start": 1837,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/changelog.js",
+          "to": "lib/registry.js",
+          "specifier": "./registry.js",
+          "start": 1882,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/check.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 1870,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/check.js",
+          "to": "lib/home-paths.js",
+          "specifier": "./home-paths.js",
+          "start": 1921,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/check.js",
+          "to": "lib/install.js",
+          "specifier": "./install.js",
+          "start": 1976,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/check.js",
+          "to": "lib/order.js",
+          "specifier": "./order.js",
+          "start": 2068,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/check.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 3117,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/compatibility.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 906,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/compatibility.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 970,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 642,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "to": "lib/compatibility.js",
+          "specifier": "./compatibility.js",
+          "start": 709,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 759,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 802,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/drain-journal.js",
+          "to": "lib/log-redaction.js",
+          "specifier": "./log-redaction.js",
+          "start": 756,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/drain.js",
+          "to": "lib/agents.js",
+          "specifier": "./agents.js",
+          "start": 962,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/drain.js",
+          "to": "lib/log-redaction.js",
+          "specifier": "./log-redaction.js",
+          "start": 1009,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 621,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/ndjson.js",
+          "specifier": "./ndjson.js",
+          "start": 671,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/pnpm-compat.js",
+          "specifier": "./pnpm-compat.js",
+          "start": 716,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 781,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 859,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 903,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "to": "lib/updates.js",
+          "specifier": "./updates.js",
+          "start": 950,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/gist.js",
+          "to": "lib/backup.js",
+          "specifier": "./backup.js",
+          "start": 1377,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/host-recovery.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 1936,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/host-recovery.js",
+          "to": "lib/snapshot.js",
+          "specifier": "./snapshot.js",
+          "start": 2011,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/hot.js",
+          "to": "lib/channels.js",
+          "specifier": "./channels.js",
+          "start": 1656,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/hot.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 1720,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/hot.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1761,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/hot.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 1835,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/dsh-cli.js",
+          "specifier": "./dsh-cli.js",
+          "start": 244,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/official-desktop.js",
+          "specifier": "./official-desktop.js",
+          "start": 305,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 363,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/http.js",
+          "specifier": "./http.js",
+          "start": 439,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 499,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/routes.js",
+          "specifier": "./routes.js",
+          "start": 553,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/settings.js",
+          "specifier": "./settings.js",
+          "start": 636,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/index.js",
+          "to": "lib/pending-updates.js",
+          "specifier": "./pending-updates.js",
+          "start": 694,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 502,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/pnpm-compat.js",
+          "specifier": "./pnpm-compat.js",
+          "start": 577,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 889,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 930,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/official-desktop.js",
+          "specifier": "./official-desktop.js",
+          "start": 973,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 1028,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/install.js",
+          "to": "lib/store.js",
+          "specifier": "./store.js",
+          "start": 1101,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/log.js",
+          "to": "lib/log-redaction.js",
+          "specifier": "./log-redaction.js",
+          "start": 857,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/log.js",
+          "to": "lib/probe-context.js",
+          "specifier": "./probe-context.js",
+          "start": 903,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "to": "lib/dsh-cli.js",
+          "specifier": "./dsh-cli.js",
+          "start": 207,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "to": "lib/pnpm-compat.js",
+          "specifier": "./pnpm-compat.js",
+          "start": 259,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "to": "lib/pending-updates.js",
+          "specifier": "./pending-updates.js",
+          "start": 375,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 448,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 526,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/order.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 894,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/patch.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1562,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/patch.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 1621,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/patch.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 1736,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/pending-rows.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 1944,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/pending-rows.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 1988,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/pending-updates.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1395,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/pending-updates.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 1505,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/pnpm-compat.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 902,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/presets.js",
+          "to": "lib/hot.js",
+          "specifier": "./hot.js",
+          "start": 773,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/presets.js",
+          "to": "lib/order.js",
+          "specifier": "./order.js",
+          "start": 879,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/presets.js",
+          "to": "lib/snapshot.js",
+          "specifier": "./snapshot.js",
+          "start": 954,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/presets.js",
+          "to": "lib/trial.js",
+          "specifier": "./trial.js",
+          "start": 1001,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/presets.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1040,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/profile.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 578,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/profile.js",
+          "to": "lib/home-paths.js",
+          "specifier": "./home-paths.js",
+          "start": 629,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/profile.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 773,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/recovery.js",
+          "to": "lib/http.js",
+          "specifier": "./http.js",
+          "start": 2023,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/recovery.js",
+          "to": "lib/log-redaction.js",
+          "specifier": "./log-redaction.js",
+          "start": 2068,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/recovery.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 2128,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/recovery.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 2196,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/region-probe.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1225,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/region-probe.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 1265,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/region-probe.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 1312,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/body-progress.js",
+          "specifier": "./body-progress.js",
+          "start": 260,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 307,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 364,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/catalog-npm.js",
+          "specifier": "./catalog-npm.js",
+          "start": 411,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 490,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/registry.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 534,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/restart.js",
+          "to": "lib/http.js",
+          "specifier": "./http.js",
+          "start": 883,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/restart.js",
+          "to": "lib/dsh-cli.js",
+          "specifier": "./dsh-cli.js",
+          "start": 1153,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/catalog-npm.js",
+          "specifier": "./catalog-npm.js",
+          "start": 702,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/registry.js",
+          "specifier": "./registry.js",
+          "start": 784,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/settings.js",
+          "specifier": "./settings.js",
+          "start": 840,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/hot.js",
+          "specifier": "./hot.js",
+          "start": 1093,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/groups.js",
+          "specifier": "./groups.js",
+          "start": 1194,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 1256,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/discovery-compatibility.js",
+          "specifier": "./discovery-compatibility.js",
+          "start": 1387,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1499,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 1539,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/diagnostics.js",
+          "specifier": "./diagnostics.js",
+          "start": 1592,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/dsh-cli.js",
+          "specifier": "./dsh-cli.js",
+          "start": 1731,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/entry-identity.js",
+          "specifier": "./entry-identity.js",
+          "start": 1782,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/pending-rows.js",
+          "specifier": "./pending-rows.js",
+          "start": 1859,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 2507,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/compatibility.js",
+          "specifier": "./compatibility.js",
+          "start": 2610,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/agents.js",
+          "specifier": "./agents.js",
+          "start": 2664,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/drain.js",
+          "specifier": "./drain.js",
+          "start": 2737,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/drain-journal.js",
+          "specifier": "./drain-journal.js",
+          "start": 2780,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/probe-context.js",
+          "specifier": "./probe-context.js",
+          "start": 2838,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 2909,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/order.js",
+          "specifier": "./order.js",
+          "start": 3017,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/presets.js",
+          "specifier": "./presets.js",
+          "start": 3113,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/snapshot.js",
+          "specifier": "./snapshot.js",
+          "start": 3238,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/host-recovery.js",
+          "specifier": "./host-recovery.js",
+          "start": 3319,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/trial.js",
+          "specifier": "./trial.js",
+          "start": 3371,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 3837,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/install.js",
+          "specifier": "./install.js",
+          "start": 4237,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/pnpm-compat.js",
+          "specifier": "./pnpm-compat.js",
+          "start": 4289,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/channels.js",
+          "specifier": "./channels.js",
+          "start": 4371,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 4515,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/region-probe.js",
+          "specifier": "./region-probe.js",
+          "start": 4561,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/accelerate.js",
+          "specifier": "./accelerate.js",
+          "start": 4635,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/changelog.js",
+          "specifier": "./changelog.js",
+          "start": 4685,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/updates.js",
+          "specifier": "./updates.js",
+          "start": 4926,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/release-candidates.js",
+          "specifier": "./release-candidates.js",
+          "start": 4981,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/themes.js",
+          "specifier": "./themes.js",
+          "start": 5043,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/http.js",
+          "specifier": "./http.js",
+          "start": 5127,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/home-paths.js",
+          "specifier": "./home-paths.js",
+          "start": 5171,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/restart.js",
+          "specifier": "./restart.js",
+          "start": 5415,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/verify.js",
+          "specifier": "./verify.js",
+          "start": 5688,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 5927,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/backup.js",
+          "specifier": "./backup.js",
+          "start": 6102,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/gist.js",
+          "specifier": "./gist.js",
+          "start": 6262,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/update-api-v1.js",
+          "specifier": "./update-api-v1.js",
+          "start": 6362,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/routes.js",
+          "to": "lib/source-migration.js",
+          "specifier": "./source-migration.js",
+          "start": 6520,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/settings.js",
+          "to": "lib/restart.js",
+          "specifier": "./restart.js",
+          "start": 4061,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/snapshot.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1256,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/source-migration.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 668,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/sources.js",
+          "to": "lib/catalog-local-match.js",
+          "specifier": "./catalog-local-match.js",
+          "start": 43064,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/store.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 1529,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/registry.js",
+          "specifier": "./registry.js",
+          "start": 370,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/hot.js",
+          "specifier": "./hot.js",
+          "start": 454,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/log.js",
+          "specifier": "./log.js",
+          "start": 491,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 533,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/lifecycle.js",
+          "specifier": "./lifecycle.js",
+          "start": 623,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/entry-identity.js",
+          "specifier": "./entry-identity.js",
+          "start": 676,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 765,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/themes.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 826,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/trial.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 1577,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/trial.js",
+          "to": "lib/home-paths.js",
+          "specifier": "./home-paths.js",
+          "start": 1622,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/trial.js",
+          "to": "lib/order.js",
+          "specifier": "./order.js",
+          "start": 1685,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/channels.js",
+          "specifier": "./channels.js",
+          "start": 405,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/accelerate.js",
+          "specifier": "./accelerate.js",
+          "start": 456,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/probe-context.js",
+          "specifier": "./probe-context.js",
+          "start": 499,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/net.js",
+          "specifier": "./net.js",
+          "start": 549,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/regions.js",
+          "specifier": "./regions.js",
+          "start": 642,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/install.js",
+          "specifier": "./install.js",
+          "start": 725,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/release-candidates.js",
+          "specifier": "./release-candidates.js",
+          "start": 800,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 969,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 1028,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/updates.js",
+          "to": "lib/sources.js",
+          "specifier": "./sources.js",
+          "start": 1288,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/hot.js",
+          "specifier": "./hot.js",
+          "start": 1792,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/patch.js",
+          "specifier": "./patch.js",
+          "start": 1847,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/entry-identity.js",
+          "specifier": "./entry-identity.js",
+          "start": 1896,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/profile.js",
+          "specifier": "./profile.js",
+          "start": 2060,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/check.js",
+          "specifier": "./check.js",
+          "start": 2153,
+          "kind": "static-import"
+        },
+        {
+          "from": "lib/verify.js",
+          "to": "lib/dsh-install.js",
+          "specifier": "./dsh-install.js",
+          "start": 2195,
+          "kind": "static-import"
+        }
+      ],
+      "unresolved": [
+        {
+          "from": "lib/backup.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 485
+        },
+        {
+          "from": "lib/backup.js",
+          "specifier": "node:dns/promises",
+          "external": true,
+          "start": 519
+        },
+        {
+          "from": "lib/backup.js",
+          "specifier": "node:https",
+          "external": true,
+          "start": 580
+        },
+        {
+          "from": "lib/backup.js",
+          "specifier": "node:net",
+          "external": true,
+          "start": 615
+        },
+        {
+          "from": "lib/backup.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 687
+        },
+        {
+          "from": "lib/catalog-npm.js",
+          "specifier": "node:zlib",
+          "external": true,
+          "start": 1109
+        },
+        {
+          "from": "lib/check.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1624
+        },
+        {
+          "from": "lib/check.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 1676
+        },
+        {
+          "from": "lib/check.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1747
+        },
+        {
+          "from": "lib/check.js",
+          "specifier": "js-yaml",
+          "external": true,
+          "start": 1800
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 538
+        },
+        {
+          "from": "lib/discovery-compatibility.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 573
+        },
+        {
+          "from": "lib/drain-journal.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 676
+        },
+        {
+          "from": "lib/drain-journal.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 711
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 415
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 486
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 521
+        },
+        {
+          "from": "lib/dsh-cli.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 583
+        },
+        {
+          "from": "lib/dsh-install.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 116
+        },
+        {
+          "from": "lib/dsh-install.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 193
+        },
+        {
+          "from": "lib/gist.js",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 1182
+        },
+        {
+          "from": "lib/gist.js",
+          "specifier": "node:https",
+          "external": true,
+          "start": 1244
+        },
+        {
+          "from": "lib/gist.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 1282
+        },
+        {
+          "from": "lib/gist.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1314
+        },
+        {
+          "from": "lib/home-paths.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 141
+        },
+        {
+          "from": "lib/home-paths.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 182
+        },
+        {
+          "from": "lib/host-recovery.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1837
+        },
+        {
+          "from": "lib/host-recovery.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1888
+        },
+        {
+          "from": "lib/hot.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1498
+        },
+        {
+          "from": "lib/hot.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 1539
+        },
+        {
+          "from": "lib/hot.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1575
+        },
+        {
+          "from": "lib/hot.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1618
+        },
+        {
+          "from": "lib/index.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 165
+        },
+        {
+          "from": "lib/install.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 393
+        },
+        {
+          "from": "lib/install.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 455
+        },
+        {
+          "from": "lib/log-redaction.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 24
+        },
+        {
+          "from": "lib/log.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 777
+        },
+        {
+          "from": "lib/log.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 812
+        },
+        {
+          "from": "lib/net.js",
+          "specifier": "undici",
+          "external": true,
+          "start": 1755
+        },
+        {
+          "from": "lib/official-desktop.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 109
+        },
+        {
+          "from": "lib/order.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 770
+        },
+        {
+          "from": "lib/order.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 811
+        },
+        {
+          "from": "lib/order.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 847
+        },
+        {
+          "from": "lib/patch.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1450
+        },
+        {
+          "from": "lib/patch.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1482
+        },
+        {
+          "from": "lib/patch.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1525
+        },
+        {
+          "from": "lib/pending-rows.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1858
+        },
+        {
+          "from": "lib/pending-rows.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1899
+        },
+        {
+          "from": "lib/pending-updates.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 1222
+        },
+        {
+          "from": "lib/pending-updates.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1316
+        },
+        {
+          "from": "lib/pending-updates.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1357
+        },
+        {
+          "from": "lib/pnpm-compat.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 822
+        },
+        {
+          "from": "lib/pnpm-compat.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 854
+        },
+        {
+          "from": "lib/presets.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 678
+        },
+        {
+          "from": "lib/presets.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 710
+        },
+        {
+          "from": "lib/probe-context.js",
+          "specifier": "node:async_hooks",
+          "external": true,
+          "start": 532
+        },
+        {
+          "from": "lib/profile.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 322
+        },
+        {
+          "from": "lib/profile.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 363
+        },
+        {
+          "from": "lib/profile.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 439
+        },
+        {
+          "from": "lib/profile.js",
+          "specifier": "node:util",
+          "external": true,
+          "start": 486
+        },
+        {
+          "from": "lib/profile.js",
+          "specifier": "js-yaml",
+          "external": true,
+          "start": 533
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 1727
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1804
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:http",
+          "external": true,
+          "start": 1844
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:net",
+          "external": true,
+          "start": 1881
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1917
+        },
+        {
+          "from": "lib/recovery.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1960
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 787
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 952
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:inspector",
+          "external": true,
+          "start": 985
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:os",
+          "external": true,
+          "start": 1026
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1058
+        },
+        {
+          "from": "lib/restart.js",
+          "specifier": "node:url",
+          "external": true,
+          "start": 1101
+        },
+        {
+          "from": "lib/routes.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 524
+        },
+        {
+          "from": "lib/routes.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 565
+        },
+        {
+          "from": "lib/routes.js",
+          "specifier": "node:stream",
+          "external": true,
+          "start": 603
+        },
+        {
+          "from": "lib/routes.js",
+          "specifier": "js-yaml",
+          "external": true,
+          "start": 651
+        },
+        {
+          "from": "lib/settings.js",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 4002
+        },
+        {
+          "from": "lib/snapshot.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1096
+        },
+        {
+          "from": "lib/snapshot.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1220
+        },
+        {
+          "from": "lib/store.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1447
+        },
+        {
+          "from": "lib/store.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1491
+        },
+        {
+          "from": "lib/themes.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 278
+        },
+        {
+          "from": "lib/themes.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 310
+        },
+        {
+          "from": "lib/trial.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1420
+        },
+        {
+          "from": "lib/trial.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1452
+        },
+        {
+          "from": "lib/types/dsh-cli.d.ts",
+          "specifier": "node:child_process",
+          "external": true,
+          "start": 417
+        },
+        {
+          "from": "lib/types/http.d.ts",
+          "specifier": "node:http",
+          "external": true,
+          "start": 226
+        },
+        {
+          "from": "lib/types/index.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 159
+        },
+        {
+          "from": "lib/types/recovery.d.ts",
+          "specifier": "node:http",
+          "external": true,
+          "start": 1734
+        },
+        {
+          "from": "lib/types/restart.d.ts",
+          "specifier": "node:http",
+          "external": true,
+          "start": 803
+        },
+        {
+          "from": "lib/types/routes.d.ts",
+          "specifier": "node:http",
+          "external": true,
+          "start": 491
+        },
+        {
+          "from": "lib/types/settings.d.ts",
+          "specifier": "@deepseek-ai/cordis",
+          "external": true,
+          "start": 4018
+        },
+        {
+          "from": "lib/types/settings.d.ts",
+          "specifier": "@deepseek-ai/schemastery",
+          "external": true,
+          "start": 4055
+        },
+        {
+          "from": "lib/updates.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 248
+        },
+        {
+          "from": "lib/updates.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 280
+        },
+        {
+          "from": "lib/updates.js",
+          "specifier": "node:crypto",
+          "external": true,
+          "start": 320
+        },
+        {
+          "from": "lib/updates.js",
+          "specifier": "js-yaml",
+          "external": true,
+          "start": 369
+        },
+        {
+          "from": "lib/verify.js",
+          "specifier": "node:fs",
+          "external": true,
+          "start": 1609
+        },
+        {
+          "from": "lib/verify.js",
+          "specifier": "node:module",
+          "external": true,
+          "start": 1661
+        },
+        {
+          "from": "lib/verify.js",
+          "specifier": "node:vm",
+          "external": true,
+          "start": 1699
+        },
+        {
+          "from": "lib/verify.js",
+          "specifier": "node:path",
+          "external": true,
+          "start": 1731
+        }
+      ],
+      "failures": [],
+      "warnings": [
+        {
+          "path": "lib/types/accelerate.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/accelerate.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/agents.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/backup.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/body-progress.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/catalog-local-match.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/catalog-npm.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/changelog.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/channels.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/check.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/check.d.ts",
+          "specifier": "./dsh-install.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/compatibility.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/compatibility.d.ts",
+          "specifier": "./check.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/diagnostics.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/discovery-compatibility.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/drain-journal.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/drain-journal.d.ts",
+          "specifier": "./drain.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/drain.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/dsh-cli.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 3
+        },
+        {
+          "path": "lib/types/dsh-cli.d.ts",
+          "specifier": "./ndjson.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/dsh-cli.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/dsh-install.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/entry-identity.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/gist.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/gist.d.ts",
+          "specifier": "./backup.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/groups.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/home-paths.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/host-recovery.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/hot.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/hot.d.ts",
+          "specifier": "./channels.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/hot.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/http.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/index.d.ts",
+          "specifier": "./routes.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/install.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/install.d.ts",
+          "specifier": "./dsh-cli.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/lifecycle.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/log-redaction.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/log.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/ndjson.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/net.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/official-desktop.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/official-desktop.d.ts",
+          "specifier": "./dsh-cli.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/official-desktop.d.ts",
+          "specifier": "./pending-updates.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/order.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/patch.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/pending-rows.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/pending-updates.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/pnpm-compat.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/presets.d.ts",
+          "specifier": "./trial.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/probe-context.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/profile.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/recovery.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/region-probe.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/region-probe.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/regions.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/registry.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/registry.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/release-candidates.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/restart.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/restart.d.ts",
+          "specifier": "./recovery.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 8
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./dsh-cli.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./agents.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./channels.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./regions.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./themes.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./themes.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/routes.d.ts",
+          "specifier": "./updates.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/settings.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/snapshot.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/source-migration.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/sources.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/sources.d.ts",
+          "specifier": "./catalog-local-match.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/store.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/store.d.ts",
+          "specifier": "./dsh-cli.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/themes.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        },
+        {
+          "path": "lib/types/trial.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/trial.d.ts",
+          "specifier": "./check.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/update-api-v1.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 1
+        },
+        {
+          "path": "lib/types/update-api-v1.d.ts",
+          "specifier": "./dsh-cli.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/updates.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 2
+        },
+        {
+          "path": "lib/types/updates.d.ts",
+          "specifier": "./channels.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/updates.d.ts",
+          "specifier": "./source-migration.ts",
+          "reason": "missing-file"
+        },
+        {
+          "path": "lib/types/verify.d.ts",
+          "reason": "parser-unparsed",
+          "fallback": "static-imports",
+          "importsRecovered": 0
+        }
+      ],
+      "crossFile": {
+        "findings": [],
+        "attackChains": [],
+        "reachability": [],
+        "failures": [],
+        "complete": true
+      }
+    },
+    "dependencyGraph": {
+      "complete": true,
+      "nodes": 0,
+      "edges": 0,
+      "unresolved": 0,
+      "failures": []
+    },
+    "capabilityGraph": {
+      "complete": true,
+      "tools": [
+        {
+          "name": "(unbound)",
+          "capabilities": [
+            "filesystem-read",
+            "filesystem-write",
+            "shell"
+          ],
+          "findingCount": 41
+        }
+      ],
+      "capabilities": [
+        "filesystem-read",
+        "filesystem-write",
+        "shell"
+      ],
+      "attackPaths": [],
+      "failures": []
+    },
+    "sbom": {
+      "status": "not-requested",
+      "format": null,
+      "components": 0,
+      "digest": null,
+      "failures": []
+    },
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "ignored": [],
+  "hardSkipped": [],
+  "policySkips": [],
+  "coverageSkips": [],
+  "supplyChain": {
+    "package": "dshmarket",
+    "version": "1.73.10",
+    "tarballSha256": "1dbcd14bbf29e503d6881270522dd49a79c8140ac7696ad60e2839cd7b253a9e",
+    "integrity": "sha512-L+p0RMx0AJflJmFuFfXwq/qYJvfXt6ZXL+TYV4KDhZ/VPijYajT87nEnYpHDsfH8yGDokzIrIzCkak85HhBpnA==",
+    "dependencyCount": 2,
+    "installScripts": [
+      "prepare"
+    ],
+    "provenance": {
+      "status": "not-requested",
+      "verified": false,
+      "reasons": []
+    }
+  },
+  "stats": {
+    "languages": {
+      "svg": 1,
+      "yml": 1,
+      "js": 57,
+      "ts": 56,
+      "text": 1,
+      "json": 3,
+      "md": 3
+    },
+    "largestFiles": [
+      {
+        "file": "client/client.js",
+        "bytes": 976345
+      },
+      {
+        "file": "lib/routes.js",
+        "bytes": 515446
+      },
+      {
+        "file": "lib/profile.js",
+        "bytes": 94633
+      },
+      {
+        "file": "lib/check.js",
+        "bytes": 74867
+      },
+      {
+        "file": "lib/pnpm-compat.js",
+        "bytes": 72993
+      }
+    ]
+  },
+  "audit": {
+    "package": "dshmarket",
+    "version": "1.73.10",
+    "verdict": "BLOCK-RECOMMENDED",
+    "tarballSha256": "1dbcd14bbf29e503d6881270522dd49a79c8140ac7696ad60e2839cd7b253a9e",
+    "integrityOk": true,
+    "dependencyCount": 2,
+    "installScripts": [
+      "prepare"
+    ]
+  }
+}

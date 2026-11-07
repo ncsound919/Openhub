@@ -575,7 +575,7 @@ async function startServer() {
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
         fontSrc: ["'self'", 'data:'],
-        connectSrc: ["'self'", 'ws:', 'wss:', 'http:', 'https:'],
+        connectSrc: ["'self'", 'ws:', 'wss:', 'https://generativelanguage.googleapis.com', 'https://api.github.com', 'https://openrouter.ai', 'https://api.deepseek.com', 'https://*.supabase.co'],
         workerSrc: ["'self'", 'blob:'],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
@@ -623,6 +623,23 @@ async function startServer() {
   });
 
   // ===================== AUTH ROUTES =====================
+
+  // In-memory login throttle (loopback control plane; no external dep needed).
+  // 30 attempts / 15 min per IP for credential endpoints.
+  const __authAttempts = new Map<string, number[]>();
+  app.use('/api/auth', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method !== 'POST' || !/\/(login|refresh|register)\/?$/i.test(req.path)) return next();
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const windowMs = 15 * 60 * 1000;
+    const hits = (__authAttempts.get(key) || []).filter((t) => now - t < windowMs);
+    if (hits.length >= 30) {
+      return res.status(429).json({ error: 'too many auth attempts, try again later' });
+    }
+    hits.push(now);
+    __authAttempts.set(key, hits);
+    return next();
+  });
 
   // Self-registration is opt-in. It is allowed only when explicitly enabled, or
   // as a first-run bootstrap while the user store is still empty. Login, refresh,
@@ -2206,7 +2223,8 @@ app.use('/api', createAuditRouter({ authMiddleware: auth.middleware() }));
       console.warn('[Server] dist/ build not found. Run the build, or set NODE_ENV=development for the Vite dev server.');
     }
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    // Express 5 requires named wildcards (path-to-regexp v8).
+    app.get('/*splat', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -1,0 +1,463 @@
+# dsh-session-bridge — 会话桥 (Session bridge)
+
+Targets DSH **0.1.7-0 and later**: both the peer ranges and `package.json`'s
+`engines.dsh` declare a floor only (`>=0.1.7-0`), never a ceiling. Since DSH
+**0.2.1-rc.1** `engines.dsh` decides alone (when present, `peerDependencies` are
+ignored), so the two state the same floor; verified against **0.2.2-alpha.3**. See
+[compatibility changes](CHANGELOG.md) and [AGENTS.md](./AGENTS.md) (the version
+policy is a hard rule, guarded by `pnpm test`).
+
+A [DSH](https://www.deepseek.com) plugin that lets the current agent drive
+other real DSH sessions directly from a prompt — create sessions, send
+messages to any session, wait for and read replies, resume offline sessions,
+and find sessions across workspaces. On top of that it can **monitor and
+schedule** a main task (watch its progress, nudge or correct its direction,
+and stop it), and **archive** sessions the same way the DSH sidebar's Archive
+action does.
+
+> 中文文档见 [README.zh.md](./README.zh.md).
+
+## What it does
+
+- **Create real DSH sessions.** `session_bridge_create` makes a new main
+  session (top-level UI session) in the current workspace, or in another
+  workspace when you pass `workspaceId` / `cwd`. It can send one first prompt
+  and optionally block until the first reply. Provider / model / reasoning
+  effort are inherited from the calling session by default. An async create
+  (no `waitForReply`) returns a `sinceSeq` anchor for a later precise `wait`.
+- **Send messages to any session.** `session_bridge_send` appends a turn
+  (`mode=queue`) or injects steering into the running step (`mode=steer`), and
+  can optionally wait for the next reply. An async send also returns a
+  `sinceSeq` anchor.
+- **Wait for a reply or a segment.** `session_bridge_wait` blocks until new
+  assistant output appears after `sinceSeq` (default: the latest event seq at
+  call time): `waitFor=reply` (default) returns as soon as a new **text** reply
+  is readable; `waitFor=segment` returns as soon as any new **completed output
+  step** appears (an `assistant/message` — text, reasoning, or tool-call turn),
+  *without* waiting for the whole turn, so you can observe output paragraph by
+  paragraph as it is produced. With `requireTurnEnd` it additionally waits for
+  the turn to settle. Timeout / abort return the partial result rather than
+  throwing. **An already-landed reply is never lost**: when no new output
+  arrives within the budget, the latest PRE-EXISTING reply/segment is returned
+  with `stale: true` (no more `(no text)`). To retrieve exactly "the reply to
+  what I sent", pass the `sinceSeq` returned by `session_bridge_send` /
+  `session_bridge_create` (works regardless of caller latency); `sinceSeq: -1`
+  counts existing events too, i.e. the anchor for a brand-new session.
+- **Read any session.** `session_bridge_read` folds a session's event log into
+  readable rows — live or offline (from persistence) — with `sinceSeq` paging,
+  role filtering, and a `limit` (default 20, max 100).
+- **Read output paragraph by paragraph.** `session_bridge_segments` returns the
+  session's **completed output segments** — every finished assistant step (one
+  `assistant/message`: its text, reasoning, and requested tool calls) as its own
+  row, paged forward via `sinceSeq`, returning the next cursor. It works live or
+  offline and does **not** wait for the whole turn, so you can follow a long
+  agentic run step by step (chain-of-thought included when the model streams it).
+- **Resume offline sessions.** `session_bridge_resume` brings a persisted
+  session back online (idempotent); it can also override provider / model.
+- **Find sessions.** `session_bridge_find` matches by title, id, workspace, or
+  directory across all workspaces, returning live/running state, title, and
+  working directory. Bridge-registered titles act as aliases.
+- **Monitor and schedule a main task.** `session_bridge_status` reads a
+  session's real-time progress (running/idle, open turn, time since the last
+  event for stall detection, pending work, latest reply); only a **running**
+  session is flagged `[STALLED]` (a quiet idle session is not stuck — same rule
+  as the watchdog). `session_bridge_cancel`
+  stops a running session. `session_bridge_monitor_start` runs a **background
+  watchdog loop** that polls the task, nudges it when it stalls, corrects it
+  when it drifts, terminates it after it stays stuck, and wraps up when it
+  finishes. When the **chain-of-thought loops** (e.g. `写。好。Go。` over and
+  over) it interrupts the session and **transfers the task to a new session**
+  (with the subagent list carried over) so the work continues.
+- **Archive / unarchive sessions.** `session_bridge_archive` adds a session to
+  the DSH workspace archive set (hidden from every grouping surface, history and
+  workspace position preserved); an active target is refused unless
+  `stopActivity: true` is passed, which archives first and then stops its
+  running work (turn, subagents, jobs, schedules) through the official path.
+  `session_bridge_unarchive` drops it from the archive set so it reappears at
+  its recorded position. `session_bridge_archived` lists the archive
+  set, optionally resolving titles; a session whose title cannot be resolved is
+  listed without one instead of failing the whole call. The archive set grows
+  without bound, so archive/unarchive results report the affected id plus the
+  archive size and summarize the newest ids, and `session_bridge_archived`
+  windows the listing with an optional `limit` (default 50, newest first) while
+  `total` always reports the real size.
+
+## Monitoring worker
+
+`session_bridge_monitor_start` installs a timer-driven loop. Every poll it
+**observes → judges → schedules → logs** the target session:
+
+| Observation | Action |
+|---|---|
+| A `doneKeywords` string appears in the reply and the session is idle | Wrap up and stop the watchdog (log `DONE`) |
+| Idle with no pending work | Wrap up (settled) — no pointless nudging / cancelling |
+| `running` and no event for more than `stalledMs` | Record a stall → `steer` a nudge (with `useLlm`, judge `offtrack`/`stuck` first) |
+| Stall repeats ≥ `maxStuckCycles` | `cancel` the session |
+| Making progress | Reset the stall counter (steady) |
+| `running` and the chain-of-thought loops (on by default) | Create a successor session carrying the task → interrupt the old one (transfer, log `LOOP-TRANSFER`) |
+| Loop, but the transfer budget is exhausted / `loopTransfer: false` | Interrupt only (log `LOOP-CANCEL`) |
+| **A subagent's** chain-of-thought loops | Cancel that subagent + `steer` the main session to re-delegate (**no transfer**) |
+
+The watchdog only treats **running** sessions as stalled, so a finished or idle
+task is wrapped up rather than nudged forever (the `[STALLED]` marker in
+`session_bridge_status` follows the same rule and is shown for running sessions
+only). Logs go to
+`~/.dsh/super-injector/dsh-session-bridge-monitor.log` (overridable).
+
+Control it with `session_bridge_monitor_start` / `_stop` / `_list`.
+
+### Chain-of-thought monitoring & rules
+
+The bridge can watch another session's **chain-of-thought** (reasoning) in real
+time — not just its final reply — and act on it:
+
+- **Observe it live.** `session_bridge_status` returns three chain-of-thought
+  fields on a running session: `lastReasoning` (the most recent finalized
+  reasoning block), `liveReasoning` (the in-flight reasoning streamed for the
+  current handled turn, from `assistant/chunk` `reasoning-delta` events), and
+  `reasoningTail` (a compact, char-bounded merged preview). Use the
+  `reasoning` param (`none | last | live | tail`) to pick which fields come
+  back; `tail` is the default and costs the least.
+- **Read paragraph by paragraph.** `session_bridge_segments` returns each completed output
+  step (one `assistant/message` — text, reasoning, or tool-call turn) as its own segment,
+  paged forward via `sinceSeq`, without waiting for the whole turn.
+- **Or read it per message.** `session_bridge_read` with `includeReasoning`
+  returns the finalized reasoning of each assistant message.
+- **Enforce rules.** `session_bridge_monitor_start` accepts `coRules` — an
+  array of { match: contains|not-contains, field: reasoning|text|both,
+  value: string, action: steer|cancel, message?: string } and `cotMinHits`.
+  Each poll the watchdog matches the rule's condition against the live
+  reasoning/text and, once it stays matched for `cotMinHits` consecutive polls
+  (default 1), fires the action: `steer` injects a guiding user message,
+  `cancel` terminates the session. Example — "stop the session the moment its
+  reasoning no longer contains I'm" becomes:
+
+      coRules: [{ "match": "not-contains", "field": "reasoning", "value": "I'm", "action": "cancel" }]
+
+  Caveats: a `not-contains` rule on `reasoning` deliberately **does not fire**
+  when the target session produces no reasoning at all (e.g. a non-reasoning
+  model or reasoningEffort off), so you don't cancel sessions that simply
+  don't stream a chain-of-thought. Repeated fires are throttled by a cooldown,
+  and each evaluation/trigger is written to the monitor log.
+
+### Chain-of-thought loop detection & task transfer
+
+**Why the stall check cannot catch a loop:** a looping session lands new events every cycle, so
+"ms since the last event" stays tiny and `stalledMs` never crosses the threshold — the stall
+branch is **blind** to loops by construction. A loop therefore has to be judged from the
+**content** itself.
+
+Judging it (`src/loop-guard.ts` — pure functions, no host dependency): split the chain-of-thought
+into units on `。！？；!?;` and newlines (**punctuation stays inside the unit**, so `写。` and `好。`
+are different units), then look for a periodic repeat of a small run inside a **tail window**
+(1200 chars). Measured: `写。/好。/Go。` ×3 → `period=3 repeats=3` fires; `3 units × 2 rounds` and
+`2 units × 2 rounds` do not (the repeat floor is 3); long ordinary reasoning does not fire; a long
+prefix cannot hide a tail loop; punctuation-free repetition is caught by a character n-gram
+fallback (`kind=char`).
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `loopGuard` | `true` | `false` disables loop detection |
+| `loopField` | `reasoning` | What to scan: `reasoning` (live chain-of-thought, `liveReasoning` first, else `lastReasoning`) / `text` / `both` |
+| `loopMinCycles` | `2` | Minimum repeated cycles |
+| `loopMinRepeats` | `3` | Minimum repeats of one unit; the **effective floor is `max(loopMinCycles, loopMinRepeats)`** |
+| `loopMinConfidence` | `0.6` | Confidence threshold (weighted by unit length, covered rounds, period length) |
+| `loopMinHits` | `1` | Consecutive polls with the same signature (field+period+unit) before acting |
+| `loopCooldownMs` | `max(intervalMs*2, 30000)` | Per-signature cooldown, so a jittery signal cannot double-fire |
+| `loopMaxTransfers` | `3` | Maximum transfers (also the **transfer-depth cap**) |
+| `loopTransfer` | `true` | `false` = interrupt only, never transfer |
+| `loopAutoMonitor` | `true` | Whether the successor session is watched too |
+| `loopDescendants` | `report` | Subagent policy, see the table below |
+| `loopHandoffPrompt` | built-in template | Custom handoff prompt; placeholders `{{sessionId}}` `{{cwd}}` `{{reason}}` `{{task}}` `{{evidence}}` `{{descendants}}` |
+
+On a hit the order is **not** negotiable: **create the successor main session in the original
+working directory and deliver the handoff prompt first, and only cancel the old session once that
+succeeded.** The reverse order (stop, then create) loses the task outright if creation fails; this
+implementation instead treats a failed creation as "keep the original watchdog, cancel nothing"
+and retries on a `max(intervalMs, 10s)` throttle. The handoff carries the original session id, the
+task instruction, the recent instructions / last reply / last chain-of-thought, and the subagent
+list — and tells the successor to `session_bridge_read` the old session log itself (no full
+transcripts inlined, to save tokens). The transfer chain inherits the same transfer record, so the
+budget does not reset with each successor.
+
+When the budget is exhausted (`loopMaxTransfers` or the depth cap) or `loopTransfer: false`, the
+watchdog **interrupts only** (log `LOOP-CANCEL`). Log lines: `LOOP-HIT` / `LOOP-TRANSFER` /
+`LOOP-TRANSFER-FAILED` / `LOOP-CANCEL` / `LOOP-SUBAGENT-CANCEL` / `LOOP-SUBAGENT-NOTIFY`.
+
+#### What happens to subagents
+
+| Scenario | Handling | Why |
+|---|---|---|
+| A. Main session loops, subagents **still running normally** | **Not cancelled**, listed in the handoff (`report`, the default) | Their work is not wasted; the successor is told not to redo it and can wait for results |
+| B. Main session loops with `loopDescendants: 'stop'` | Cancelled one by one **before** the transfer, recorded under `stopped` | You asked for a clean handoff with no orphaned work |
+| C. Main session loops with `loopDescendants: 'ignore'` | Neither cancelled nor mentioned | The subagents are irrelevant to the remaining task |
+| D. **A subagent** loops (main session fine) | Cancel that subagent + `steer` the main session to re-delegate; **no transfer** | The broken thing is the subtask, not the task; the main session knows how to re-delegate |
+| E. A **subagent session itself** is the monitored target and loops | **Cancel only, never transfer** | Its identity is a subagent; spawning a new top-level session would break the execution tree. The parent session is notified |
+
+"Who is a subagent" is decided with host capabilities first (`agents.isOwnedBy` / `roots()`), then
+falls back to the session header's `origin === 'subagent'` / `parentSession`, and finally treats the
+session as top-level — **it can under-transfer, never mis-transfer**. The transfer chain is bounded
+by `loopMaxTransfers`: a successor that loops again gets at most another transfer, then only
+interruptions, so there is no A→B→C relay.
+
+### Enabling and disabling (two ways)
+
+Loop detection is **on by default**, and both the master switch and the global defaults live in the
+**plugin config** (the `config` of this plugin's entry in the profile patch), so the two paths below
+change the **same value**:
+
+**1. The `/cot-loop` slash command** — change it from the interactive UI; it writes the config back
+and takes effect **immediately** (no restart, no plugin reload):
+
+```
+/cot-loop status                      # switch state, detection parameters, settings entry
+/cot-loop off                         # disable chain-of-thought loop auto-interrupt (globally)
+/cot-loop on                          # turn it back on
+/cot-loop field text                  # scan the final reply only (default: reasoning)
+/cot-loop descendants stop            # cancel still-running subagents before transferring
+/cot-loop max-transfers 3             # transfer budget (0 = interrupt only)
+/cot-loop help                        # every subcommand
+```
+
+Parameter changes apply from the **next** `session_bridge_monitor_start`; `on` / `off` apply to
+**already running** watchdogs at once (each tick reads the volatile reference live). When the host has
+no `configEditor` service (or the write fails) the command degrades to an **in-process switch** and
+says "this run only" — it never pretends the value was persisted.
+
+**2. The settings toggle** — Settings → Plugins → `dsh-session-bridge`: the form is rendered
+automatically from the volatile fields of `Config` (`dsh-settings` only renders volatile fields as
+controls, so this half needs no client code at all), and `loopGuard` is the master switch. Saving it
+writes the profile patch and applies immediately as well.
+
+A single watchdog can still opt out on its own:
+`session_bridge_monitor_start({ sessionId: '...', loopGuard: false })`.
+
+| Plugin config field | Default | Meaning |
+|---|---|---|
+| `loopGuard` | `true` | **Master switch**: `false` stops loop detection for every watchdog (this is what the settings page / `/cot-loop` toggles) |
+| `loopField` | `reasoning` | What to scan: `reasoning` / `text` / `both` |
+| `loopMinCycles` | `2` | Minimum repeated cycles |
+| `loopMinRepeats` | `3` | Minimum repeats of one unit |
+| `loopMinConfidence` | `0.6` | Confidence threshold |
+| `loopMinHits` | `1` | Consecutive hits before acting |
+| `loopCooldownMs` | `60000` | Per-signature cooldown in ms |
+| `loopMaxTransfers` | `3` | Transfer budget (`0` = interrupt only) |
+| `loopDescendants` | `report` | Subagent policy, see the table below |
+
+## Requirements
+
+- [Node.js](https://nodejs.org) ≥ 20
+- [pnpm](https://pnpm.io)
+- DSH `0.1.7-0` or later (`peerDependencies` and `engines.dsh` both `>=0.1.7-0`;
+  built and tested against `0.2.2-alpha.3`).
+
+## Build
+
+```bash
+# Install locked DSH release packages, then type-check and build
+pnpm install --frozen-lockfile
+pnpm build
+
+# type-check src/ against the dsh that is actually installed (no checkout needed)
+npm run check:compat
+
+# regression tests: peer floor, wait/stall core, loop detection + handoff, watchdog loop, archived handler, V3→V4
+npm test
+
+# via the injector toolchain
+dev_build_plugin dsh-session-bridge
+```
+
+Builds use the locked `0.2.2-alpha.3` registry packages; no source checkout is
+required. `check:compat` type-checks `src/` against the installed harness and
+then compares the artifact's inlined DSH version with it: inlining something
+older than the declared floor (`0.1.7-0`) fails, any other drift is a note
+(`--strict` restores the exact-match failure). The inlined `cordis` copy is
+tracked separately and compared with the installed `cordis`. CI uses the same
+lockfile.
+
+## Deploy
+
+DSH web loads external plugins from the active profile. This package is a
+**bundle**: its `package.json` declares `dsh.bundle.patch` →
+[`cordis.patch.yml`](./cordis.patch.yml), whose `insert` row mounts the plugin.
+That declaration is what lets `dsh plugin add` install the package *and*
+activate it in one step.
+
+### Install from npm
+
+The package is published to [npmjs.com](https://www.npmjs.com/package/dsh-session-bridge).
+Releases are cut on a `v*` git tag by the `publish.yml` GitHub Actions workflow;
+`package.json` and `dsh.plugin.json` versions are synced to that tag before
+publishing.
+
+```bash
+npx -p @deepseek-ai/dsh dsh plugin --profile web add dsh-session-bridge
+```
+
+A prerelease tag (`v0.3.2-alpha.1`) is published to its own dist-tag (`alpha`,
+`beta`, `rc`) instead of `latest`, so it cannot displace the stable release for
+other users. Opt in explicitly:
+
+```bash
+npx -p @deepseek-ai/dsh dsh plugin --profile web add dsh-session-bridge@alpha
+```
+
+pnpm installs the published tarball and runs its `prepare` script (`tsdown`) to
+ensure `lib/` is present, then `dsh` activates the bundle.
+
+> **For ~24 hours after a release, `@latest` resolves to the previous version.**
+> pnpm 11 enables supply-chain protection by default
+> ([`minimumReleaseAge` defaults to 1440 minutes](https://pnpm.io/blog/releases/11.0)):
+> versions published less than 24h ago are excluded from resolution, and because
+> `minimumReleaseAgeStrict` defaults to `false`, pnpm **silently falls back** to
+> the newest old-enough version instead of erroring. `pnpm view dsh-session-bridge
+> dist-tags` still reports the new `latest`, but the install picks the old one —
+> whose peer range a newer DSH may already reject, which reads as "I asked for
+> `latest` and it still says incompatible". Three ways out:
+>
+> 1. Exclude the package in the consuming profile's `pnpm-workspace.yaml` so
+>    `@latest` takes effect immediately:
+>    ```yaml
+>    minimumReleaseAgeExclude:
+>      - dsh-session-bridge
+>    ```
+> 2. Install a local tarball (no registry resolution):
+>    `dsh plugin --profile <p> add <path>/dsh-session-bridge-x.y.z.tgz`;
+> 3. Wait 24 hours. Pinning an exact version does *not* bypass the policy
+>    (it fails hard with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`).
+
+### Install from GitHub
+
+```bash
+npx -p @deepseek-ai/dsh dsh plugin --profile web add github:heartmove/dsh-session-bridge
+```
+
+`dsh plugin` forwards to pnpm inside `~/.dsh/profiles/web/`, then reconciles the
+bundle into the profile's `dsh.profile.bundles` layer list. A git install
+fetches sources, so pnpm runs the package's `prepare` script (`tsdown`) to build
+`lib/` from `src/` after checkout.
+
+pnpm ≥ 10 refuses to run a git dependency's `prepare` script until it is
+allowlisted, so the first `add` fails with an "Ignored build scripts" hint. Copy
+the exact package key pnpm printed into the profile's `pnpm-workspace.yaml`
+(`~/.dsh/profiles/web/pnpm-workspace.yaml`):
+
+```yaml
+allowBuilds:
+  dsh-session-bridge: true
+```
+
+then re-run the `add`. That allowance means "run this package's code on my
+machine at install time" — only allow packages whose source you trust, and pin a
+commit (`github:heartmove/dsh-session-bridge#<sha>`) so a later push cannot
+silently change what runs.
+
+Restart `dsh web`, then hard-refresh the page (Ctrl/Cmd+Shift+R).
+
+### Install from a local checkout
+
+From the directory that contains this checkout:
+
+```bash
+npx -p @deepseek-ai/dsh dsh plugin --profile web add ./dsh-session-bridge
+```
+
+pnpm links the checkout and `dsh` activates the bundle the same way.
+
+### Manual link
+
+To manage the profile by hand, link the package and list it as a bundle in
+`~/.dsh/profiles/web/package.json` (the bundle's own `cordis.patch.yml` supplies
+the loader row, so no `insert` entry is needed):
+
+```json
+{
+  "dependencies": {
+    "dsh-session-bridge": "link:D:\\path\\to\\dsh-session-bridge"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-session-bridge"]
+    }
+  }
+}
+```
+
+(On POSIX systems use `link:/path/to/dsh-session-bridge`.) Then run `pnpm install`
+in the profile directory and restart `dsh web`.
+
+### Inject directly (dev)
+
+For fast iteration while developing the plugin, you can also load it directly
+through the injector toolchain (no bundle entry required):
+
+```bash
+dev_inject_plugin D:\code\dsh-session-bridge
+```
+
+Remove it with `dev_uninject_plugin dsh-session-bridge` (clears the injector
+registration and junction; not re-assembled on restart).
+
+## Usage
+
+| Tool | What it does |
+|---|---|
+| `session_bridge_create` | Create a main session (current or another workspace via `workspaceId` / `cwd`); optional first prompt + `waitForReply`; async creates return a `sinceSeq` anchor. |
+| `session_bridge_send` | Send a message (`mode=queue`/`steer`); optional wait-for-reply; async sends return a `sinceSeq` anchor. |
+| `session_bridge_wait` | Wait for new output after `sinceSeq` (default: latest seq at call time; `-1` counts existing events): `waitFor=reply` (text) or `waitFor=segment` (any completed step, no full-turn wait); optional `requireTurnEnd`; falls back to the pre-existing reply with `stale` when nothing new arrives. |
+| `session_bridge_read` | Read messages — live or offline; `sinceSeq` paging, `role` filter, `limit`. |
+| `session_bridge_segments` | Read completed output segments (each finished assistant step) incrementally by paragraph — live or offline. |
+| `session_bridge_resume` | Bring a persisted session back online (idempotent). |
+| `session_bridge_find` | Find sessions by title / id / workspace / directory across workspaces. |
+| `session_bridge_status` | Read a session's live progress (running, open turn, stall detection, pending work, latest reply) plus live/finalized chain-of-thought (`reasoning` param); `[STALLED]` is shown for running sessions only. |
+| `session_bridge_cancel` | Stop a running session (abort active turn; clear queued/steering work unless `keepInbox`). |
+| `session_bridge_monitor_start` | Start a background watchdog on a main session (poll, nudge, correct, cancel, wrap up); supports chain-of-thought `coRules` (e.g. reasoning not-contains "I'm" → cancel) and **chain-of-thought loop detection** (on by default: a hit interrupts the session and transfers the task to a new one, with a subagent policy via `loopDescendants`). |
+| `session_bridge_monitor_stop` | Stop a watchdog (keep the session itself running). |
+| `session_bridge_monitor_list` | List active watchdogs and their state. |
+| `session_bridge_archive` | Archive a session (hidden from groupings; history and position preserved); requires `stopActivity: true` for a running one. Reports the id, the archive size and the newest ids. |
+| `session_bridge_unarchive` | Unarchive a session (visible again at its recorded position; unknown ids are a no-op). |
+| `session_bridge_archived` | List the archive set (newest first, optional `limit`, default 50), optionally resolving titles for the returned ids. |
+
+All tools return lossless JSON; wait-style tools never throw on timeout — they
+return a `timedOut` / `aborted` / `stale` flag.
+
+## Project layout
+
+```
+src/
+  index.ts    host plugin entry (registers the tools; mounts the monitor)
+  core.ts     shared host logic (create/send/wait/read/find, status snapshot, archive attach)
+  tools.ts    tool registrations (bridge + status/cancel + monitor + archive)
+  monitor.ts  the background watchdog loop (statusSnapshot + rules + loop detection/transfer + optional LLM judge)
+  loop-guard.ts  chain-of-thought loop detection (pure: unit split + tail periodic repeat + n-gram fallback)
+  handoff.ts  the handoff prompt (task/context extraction + subagent sections + template)
+  session-create.ts  the single session-creation implementation (shared by the create tool and loop transfer)
+  registry.ts bridge-side title/workspace registry (~/.dsh/session-bridge-registry.json)
+scripts/
+  build.sh    compatibility wrapper for npm run build
+  test-bridge-core.mjs  wait/stall regression tests (npm test)
+  test-loop-guard.mjs  loop-detection regression tests (写。/好。/Go。 shapes, tail window, fallback)
+  test-handoff.mjs  handoff-prompt regression tests (placeholders + subagent sections)
+  test-monitor-loop.mjs  end-to-end watchdog loop tests (transfer, the five subagent scenarios, budget, failure)
+  test-tools-archived.mjs  archive/unarchive + archived-handler regression tests (npm test)
+  check-dsh-compat.mjs  type-check src/ against installed DSH + verify bundle provenance (npm run check:compat)
+  smoke-bundle.mjs  mount the built lib/index.js and assert every tool registers (npm run smoke)
+```
+
+## Lifecycle and unloading
+
+DSH ≥ 0.1.6 mounts and **unloads plugins at runtime** (Settings → Plugins, and
+the injector's hot reload). This plugin unloads cleanly: it registers no
+loader-level state, its tools are disposed with the plugin fiber, and the
+monitor's timer is released through `ctx.effect` on unload.
+
+One consequence of that ownership model: sessions created by
+`session_bridge_create` are owned by the plugin fiber (the agent is created
+under the plugin's context), so **unloading or reloading the plugin stops their
+live agents**. The sessions themselves are persisted and show as offline; bring
+one back with `session_bridge_resume`. Monitor watchdogs also stop on unload.
+
+## License
+
+MIT

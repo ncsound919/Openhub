@@ -47,7 +47,6 @@ export default defineConfig(() => {
             vendor: ['react', 'react-dom', 'react-router-dom'],
             charts: ['recharts'],
             motion: ['motion'],
-            query: ['@tanstack/react-query'],
             icons: ['lucide-react'],
             forms: ['react-hook-form', 'zod'],
             terminal: ['xterm', 'xterm-addon-fit'],
