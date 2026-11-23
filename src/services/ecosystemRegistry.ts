@@ -694,6 +694,16 @@ const SEED: EcosystemEntity[] = [
     blockers: ['Ecosystem folder is not version controlled.'],
     evidence: ['openhub/tests/ecosystemKnowledge.test.ts (>=85 workflows, >=40 references)'],
   }),
+  entity({
+    id: 'desktop-ops', name: 'Desktop-Ops', kind: 'tool', pillar: 'desktop-plane',
+    stack: ['Python', 'Click', 'httpx', 'SQLite'],
+    purpose: 'Desktop execution plane: compiles OSS tools (aider, ffmpeg, semgrep, playwright, etc.) for the overlay365 ecosystem. Runs on an old no-GPU desktop. Headless CLI + MCP server.',
+    repo: 'github.com/ncsound919/desktop-ops', tags: ['desktop', 'oss', 'mcp', 'tools'],
+    auditScore: null, auditSource: 'not-yet-ranked', auditAt: null,
+    factors: f({ deployed: true, buildable: true, verified: true, versionControlled: true, integrated: true, documented: true }),
+    blockers: [],
+    evidence: ['github.com/ncsound919/desktop-ops'],
+  }),
 ];
 
 /**
